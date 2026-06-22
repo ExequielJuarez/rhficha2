@@ -1,0 +1,138 @@
+<style>
+  .topbar {
+    background-color: #ffffff;
+    border-bottom: 1px solid #e2e8f0;
+    height: 70px;
+    padding: 0 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-family: 'DM Sans', sans-serif;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+  }
+  .topbar__actions {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+  }
+  .topbar__notification-btn {
+    background: transparent;
+    border: none;
+    color: #64748b;
+    cursor: pointer;
+    position: relative;
+    padding: 8px;
+    border-radius: 8px;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .topbar__notification-btn:hover {
+    background-color: #f1f5f9;
+    color: #0f172a;
+  }
+  .topbar__notification-btn svg {
+    width: 22px;
+    height: 22px;
+  }
+  .topbar__notification-dot {
+    position: absolute;
+    top: 2px;
+    right: 2px;
+    background-color: #ef4444;
+    color: white;
+    font-size: 10px;
+    font-weight: 700;
+    min-width: 16px;
+    height: 16px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 2px solid white;
+    padding: 0 4px;
+  }
+  .topbar__user {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding-left: 20px;
+    border-left: 1px solid #e2e8f0;
+  }
+  .btn-salir {
+    background-color: #ef4444;
+    color: white;
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 700;
+    text-decoration: none;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 4px rgba(239, 68, 68, 0.2);
+  }
+  .btn-salir:hover {
+    background-color: #dc2626;
+    box-shadow: 0 4px 6px rgba(239, 68, 68, 0.3);
+    transform: translateY(-1px);
+  }
+</style>
+
+<header class="topbar">
+  <button class="topbar__menu-toggle" id="menu-toggle" aria-label="Abrir menú" aria-expanded="false" aria-controls="sidebar" style="background:none; border:none; color:#0f172a; cursor:pointer;">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="24" height="24">
+      <line x1="3" y1="6"  x2="21" y2="6"/>
+      <line x1="3" y1="12" x2="21" y2="12"/>
+      <line x1="3" y1="18" x2="21" y2="18"/>
+    </svg>
+  </button>
+
+  <div class="topbar__mobile-brand" aria-hidden="true" style="display:none; align-items:center; gap:10px;">
+    <img class="imglogosidebarcel" src="/images/header/images-removebg-preview (1).png" alt="Logo" style="height: 32px;">
+    <span style="font-weight: 700; color: #0f172a;">Municipalidad</span>
+  </div>
+
+  <div class="topbar__actions">
+    <button class="topbar__notification-btn" id="notif-btn" aria-label="Notificaciones" onclick="window.location.href='/Alertas'">
+      <svg viewBox="0 0 20 20" fill="currentColor"><path d="M10 2a6 6 0 00-6 6v3.586l-.707.707A1 1 0 004 14h12a1 1 0 00.707-1.707L16 11.586V8a6 6 0 00-6-6zM10 18a3 3 0 01-3-3h6a3 3 0 01-3 3z"/></svg>
+      <span class="topbar__notification-dot" id="notif-badge" style="display: none;">0</span>
+    </button>
+    
+    <div class="topbar__user" role="button" tabindex="0">
+      <% if (typeof usuarioLocal !== 'undefined' && usuarioLocal) { %>
+        <div class="topbar__user-name-wrapper" style="text-align: right; line-height: 1.3;">
+          <span class="topbar__user-name" style="display: block; font-weight: 700; font-size: 14px; color: #0f172a;"><%= usuarioLocal.nombre %> <%= usuarioLocal.apellido %></span>
+          <span style="font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em;"><%= usuarioLocal.rol %></span>
+        </div>
+        <a href="/CerrarSesion" class="btn-salir">Salir</a>
+      <% } else { %>
+        <div class="topbar__user-name-wrapper" style="text-align: right; line-height: 1.3;">
+          <span class="topbar__user-name" style="display: block; font-weight: 700; font-size: 14px; color: #0f172a;">Administrador Sistema</span>
+          <span style="font-size: 11px; font-weight: 700; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em;">Administrador</span>
+        </div>
+        <a href="/CerrarSesion" class="btn-salir">Salir</a>
+      <% } %>
+    </div>
+  </div>
+</header>
+
+<script>
+  document.addEventListener('DOMContentLoaded', async () => {
+    try {
+      const res = await fetch('/Alertas/recientes');
+      if (res.ok) {
+        const data = await res.json();
+        const badge = document.getElementById('notif-badge');
+        
+        if (data.noLeidas && data.noLeidas > 0) {
+          badge.textContent = data.noLeidas > 99 ? '99+' : data.noLeidas;
+          badge.style.display = 'flex';
+        } else {
+          badge.style.display = 'none';
+        }
+      }
+    } catch (err) {
+      console.error('Error sincronizando alertas de la campanita', err);
+    }
+  });
+</script>
