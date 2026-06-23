@@ -137,9 +137,11 @@ router.get("/Auditoria", authMiddleware, auditoriaController.ListarAuditoria);
 router.get("/Reportes", authMiddleware, reporteController.vistaReportes);
 
 router.get("/Siniestros", authMiddleware, siniestroController.ListarSiniestros);
-router.get("/Siniestros/Carga", authMiddleware, siniestroController.CargaSiniestro);
+router.get("/Siniestros/Carga", authMiddleware, siniestroController.CargaSiniestro);  // ← ANTES del :id
+router.get("/Siniestros/:id", authMiddleware, siniestroController.DetalleSiniestro);  // ← DESPUÉS
 router.post("/Siniestros/Carga", authMiddleware, uploadSiniestro.array("archivos", 5), siniestroController.ProcesoCarga);
 router.post("/Siniestros/:id/Estado", authMiddleware, siniestroController.CambiarEstado);
+router.post("/Siniestros/:id/resolver", authMiddleware, siniestroController.CambiarEstado);
 router.post("/Siniestros/Eliminar/:id", authMiddleware, siniestroController.Eliminar);
 
 module.exports = router;

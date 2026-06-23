@@ -42,11 +42,19 @@ const siniestroController = {
 
       const siniestros = await db.Siniestro.findAll({
         where: whereClause,
-        include: [{
-          model: db.Vehiculo,
-          as: 'vehiculo',
-          where: Object.keys(vehiculoWhere).length > 0 ? vehiculoWhere : undefined
-        }],
+        include: [
+          {
+            model: db.Vehiculo,
+            as: 'Vehiculo',
+            where: Object.keys(vehiculoWhere).length > 0 ? vehiculoWhere : undefined,
+            required: false
+          },
+          {
+            model: db.Chofer,
+            as: 'Chofer',
+            required: false
+          }
+        ],
         order: [['fecha_siniestro', 'DESC']]
       });
 
@@ -56,6 +64,24 @@ const siniestroController = {
     } catch (error) {
       console.error(error);
       res.send("Error al cargar modulo de siniestros");
+    }
+  },
+
+  DetalleSiniestro: async (req, res) => {
+    try {
+      const siniestro = await db.Siniestro.findByPk(req.params.id, {
+        include: [
+          { model: db.Vehiculo, as: 'Vehiculo' },
+          { model: db.Chofer, as: 'Chofer', required: false }
+        ]
+      });
+  
+      if (!siniestro) return res.redirect('/Siniestros');
+  
+      res.render("DetalleSiniestro", { siniestro });
+    } catch (error) {
+      console.error(error);
+      res.redirect('/Siniestros');
     }
   },
 
@@ -73,49 +99,94 @@ const siniestroController = {
 
   ProcesoCarga: async (req, res) => {
     try {
-      const { id_vehiculo, chofer_involucrado, fecha_siniestro, ubicacion, relato, tercero_nombre, tercero_patente, tercero_aseguradora, tercero_poliza } = req.body;
-
+      const { 
+        id_vehiculo, 
+        id_chofer,
+        fecha_siniestro, 
+        ubicacion, 
+        descripcion,
+        danos_vehiculo,
+        tercero_vehiculo,
+        tercero_seguro,
+        tercero_conductor,
+        tercero_contacto
+      } = req.body;
+  
       let archivosNombres = [];
       if (req.files && req.files.length > 0) {
-          archivosNombres = req.files.map(file => file.filename);
+        archivosNombres = req.files.map(file => file.filename);
       }
-
+  
       const nuevoSiniestro = await db.Siniestro.create({
         id_vehiculo,
-        chofer_involucrado,
+        id_chofer: id_chofer || null,
         fecha_siniestro,
         ubicacion,
-        relato,
-        tercero_nombre,
-        tercero_patente,
-        tercero_aseguradora,
-        tercero_poliza,
+        relato: descripcion,
+        danos_vehiculo: danos_vehiculo || null,
+        tercero_vehiculo: tercero_vehiculo || null,
+        tercero_seguro: tercero_seguro || null,
+        tercero_conductor: tercero_conductor || null,
+        tercero_contacto: tercero_contacto || null,
         estado: 'EN PROCESO',
-        archivos_adjuntos: archivosNombres.join(",") 
+        archivos_adjuntos: archivosNombres.join(",")
       });
-
-      let userId = req.session && req.session.usuarioLogueado ? req.session.usuarioLogueado.id : 1;
+  
+      await db.Vehiculo.update(
+        { estado_actual: 'En siniestro' },
+        { where: { id_vehiculo } }
+      );
+  
+      if (id_chofer) {
+        await db.Chofer.update(
+          { estado: 'En siniestro' },
+          { where: { id_chofer } }
+        );
+      }
+  
+      let userId = req.session?.usuarioLogueado?.id || 1;
       await registrarAuditoria(userId, "siniestro", nuevoSiniestro.id_siniestro, "CREAR", `Siniestro registrado en: ${ubicacion}`);
-
+  
       res.redirect("/Siniestros");
     } catch (error) {
       console.error(error);
-      res.send("Error al guardar el siniestro");
+      res.send("Error al guardar el siniestro: " + error.message);
     }
   },
 
   CambiarEstado: async (req, res) => {
     try {
-      const { estado } = req.body;
-      await db.Siniestro.update({ estado }, { where: { id_siniestro: req.params.id } });
-
-      let userId = req.session && req.session.usuarioLogueado ? req.session.usuarioLogueado.id : 1;
+      const estado = req.body.estado || 'RESUELTO';
+  
+      // Primero buscamos ANTES de actualizar para tener los datos
+      const siniestro = await db.Siniestro.findByPk(req.params.id);
+      if (!siniestro) return res.redirect('/Siniestros');
+  
+      await siniestro.update({ estado });
+  
+      if (estado === 'RESUELTO') {
+        // Liberar vehículo
+        const vehiculo = await db.Vehiculo.findByPk(siniestro.id_vehiculo);
+        if (vehiculo && vehiculo.estado_actual === 'En siniestro') {
+          await vehiculo.update({ estado_actual: 'Disponible' });
+        }
+  
+        // Liberar chofer
+        if (siniestro.id_chofer) {
+          const chofer = await db.Chofer.findByPk(siniestro.id_chofer);
+          if (chofer && chofer.estado === 'En siniestro') {
+            await chofer.update({ estado: 'Activo' });
+          }
+        }
+      }
+  
+      let userId = req.session?.usuarioLogueado?.id || 1;
       await registrarAuditoria(userId, "siniestro", req.params.id, "EDITAR_ESTADO", `Siniestro ID ${req.params.id} cambió a: ${estado}`);
-
-      res.redirect("/Siniestros");
+  
+      res.redirect('/Siniestros');
     } catch (error) {
       console.error(error);
-      res.redirect("/Siniestros");
+      res.redirect('/Siniestros');
     }
   },
   

@@ -96,27 +96,42 @@ const vehicleController = {
   },
 
   updateEstadoMantenimiento: async (req, res) => {
-  try {
-    const mantenimiento = await db.Mantenimiento.findByPk(req.params.id);
-    if (!mantenimiento) return res.redirect('/Mantenimientos');
-
-    await mantenimiento.update({ estado: req.body.estado });
-
-    // Si lo marcaron como Realizado, ahora sí actualizamos el km
-    if (req.body.estado === 'Realizado') {
-      const kmServicio = parseInt(req.body.km_servicio) || 0;
-      const vehiculo = await db.Vehiculo.findByPk(mantenimiento.id_vehiculo);
-      if (vehiculo && kmServicio > vehiculo.km_actual) {
-        await vehiculo.update({ km_actual: kmServicio });
+    try {
+      const mantenimiento = await db.Mantenimiento.findByPk(req.params.id);
+      if (!mantenimiento) return res.redirect('/Mantenimientos');
+  
+      await mantenimiento.update({ estado: req.body.estado });
+  
+      if (req.body.estado === 'Realizado') {
+        const kmServicio = parseInt(req.body.km_servicio) || 0;
+        const vehiculo = await db.Vehiculo.findByPk(mantenimiento.id_vehiculo);
+        if (vehiculo) {
+          const updates = {};
+          if (kmServicio > vehiculo.km_actual) updates.km_actual = kmServicio;
+  
+          // Verificar si tiene otro mantenimiento activo antes de liberar
+          const otroActivo = await db.Mantenimiento.findOne({
+            where: {
+              id_vehiculo: mantenimiento.id_vehiculo,
+              estado: ['Pendiente', 'En proceso'],
+              id_mantenimiento: { [db.Sequelize.Op.ne]: mantenimiento.id_mantenimiento }
+            }
+          });
+  
+          if (!otroActivo && vehiculo.estado_actual === 'En mantenimiento') {
+            updates.estado_actual = 'Disponible';
+          }
+  
+          if (Object.keys(updates).length > 0) await vehiculo.update(updates);
+        }
       }
+  
+      res.redirect('/Mantenimientos');
+    } catch (error) {
+      console.error(error);
+      res.redirect('/Mantenimientos');
     }
-
-    res.redirect('/Mantenimientos');
-  } catch (error) {
-    console.error(error);
-    res.redirect('/Mantenimientos');
-  }
-},
+  },
 
   processMaintenance: async (req, res) => {
     try {
@@ -124,19 +139,20 @@ const vehicleController = {
       if (req.session && req.session.usuarioLogueado) {
         idUsuario = req.session.usuarioLogueado.id_usuario || req.session.usuarioLogueado.id || 1;
       }
-
+  
       const repuestosCalc = parseFloat(req.body.costo_repuestos) || 0;
       const manoObraCalc = parseFloat(req.body.mano_obra) || 0;
       const totalCalc = parseFloat(req.body.costo_total) || 0;
       const proxKm = req.body.proximo_servicio_km ? parseInt(req.body.proximo_servicio_km) : null;
       const kmServicio = parseInt(req.body.km_servicio) || 0;
-
+      const estadoMantenimiento = req.body.estado;
+  
       const nuevoMantenimiento = await db.Mantenimiento.create({
         id_vehiculo: req.body.id_vehiculo,
         id_usuario: idUsuario,
         fecha_inicio: req.body.fecha_inicio,
         tipo_servicio: req.body.tipo_servicio,
-        estado: req.body.estado,
+        estado: estadoMantenimiento,
         km_servicio: kmServicio,
         proximo_km: proxKm,
         descripcion: req.body.descripcion,
@@ -145,18 +161,25 @@ const vehicleController = {
         mano_obra: manoObraCalc,
         costo_total: totalCalc
       });
-
-      const fechaServicio = new Date(req.body.fecha_inicio);
-      const hoy = new Date();
-      hoy.setHours(0, 0, 0, 0);
-      fechaServicio.setHours(0, 0, 0, 0);
-
+  
+      // ── NUEVO: actualizar estado del vehículo según estado del mantenimiento ──
       const vehiculo = await db.Vehiculo.findByPk(req.body.id_vehiculo);
-      if (vehiculo && kmServicio > vehiculo.km_actual && fechaServicio <= hoy) {
-        await vehiculo.update({ km_actual: kmServicio });
+      if (vehiculo) {
+        if (estadoMantenimiento === 'Pendiente' || estadoMantenimiento === 'En proceso') {
+          await vehiculo.update({ estado_actual: 'En mantenimiento' });
+        } else if (estadoMantenimiento === 'Realizado') {
+          // Si se carga directo como Realizado, actualizar km y mantener/liberar estado
+          if (kmServicio > vehiculo.km_actual) {
+            await vehiculo.update({ km_actual: kmServicio });
+          }
+          // Solo liberar si actualmente estaba En mantenimiento (no tocar si está En uso)
+          if (vehiculo.estado_actual === 'En mantenimiento') {
+            await vehiculo.update({ estado_actual: 'Disponible' });
+          }
+        }
       }
-
-      // 2. Procesar repuestos
+  
+      // repuestos — igual que antes
       if (req.body.id_repuesto) {
         let repuestosIds = req.body.id_repuesto;
         let cantidades = req.body.cantidad;
