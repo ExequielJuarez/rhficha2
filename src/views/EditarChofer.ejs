@@ -127,13 +127,30 @@
 
             <div class="form-group">
               <label>Estado</label>
-              <select class="input <%= errors?.['activo-inactivo'] ? 'input-error' : '' %>" name="activo-inactivo">
-                <option value="">Seleccionar</option>
-                <option value="Activo"   <%= old?.['activo-inactivo'] === 'Activo'   ? 'selected' : '' %>>Activo</option>
-                <option value="Inactivo" <%= old?.['activo-inactivo'] === 'Inactivo' ? 'selected' : '' %>>Inactivo</option>
+              <select class="input <%= errors?.['activo-inactivo'] ? 'input-error' : '' %>"
+                      name="activo-inactivo" id="select-estado">
+                  <option value="">Seleccionar</option>
+                  <option value="Activo"   <%= old?.['activo-inactivo'] === 'Activo'   ? 'selected' : '' %>>Activo</option>
+                  <option value="Inactivo" <%= old?.['activo-inactivo'] === 'Inactivo' ? 'selected' : '' %>>Inactivo</option>
               </select>
-              <% if (errors?.['activo-inactivo']) { %><span class="error"><%= errors['activo-inactivo'].msg %></span><% } %>
-            </div>
+              <% if (errors?.['activo-inactivo']) { %>
+                  <span class="error"><%= errors['activo-inactivo'].msg %></span>
+              <% } %>
+          </div>
+
+          <% const mostrarMotivo = old?.['activo-inactivo'] === 'Inactivo'; %>
+          <div class="form-group" id="grupo-motivo-baja"
+              style="<%= mostrarMotivo ? 'display:block' : 'display:none' %>">
+              <label>Motivo de baja <small>(requerido al desactivar)</small></label>
+              <textarea
+                  class="input input-textarea <%= errors?.motivoBaja ? 'input-error' : '' %>"
+                  name="motivoBaja"
+                  rows="3"
+                  placeholder="Explicá el motivo por el que se da de baja al chofer..."
+              ><%= old?.motivoBaja || chofer?.motivoBaja || '' %></textarea>
+              <% if (errors?.motivoBaja) { %>
+                  <span class="error"><%= errors.motivoBaja.msg %></span>
+              <% } %>
           </div>
 
           <div class="form-row">
@@ -243,6 +260,22 @@
           errorSpan.style.display = 'none';
         }
       });
+    });
+
+    document.addEventListener('DOMContentLoaded', () => {
+        const selectEstado    = document.getElementById('select-estado');
+        const grupoMotivoBaja = document.getElementById('grupo-motivo-baja');
+
+        if (selectEstado && grupoMotivoBaja) {
+            selectEstado.addEventListener('change', function () {
+                if (this.value === 'Inactivo') {
+                    grupoMotivoBaja.style.display = 'block';
+                } else {
+                    grupoMotivoBaja.style.display = 'none';
+                    grupoMotivoBaja.querySelector('textarea').value = '';
+                }
+            });
+        }
     });
   </script>
 

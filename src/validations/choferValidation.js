@@ -94,6 +94,11 @@ const choferVAlidation = () => [
             if (emision > hoy) throw new Error('La fecha de emisión no puede ser futura');
             return true;
         }),
+        
+    body('motivoBaja')
+        .if(body('activo-inactivo').equals('Inactivo'))
+        .notEmpty().withMessage('El motivo de baja es obligatorio al desactivar un chofer')
+        .isLength({ max: 500 }).withMessage('El motivo no puede superar los 500 caracteres'),
 
     body('fecha_vencimiento')
         .notEmpty().withMessage('La fecha de vencimiento es obligatoria').bail()

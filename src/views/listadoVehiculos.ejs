@@ -391,7 +391,7 @@
     function isMobileView() { return window.innerWidth < 900; }
 
     // MAGIA: Leemos si el servidor ya mandó un vehículo seleccionado
-    const haySeleccion = <%= (typeof vehiculoSeleccionado !== 'undefined' && vehiculoSeleccionado) ? 'true' : 'false' %>;
+    const haySeleccion = <%= (typeof vehiculoSeleccionado !== 'undefined' && vehiculoSeleccionado) ? 'true' : 'false' %> ;
 
     // Si entramos a la página, hay vehículo seleccionado y es un celular, abrimos el detalle automáticamente
     if (haySeleccion && isMobileView()) {

@@ -93,6 +93,20 @@ const siniestroController = {
         estado: 'EN PROCESO',
         archivos_adjuntos: archivosNombres.join(",") 
       });
+      
+      // Buscar el vehículo para el nombre de la entidad
+      const vehiculo = await db.Vehiculo.findByPk(id_vehiculo);
+      const patente  = vehiculo ? `(${vehiculo.patente})` : '';
+
+      await db.Alerta.create({
+            tipo:                     'siniestro_activo',
+            prioridad:                'alta',
+            mensaje:                  `Nuevo siniestro registrado en: ${ubicacion}`,
+            entidad_tipo:             'Siniestro',
+            entidad_id:               nuevoSiniestro.id_siniestro,
+            entidad_nombre:           `${patente} - ${chofer_involucrado}`,
+            generada_automaticamente: false
+        });
 
       let userId = req.session && req.session.usuarioLogueado ? req.session.usuarioLogueado.id : 1;
       await registrarAuditoria(userId, "siniestro", nuevoSiniestro.id_siniestro, "CREAR", `Siniestro registrado en: ${ubicacion}`);
@@ -105,18 +119,26 @@ const siniestroController = {
   },
 
   CambiarEstado: async (req, res) => {
-    try {
-      const { estado } = req.body;
-      await db.Siniestro.update({ estado }, { where: { id_siniestro: req.params.id } });
+      try {
+          const { estado } = req.body;
+          await db.Siniestro.update({ estado }, { where: { id_siniestro: req.params.id } });
 
-      let userId = req.session && req.session.usuarioLogueado ? req.session.usuarioLogueado.id : 1;
-      await registrarAuditoria(userId, "siniestro", req.params.id, "EDITAR_ESTADO", `Siniestro ID ${req.params.id} cambió a: ${estado}`);
+          // Si se cierra el siniestro, resolver la alerta
+          if (estado === 'CERRADO' || estado === 'Cerrado' || estado === 'cerrado') {
+              await db.Alerta.update(
+                  { leida: true },
+                  { where: { tipo: 'siniestro_activo', entidad_id: req.params.id, leida: false } }
+              );
+          }
 
-      res.redirect("/Siniestros");
-    } catch (error) {
-      console.error(error);
-      res.redirect("/Siniestros");
-    }
+          let userId = req.session?.usuarioLogueado?.id || 1;
+          await registrarAuditoria(userId, "siniestro", req.params.id, "EDITAR_ESTADO", `Siniestro ID ${req.params.id} cambió a: ${estado}`);
+
+          res.redirect("/Siniestros");
+      } catch (error) {
+          console.error(error);
+          res.redirect("/Siniestros");
+      }
   },
   
   Eliminar: async (req, res) => {

@@ -79,28 +79,19 @@ const alertaService = {
 
   getResumen: async function () {
     try {
-      const [licVencidas, licProximas, docsVencidas] = await Promise.all([
-        db.Alerta.count({ where: { tipo: "licencia_vencida", leida: false } }),
-        db.Alerta.count({ where: { tipo: "licencia_proxima", leida: false } }),
-        db.Alerta.count({ where: { tipo: "documentacion_vencida", leida: false } })
-      ]);
+        const [licVencidas, licProximas, docsVencidas, siniestrosActivos] = await Promise.all([
+            db.Alerta.count({ where: { tipo: 'licencia_vencida',   leida: false } }),
+            db.Alerta.count({ where: { tipo: 'licencia_proxima',   leida: false } }),
+            db.Alerta.count({ where: { tipo: 'documentacion_vencida', leida: false } }),
+            db.Alerta.count({ where: { tipo: 'siniestro_activo',   leida: false } }),
+        ]);
 
-      // LÓGICA SENIOR: Buscamos la verdad absoluta directamente en la tabla Siniestros
-      let siniestrosActivos = 0;
-      if (db.Siniestro) {
-         siniestrosActivos = await db.Siniestro.count({
-             where: {
-                 estado: { [Op.in]: ['EN PROCESO', 'En Proceso', 'En proceso'] }
-             }
-         });
-      }
-
-      return { licVencidas, licProximas, docsVencidas, siniestrosActivos };
+        return { licVencidas, licProximas, docsVencidas, siniestrosActivos };
     } catch (error) {
-      console.log("Error en getResumen:", error);
-      return { licVencidas: 0, licProximas: 0, docsVencidas: 0, siniestrosActivos: 0 };
+        console.log("Error en getResumen:", error);
+        return { licVencidas: 0, licProximas: 0, docsVencidas: 0, siniestrosActivos: 0 };
     }
-  },
+},
 
   getEstadisticasGraficos: async function () {
     try {
@@ -169,19 +160,33 @@ const alertaService = {
         const vencida = diffDias < 0;
 
         const existe = await db.Alerta.findOne({
-          where: { tipo: vencida ? "licencia_vencida" : "licencia_proxima", entidad_id: lic.id_licencia, leida: false },
+            where: {
+                tipo:       vencida ? 'licencia_vencida' : 'licencia_proxima',
+                entidad_id: lic.id_chofer,  // por chofer, no por licencia
+                leida:      false
+            }
         });
-        if (existe) continue;
-
-        await db.Alerta.create({
-          tipo: vencida ? "licencia_vencida" : "licencia_proxima",
-          prioridad: vencida ? "alta" : "media",
-          mensaje: vencida ? `Licencia de ${nombre} vencida hace ${Math.abs(diffDias)} días` : `Licencia de ${nombre} vence en ${diffDias} días`,
-          entidad_tipo: "Chofer",
-          entidad_id: lic.id_chofer,
-          entidad_nombre: nombre,
-          generada_automaticamente: true,
-        });
+        if (existe){
+          // Actualizar en lugar de saltear
+          await existe.update({
+              mensaje:   vencida
+                  ? `Licencia de ${nombre} vencida hace ${Math.abs(diffDias)} días`
+                  : `Licencia de ${nombre} vence en ${diffDias} días`,
+              prioridad: vencida ? 'alta' : 'media'
+          });
+      } else {
+          await db.Alerta.create({
+              tipo:                     vencida ? 'licencia_vencida' : 'licencia_proxima',
+              prioridad:                vencida ? 'alta' : 'media',
+              mensaje:                  vencida
+                  ? `Licencia de ${nombre} vencida hace ${Math.abs(diffDias)} días`
+                  : `Licencia de ${nombre} vence en ${diffDias} días`,
+              entidad_tipo:             'Chofer',
+              entidad_id:               lic.id_chofer,
+              entidad_nombre:           nombre,
+              generada_automaticamente: true,
+          });
+      }
       }
     } catch (error) {
       console.log("Error generando alertas de licencias:", error);
@@ -214,18 +219,27 @@ const alertaService = {
             const msg = vencida ? `RTO/VTV vencida hace ${Math.abs(diffRto)} días` : `RTO/VTV vence en ${diffRto} días`;
 
             const existeRto = await db.Alerta.findOne({
-              where: { tipo: "documentacion_vencida", entidad_id: v.id_vehiculo, mensaje: msg, leida: false },
+                where: {
+                    tipo:       'documentacion_vencida',
+                    entidad_id: v.id_vehiculo,
+                    leida:      false,
+                    mensaje:    { [Op.like]: '%RTO%' }  // distingue RTO de seguro
+                }
             });
+
             if (!existeRto) {
-              await db.Alerta.create({
-                tipo: "documentacion_vencida",
-                prioridad: vencida ? "alta" : "media",
-                mensaje: msg,
-                entidad_tipo: "Vehiculo",
-                entidad_id: v.id_vehiculo,
-                entidad_nombre: `${v.marca} ${v.modelo} (${v.patente})`,
-                generada_automaticamente: true,
-              });
+                await db.Alerta.create({
+                    tipo:                     'documentacion_vencida',
+                    prioridad:                vencida ? 'alta' : 'media',
+                    mensaje:                  msg,
+                    entidad_tipo:             'Vehiculo',
+                    entidad_id:               v.id_vehiculo,
+                    entidad_nombre:           `${v.marca} ${v.modelo} (${v.patente})`,
+                    generada_automaticamente: true,
+                });
+            } else {
+                // Actualizar mensaje y prioridad si cambió
+                await existeRto.update({ mensaje: msg, prioridad: vencida ? 'alta' : 'media' });
             }
           }
         }
@@ -238,19 +252,26 @@ const alertaService = {
             const msg = vencida ? `Póliza de seguro vencida hace ${Math.abs(diffSeguro)} días` : `Póliza de seguro vence en ${diffSeguro} días`;
 
             const existeSeguro = await db.Alerta.findOne({
-              where: { tipo: "documentacion_vencida", entidad_id: v.id_vehiculo, mensaje: msg, leida: false },
+                where: {
+                    tipo:       'documentacion_vencida',
+                    entidad_id: v.id_vehiculo,
+                    leida:      false,
+                    mensaje:    { [Op.like]: '%seguro%' }
+                }
             });
-            if (!existeSeguro) {
+            if (!existeSeguro) if (!existeSeguro) {
               await db.Alerta.create({
-                tipo: "documentacion_vencida",
-                prioridad: vencida ? "alta" : "media",
-                mensaje: msg,
-                entidad_tipo: "Vehiculo",
-                entidad_id: v.id_vehiculo,
-                entidad_nombre: `${v.marca} ${v.modelo} (${v.patente})`,
-                generada_automaticamente: true,
+                  tipo:                     'documentacion_vencida',
+                  prioridad:                vencida ? 'alta' : 'media',
+                  mensaje:                  msg,
+                  entidad_tipo:             'Vehiculo',
+                  entidad_id:               v.id_vehiculo,
+                  entidad_nombre:           `${v.marca} ${v.modelo} (${v.patente})`,
+                  generada_automaticamente: true,
               });
-            }
+          } else {
+              await existeSeguro.update({ mensaje: msg, prioridad: vencida ? 'alta' : 'media' });
+          }
           }
         }
       }

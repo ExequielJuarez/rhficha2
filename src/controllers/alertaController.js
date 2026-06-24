@@ -5,9 +5,7 @@ const db = require("../model/database/models");
 const alertaController = {
   ListAlertas: async (req, res) => {
     try {
-      // LÓGICA SENIOR: Primero forzamos al sistema a revisar todos los vencimientos al día de hoy
-      await alertaService.generarAlertasLicencias();
-      await alertaService.generarAlertasVehiculos();
+      
 
       const filtros = req.query;
 
