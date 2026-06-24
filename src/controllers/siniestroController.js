@@ -131,20 +131,36 @@ const siniestroController = {
         estado: 'EN PROCESO',
         archivos_adjuntos: archivosNombres.join(",")
       });
+
   
-      await db.Vehiculo.update(
-        { estado_actual: 'En siniestro' },
-        { where: { id_vehiculo } }
-      );
-  
-      if (id_chofer) {
-        await db.Chofer.update(
-          { estado: 'En siniestro' },
-          { where: { id_chofer } }
+        await db.Vehiculo.update(
+          { estado_actual: 'En siniestro' },
+          { where: { id_vehiculo } }
         );
-      }
-  
-      let userId = req.session?.usuarioLogueado?.id || 1;
+
+        if (id_chofer) {
+          await db.Chofer.update(
+            { estado: 'En siniestro' },
+            { where: { id_chofer } }
+          );
+        }
+
+        // Lógica de tu compañero: crear alerta automática
+        const vehiculo = await db.Vehiculo.findByPk(id_vehiculo);
+        const patente = vehiculo ? `(${vehiculo.patente})` : '';
+
+        await db.Alerta.create({
+          tipo:                     'siniestro_activo',
+          prioridad:                'alta',
+          mensaje:                  `Nuevo siniestro registrado en: ${ubicacion}`,
+          entidad_tipo:             'Siniestro',
+          entidad_id:               nuevoSiniestro.id_siniestro,
+          entidad_nombre:           `${patente} - ${chofer_involucrado}`,
+          generada_automaticamente: false
+        });
+
+        let userId = req.session?.usuarioLogueado?.id || 1;
+
       await registrarAuditoria(userId, "siniestro", nuevoSiniestro.id_siniestro, "CREAR", `Siniestro registrado en: ${ubicacion}`);
   
       res.redirect("/Siniestros");
@@ -158,26 +174,33 @@ const siniestroController = {
     try {
       const estado = req.body.estado || 'RESUELTO';
   
-      // Primero buscamos ANTES de actualizar para tener los datos
       const siniestro = await db.Siniestro.findByPk(req.params.id);
       if (!siniestro) return res.redirect('/Siniestros');
   
       await siniestro.update({ estado });
   
+      // Tu lógica: liberar vehículo y chofer al resolver
       if (estado === 'RESUELTO') {
-        // Liberar vehículo
         const vehiculo = await db.Vehiculo.findByPk(siniestro.id_vehiculo);
         if (vehiculo && vehiculo.estado_actual === 'En siniestro') {
           await vehiculo.update({ estado_actual: 'Disponible' });
         }
   
-        // Liberar chofer
         if (siniestro.id_chofer) {
           const chofer = await db.Chofer.findByPk(siniestro.id_chofer);
           if (chofer && chofer.estado === 'En siniestro') {
             await chofer.update({ estado: 'Activo' });
           }
         }
+      }
+  
+      // Lógica de tu compañero: marcar alerta como leída al cerrar
+      const estadoNormalizado = estado.toUpperCase();
+      if (estadoNormalizado === 'CERRADO' || estadoNormalizado === 'RESUELTO') {
+        await db.Alerta.update(
+          { leida: true },
+          { where: { tipo: 'siniestro_activo', entidad_id: req.params.id, leida: false } }
+        );
       }
   
       let userId = req.session?.usuarioLogueado?.id || 1;

@@ -906,3 +906,20 @@ ALTER TABLE siniestro
   ALTER TABLE vehiculo ADD COLUMN foto_cedula VARCHAR(255) NULL;
 ALTER TABLE vehiculo ADD COLUMN foto_titulo VARCHAR(255) NULL;
 ALTER TABLE vehiculo ADD COLUMN foto_rto VARCHAR(255) NULL;
+
+ALTER TABLE alerta MODIFY COLUMN tipo ENUM(
+    'licencia_vencida',
+    'licencia_proxima',
+    'mantenimiento_pendiente',
+    'mantenimiento_finalizado',
+    'documentacion_vencida',
+    'vehiculo_fuera_servicio',
+    'vehiculo_en_mantenimiento',
+    'herramienta_devuelta',
+    'prestamo_vencido',
+    'siniestro_activo',
+    'critica',
+    'informativa'
+) NOT NULL;
+
+ALTER TABLE chofer ADD COLUMN motivoBaja TEXT NULL;

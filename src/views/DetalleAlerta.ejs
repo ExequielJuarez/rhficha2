@@ -103,12 +103,27 @@
                         <dt class="vehicle-profile__spec-label">Entidad Afectada</dt>
                         <dd class="vehicle-profile__spec-value">
                             <% if (alerta.entidad_tipo && alerta.entidad_id) { %>
-                                <a href="/<%= alerta.entidad_tipo %>s/<%= alerta.entidad_id %>" style="color: var(--color-blue); text-decoration: none; font-weight: 700; display: inline-flex; align-items: center; gap: 4px;">
-                                    <%= alerta.entidad_nombre %>
-                                    <svg viewBox="0 0 20 20" fill="currentColor" width="14" height="14"><path d="M11 3a1 1 0 100 2h2.586l-6.293 6.293a1 1 0 101.414 1.414L15 6.414V9a1 1 0 102 0V4a1 1 0 00-1-1h-5z"/><path d="M5 5a2 2 0 00-2 2v8a2 2 0 002 2h8a2 2 0 002-2v-3a1 1 0 10-2 0v3H5V7h3a1 1 0 000-2H5z"/></svg>
-                                </a>
+                                <%
+                                const RUTAS_ENTIDAD = {
+                                    'Chofer':      '/Choferes',
+                                    'Vehiculo':    '/Vehicles',
+                                    'Herramienta': '/Tools',
+                                    'Siniestro':   '/Siniestros',
+                                };
+                                const rutaDetalle = RUTAS_ENTIDAD[alerta.entidad_tipo]
+                                    ? `${RUTAS_ENTIDAD[alerta.entidad_tipo]}/${alerta.entidad_id}`
+                                    : null;
+                                %>
+                                <% if (rutaDetalle) { %>
+                                    <a href="<%= rutaDetalle %>" style="color: var(--color-blue); text-decoration: none; font-weight: 700; display: inline-flex; align-items: center; gap: 4px;">
+                                        <%= alerta.entidad_nombre %>
+                                        <svg viewBox="0 0 20 20" fill="currentColor" width="14" height="14"><path d="M11 3a1 1 0 100 2h2.586l-6.293 6.293a1 1 0 101.414 1.414L15 6.414V9a1 1 0 102 0V4a1 1 0 00-1-1h-5z"/><path d="M5 5a2 2 0 00-2 2v8a2 2 0 002 2h8a2 2 0 002-2v-3a1 1 0 10-2 0v3H5V7h3a1 1 0 000-2H5z"/></svg>
+                                    </a>
+                                <% } else { %>
+                                    <strong><%= alerta.entidad_nombre %></strong>
+                                <% } %>
                             <% } else { %>
-                                <strong style="color: var(--color-text-primary);"><%= alerta.entidad_nombre %></strong>
+                                <strong><%= alerta.entidad_nombre %></strong>
                             <% } %>
                         </dd>
                     </div>
@@ -138,15 +153,27 @@
 
                 <div class="action-buttons" style="margin-top: 32px; padding-top: 24px; border-top: 1px solid var(--color-border-light); display: flex; justify-content: flex-end; gap: 12px;">
                     <% if (alerta.entidad_tipo && alerta.entidad_id) { %>
-                        <% const rutaEntidad = alerta.entidad_tipo === 'Chofer' ? '/Choferes' : '/Vehicles'; %>
-                        <a href="<%= rutaEntidad %>" style="background: white; border: 1px solid var(--color-border); padding: 10px 20px; border-radius: 8px; font-weight: 700; font-size: 13px; color: var(--color-text-primary); text-decoration: none; transition: 0.2s; display: inline-flex; align-items: center;">
-                            Ir al Módulo de <%= alerta.entidad_tipo === 'Chofer' ? 'Choferes' : 'Vehículos' %>
-                        </a>
+                        <%
+                        const RUTAS_BTN = {
+                            'Chofer':      '/Choferes',
+                            'Vehiculo':    '/Vehicles',
+                            'Herramienta': '/Tools',
+                            'Siniestro':   '/Siniestros',
+                        };
+                        const rutaBtn = RUTAS_BTN[alerta.entidad_tipo]
+                            ? `${RUTAS_BTN[alerta.entidad_tipo]}/${alerta.entidad_id}`
+                            : null;
+                        %>
+                        <% if (rutaBtn) { %>
+                            <a href="<%= rutaBtn %>" style="background: white; border: 1px solid var(--color-border); padding: 10px 20px; border-radius: 8px; font-weight: 700; font-size: 13px; color: var(--color-text-primary); text-decoration: none; display: inline-flex; align-items: center;">
+                                Ver <%= alerta.entidad_tipo %>
+                            </a>
+                        <% } %>
                     <% } %>
 
                     <% if (!alerta.leida) { %>
-                        <button id="btn-marcar-leida" data-id="<%= alerta.id_alerta %>" style="background: var(--color-primary); border: none; padding: 10px 20px; border-radius: 8px; font-weight: 700; font-size: 13px; color: white; cursor: pointer; transition: 0.2s; display: inline-flex; align-items: center;">
-                            ✓ Marcar como resuelta / leída
+                        <button id="btn-marcar-leida" data-id="<%= alerta.id_alerta %>" style="background: var(--color-primary); border: none; padding: 10px 20px; border-radius: 8px; font-weight: 700; font-size: 13px; color: white; cursor: pointer; display: inline-flex; align-items: center;">
+                            ✓ Marcar como leída
                         </button>
                     <% } %>
                 </div>

@@ -53,6 +53,10 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.DATE,
       allowNull: false
     },
+    motivoBaja: {
+      type: DataTypes.TEXT,
+      allowNull: true
+    },
     estado: {
       type: DataTypes.ENUM('Activo', 'Inactivo'),
       allowNull: false,

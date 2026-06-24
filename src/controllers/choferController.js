@@ -153,7 +153,22 @@ const choferController = {
         fechaIngreso: body.fechaIngreso || null,
         turno: body.Turno || null,
         ...(fotoDocumento && { foto_documento: fotoDocumento }),
+        motivoBaja:      body['activo-inactivo'] === 'Inactivo' ? (body.motivoBaja || null) : null,
       });
+
+      // Crear alerta si cambia a Inactivo
+      if (chofer.estado === 'Activo' && body['activo-inactivo'] === 'Inactivo') {
+          await db.Alerta.create({
+              tipo:                     'informativa',
+              prioridad:                'media',
+              mensaje:                  `Chofer ${chofer.nombre} ${chofer.apellido} dado de baja. Motivo: ${body.motivoBaja}`,
+              entidad_tipo:             'Chofer',
+              entidad_id:               chofer.id_chofer,
+              entidad_nombre:           `${chofer.nombre} ${chofer.apellido}`,
+              generada_automaticamente: false
+          });
+      }
+
 
       const licencia = chofer.licencias?.[0];
 

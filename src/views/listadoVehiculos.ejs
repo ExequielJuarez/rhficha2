@@ -157,6 +157,22 @@
                   Asignar Chofer
                 </a>
               <% } %>
+
+              <% if (vehiculoSeleccionado.foto_cedula) { %>
+                <button onclick="abrirFotoVehiculo('/img/vehiculos/<%= vehiculoSeleccionado.foto_cedula %>')" style="background-color:#f1f5f9;color:#2563eb;border:1px solid #cbd5e1;padding:8px 14px;font-size:12px;font-weight:700;border-radius:6px;cursor:pointer;">
+                  📄 Ver Cédula
+                </button>
+              <% } %>
+              <% if (vehiculoSeleccionado.foto_titulo) { %>
+                <button onclick="abrirFotoVehiculo('/img/vehiculos/<%= vehiculoSeleccionado.foto_titulo %>')" style="background-color:#f1f5f9;color:#2563eb;border:1px solid #cbd5e1;padding:8px 14px;font-size:12px;font-weight:700;border-radius:6px;cursor:pointer;">
+                  📋 Ver Título
+                </button>
+              <% } %>
+              <% if (vehiculoSeleccionado.foto_rto) { %>
+                <button onclick="abrirFotoVehiculo('/img/vehiculos/<%= vehiculoSeleccionado.foto_rto %>')" style="background-color:#f1f5f9;color:#2563eb;border:1px solid #cbd5e1;padding:8px 14px;font-size:12px;font-weight:700;border-radius:6px;cursor:pointer;">
+                  🔧 Ver RTO
+                </button>
+              <% } %>
             </div>
           </div>
 
@@ -353,106 +369,131 @@
   </div>
 
   <script src="/js/sidebar.js"></script>
-  <script>
-    const searchInput = document.querySelector('.vehicle-list-panel__search-input');
-    const toolCards = document.querySelectorAll('.vehicle-card');
+<script>
+  const searchInput = document.querySelector('.vehicle-list-panel__search-input');
+  const toolCards = document.querySelectorAll('.vehicle-card');
+  
+  if (searchInput) {
+    searchInput.addEventListener('input', function(e) {
+      const searchTerm = e.target.value.toLowerCase().trim();
+      toolCards.forEach(card => {
+        const code = card.querySelector('.vehicle-card__plate')?.textContent.toLowerCase() || '';
+        if (code.includes(searchTerm)) card.style.display = ''; 
+        else card.style.display = 'none'; 
+      });
+    });
+  }
+
+  const btnExport = document.getElementById('btn-export-csv');
+  if (btnExport) {
+    btnExport.addEventListener('click', function() {
+      let csvContent = "data:text/csv;charset=utf-8,Patente,Marca,Modelo\n";
+      toolCards.forEach(card => csvContent += `${card.dataset.patente},${card.dataset.marca},${card.dataset.modelo}\n`);
+      const encodedUri = encodeURI(csvContent);
+      const link = document.createElement("a");
+      link.setAttribute("href", encodedUri);
+      link.setAttribute("download", "Flota_Vehiculos.csv");
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    });
+  }
+
+  // ── MODAL FOTOS VEHÍCULO ──
+  const modalVehiculo = document.createElement('div');
+  modalVehiculo.style.cssText = `
+    display:none; position:fixed; inset:0; background:rgba(0,0,0,0.75);
+    z-index:9999; align-items:center; justify-content:center; padding:20px;
+  `;
+  modalVehiculo.innerHTML = `
+    <div style="position:relative; max-width:90vw; max-height:90vh;">
+      <button id="modal-vehiculo-close" style="
+        position:absolute; top:-14px; right:-14px; width:32px; height:32px;
+        background:#fff; border:none; border-radius:50%; font-size:18px;
+        font-weight:800; cursor:pointer; color:#0f172a; line-height:1;
+        box-shadow:0 2px 8px rgba(0,0,0,0.3);
+      ">×</button>
+      <img id="modal-vehiculo-img" src="" alt="Foto"
+        style="max-width:100%; max-height:85vh; border-radius:8px; display:block;">
+    </div>
+  `;
+  document.body.appendChild(modalVehiculo);
+
+  document.getElementById('modal-vehiculo-close').addEventListener('click', () => {
+    modalVehiculo.style.display = 'none';
+  });
+  modalVehiculo.addEventListener('click', (e) => {
+    if (e.target === modalVehiculo) modalVehiculo.style.display = 'none';
+  });
+
+  function abrirFotoVehiculo(src) {
+    document.getElementById('modal-vehiculo-img').src = src;
+    modalVehiculo.style.display = 'flex';
+  }
+
+  // ── LÓGICA DE NAVEGACIÓN MÓVIL (MASTER-DETAIL) ──
+  const listPanel   = document.getElementById('vehicle-list-panel');
+  const detailPanel = document.getElementById('vehicle-detail');
+  const backBtn     = document.getElementById('detail-back-btn');
+  
+  function isMobileView() { return window.innerWidth < 900; }
+
+  const haySeleccion = <%= (typeof vehiculoSeleccionado !== 'undefined' && vehiculoSeleccionado) ? 'true' : 'false' %>;
+
+  if (haySeleccion && isMobileView()) {
+    if (listPanel) listPanel.classList.add('vehicle-list-panel--hidden');
+    if (detailPanel) {
+      detailPanel.classList.add('vehicle-detail--visible');
+      detailPanel.scrollTop = 0;
+    }
+  }
+
+  document.querySelectorAll('.vehicle-card').forEach(card => {
+    card.addEventListener('click', function () {
+      document.querySelectorAll('.vehicle-card').forEach(c => c.classList.remove('vehicle-card--active'));
+      this.classList.add('vehicle-card--active');
+    });
+  });
+
+  if (backBtn) {
+    backBtn.addEventListener('click', function () {
+      listPanel.classList.remove('vehicle-list-panel--hidden');
+      detailPanel.classList.remove('vehicle-detail--visible');
+    });
+  }
+
+  window.addEventListener('resize', function () {
+    if (!isMobileView()) {
+      listPanel.classList.remove('vehicle-list-panel--hidden');
+      detailPanel.classList.remove('vehicle-detail--visible');
+    } else if (haySeleccion) {
+      listPanel.classList.add('vehicle-list-panel--hidden');
+      detailPanel.classList.add('vehicle-detail--visible');
+    }
+  });
+</script>
+
+<script>
+  // ── FIX BOTÓN HAMBURGUESA BLINDADO ──
+  document.addEventListener('DOMContentLoaded', () => {
+    const topbar = document.querySelector('.topbar') || document.querySelector('.app-header');
+    if (!topbar) return;
     
-    if (searchInput) {
-      searchInput.addEventListener('input', function(e) {
-        const searchTerm = e.target.value.toLowerCase().trim();
-        toolCards.forEach(card => {
-          const code = card.querySelector('.vehicle-card__plate')?.textContent.toLowerCase() || '';
-          if (code.includes(searchTerm)) card.style.display = ''; 
-          else card.style.display = 'none'; 
-        });
+    const btnHamburguesa = topbar.querySelector('button') || document.getElementById('menu-toggle');
+    const sidebar = document.getElementById('mi-sidebar-blindado');
+    const overlay = document.getElementById('sb-overlay-blindado');
+
+    if (btnHamburguesa && sidebar && overlay) {
+      const nuevoBtn = btnHamburguesa.cloneNode(true);
+      btnHamburguesa.parentNode.replaceChild(nuevoBtn, btnHamburguesa);
+      nuevoBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        sidebar.classList.toggle('abierto');
+        overlay.classList.toggle('activo');
       });
     }
-
-    const btnExport = document.getElementById('btn-export-csv');
-    if (btnExport) {
-        btnExport.addEventListener('click', function() {
-            let csvContent = "data:text/csv;charset=utf-8,Patente,Marca,Modelo\n";
-            toolCards.forEach(card => csvContent += `${card.dataset.patente},${card.dataset.marca},${card.dataset.modelo}\n`);
-            const encodedUri = encodeURI(csvContent);
-            const link = document.createElement("a");
-            link.setAttribute("href", encodedUri);
-            link.setAttribute("download", "Flota_Vehiculos.csv");
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-        });
-    }
-
-    // ── LÓGICA DE NAVEGACIÓN MÓVIL (MASTER-DETAIL) ──
-    const listPanel   = document.getElementById('vehicle-list-panel');
-    const detailPanel = document.getElementById('vehicle-detail');
-    const backBtn     = document.getElementById('detail-back-btn');
-    
-    function isMobileView() { return window.innerWidth < 900; }
-
-    // MAGIA: Leemos si el servidor ya mandó un vehículo seleccionado
-    const haySeleccion = <%= (typeof vehiculoSeleccionado !== 'undefined' && vehiculoSeleccionado) ? 'true' : 'false' %>;
-
-    // Si entramos a la página, hay vehículo seleccionado y es un celular, abrimos el detalle automáticamente
-    if (haySeleccion && isMobileView()) {
-      if (listPanel) listPanel.classList.add('vehicle-list-panel--hidden');
-      if (detailPanel) {
-        detailPanel.classList.add('vehicle-detail--visible');
-        detailPanel.scrollTop = 0;
-      }
-    }
-
-    document.querySelectorAll('.vehicle-card').forEach(card => {
-      card.addEventListener('click', function () {
-        // En PC mantenemos el highlight activo
-        document.querySelectorAll('.vehicle-card').forEach(c => c.classList.remove('vehicle-card--active'));
-        this.classList.add('vehicle-card--active');
-        
-        // No ocultamos por JS acá porque el <a href="..."> se encarga de recargar la página
-      });
-    });
-
-    if(backBtn) {
-      backBtn.addEventListener('click', function () {
-        listPanel.classList.remove('vehicle-list-panel--hidden');
-        detailPanel.classList.remove('vehicle-detail--visible');
-      });
-    }
-
-    // Resetear vistas si el usuario gira el teléfono o agranda la ventana de PC
-    window.addEventListener('resize', function () {
-      if (!isMobileView()) {
-        listPanel.classList.remove('vehicle-list-panel--hidden');
-        detailPanel.classList.remove('vehicle-detail--visible');
-      } else if (haySeleccion) {
-        listPanel.classList.add('vehicle-list-panel--hidden');
-        detailPanel.classList.add('vehicle-detail--visible');
-      }
-    });
-  </script>
-  <script>
-    // ── FIX BOTÓN HAMBURGUESA BLINDADO ──
-    document.addEventListener('DOMContentLoaded', () => {
-      const topbar = document.querySelector('.topbar') || document.querySelector('.app-header');
-      if (!topbar) return;
-      
-      const btnHamburguesa = topbar.querySelector('button') || document.getElementById('menu-toggle');
-      
-      const sidebar = document.getElementById('mi-sidebar-blindado');
-      const overlay = document.getElementById('sb-overlay-blindado');
-
-      if (btnHamburguesa && sidebar && overlay) {
-        const nuevoBtn = btnHamburguesa.cloneNode(true);
-        btnHamburguesa.parentNode.replaceChild(nuevoBtn, btnHamburguesa);
-
-        nuevoBtn.addEventListener('click', (e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          sidebar.classList.toggle('abierto');
-          overlay.classList.toggle('activo');
-        });
-      }
-    });
-  </script>
+  });
+</script>
 </body>
 </html>

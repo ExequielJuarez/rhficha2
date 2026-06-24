@@ -21,6 +21,7 @@ module.exports = (sequelize, DataTypes) => {
         'vehiculo_fuera_servicio',
         'herramienta_devuelta',
         'prestamo_vencido',
+        'siniestro_activo',
         'critica',
         'informativa'
       ),
