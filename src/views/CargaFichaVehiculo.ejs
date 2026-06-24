@@ -59,7 +59,7 @@
         <p class="page-subtitle">Complete los datos de la ficha técnica del nuevo vehículo.</p>
       </div>
 
-      <form class="form" action="/CargaVehiculo" method="post" id="form-vehiculo" novalidate>
+      <form class="form" action="/CargaVehiculo" method="post" id="form-vehiculo" novalidate enctype="multipart/form-data">
 
         <section class="form-section">
           <h3>Información Básica</h3>
@@ -137,7 +137,7 @@
         </section>
 
         <section class="form-section">
-          <h3>Documentación Legal (Opcional)</h3>
+          <h3>Documentación Legal</h3>
           <div class="form-row">
             <div class="form-group">
               <label>Número de Cédula</label>
@@ -161,6 +161,38 @@
           <div class="form-group small">
             <label>Vencimiento RTO / VTV</label>
             <input name="rto_vencimiento" type="date" id="rto_vencimiento">
+          </div>
+        
+          <div style="margin-top: 20px; display: flex; flex-direction: column; gap: 16px;">
+            <div class="form-group">
+              <label style="font-size:13px; font-weight:600; color:#374151;">Foto de la Cédula</label>
+              <div class="upload-box" style="margin-top: 8px;">
+                <label for="foto_cedula">Haga clic aquí para subir foto de la cédula</label>
+                <span style="font-size: 12px; color: var(--color-text-muted);">Formatos aceptados: JPG, PNG</span>
+                <input type="file" id="foto_cedula" name="foto_cedula" accept="image/*">
+              </div>
+              <div id="preview-cedula" style="font-size:13px;color:var(--color-text-muted);margin-top:6px;">Sin imagen seleccionada</div>
+            </div>
+        
+            <div class="form-group">
+              <label style="font-size:13px; font-weight:600; color:#374151;">Foto del Título del Vehículo</label>
+              <div class="upload-box" style="margin-top: 8px;">
+                <label for="foto_titulo">Haga clic aquí para subir foto del título</label>
+                <span style="font-size: 12px; color: var(--color-text-muted);">Formatos aceptados: JPG, PNG</span>
+                <input type="file" id="foto_titulo" name="foto_titulo" accept="image/*">
+              </div>
+              <div id="preview-titulo" style="font-size:13px;color:var(--color-text-muted);margin-top:6px;">Sin imagen seleccionada</div>
+            </div>
+        
+            <div class="form-group">
+              <label style="font-size:13px; font-weight:600; color:#374151;">Foto del RTO / VTV <span style="font-weight:400;color:#94a3b8;">(Opcional)</span></label>
+              <div class="upload-box" style="margin-top: 8px;">
+                <label for="foto_rto">Haga clic aquí para subir foto del RTO</label>
+                <span style="font-size: 12px; color: var(--color-text-muted);">Formatos aceptados: JPG, PNG</span>
+                <input type="file" id="foto_rto" name="foto_rto" accept="image/*">
+              </div>
+              <div id="preview-rto" style="font-size:13px;color:var(--color-text-muted);margin-top:6px;">Sin imagen seleccionada</div>
+            </div>
           </div>
         </section>
 
@@ -223,80 +255,114 @@
   </div>
   
   <script src="/js/sidebar.js"></script>
-  <script>
-    document.addEventListener('DOMContentLoaded', () => {
-      const topbar = document.querySelector('.topbar') || document.querySelector('.app-header');
-      if (!topbar) return;
-      const btnHamburguesa = topbar.querySelector('button') || document.getElementById('menu-toggle');
-      const sidebar = document.getElementById('mi-sidebar-blindado');
-      const overlay = document.getElementById('sb-overlay-blindado');
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    const topbar = document.querySelector('.topbar') || document.querySelector('.app-header');
+    if (!topbar) return;
+    const btnHamburguesa = topbar.querySelector('button') || document.getElementById('menu-toggle');
+    const sidebar = document.getElementById('mi-sidebar-blindado');
+    const overlay = document.getElementById('sb-overlay-blindado');
 
-      if (btnHamburguesa && sidebar && overlay) {
-        const nuevoBtn = btnHamburguesa.cloneNode(true);
-        btnHamburguesa.parentNode.replaceChild(nuevoBtn, btnHamburguesa);
-        nuevoBtn.addEventListener('click', (e) => {
-          e.preventDefault(); e.stopPropagation();
-          sidebar.classList.toggle('abierto'); overlay.classList.toggle('activo');
-        });
-      }
-    });
-
-    function setError(inputId, errId, msg) {
-      const el = document.getElementById(inputId);
-      const er = document.getElementById(errId);
-      if (msg) { el?.classList.add('input-error'); if (er) er.textContent = msg; } 
-      else { el?.classList.remove('input-error'); if (er) er.textContent = ''; }
-    }
-
-    function limpiarErrores() {
-      document.querySelectorAll('.input-error').forEach(el => el.classList.remove('input-error'));
-      document.querySelectorAll('.field-error').forEach(el => el.textContent = '');
-    }
-
-    document.getElementById('form-vehiculo').addEventListener('submit', function (e) {
-      e.preventDefault();
-      limpiarErrores();
-      let valido = true;
-      const anioActual = new Date().getFullYear();
-
-      const inputs = {
-        patente: { val: document.getElementById('patente').value.trim(), err: 'La patente es obligatoria.' },
-        id_tipo: { val: document.getElementById('id_tipo').value, err: 'Seleccioná un tipo de vehículo.' },
-        marca: { val: document.getElementById('marca').value.trim(), err: 'La marca es obligatoria.' },
-        modelo: { val: document.getElementById('modelo').value.trim(), err: 'El modelo es obligatorio.' },
-        chasis: { val: document.getElementById('chasis').value.trim(), err: 'El número de chasis es obligatorio.' },
-        num_motor: { val: document.getElementById('num_motor').value.trim(), err: 'El número de motor es obligatorio.' },
-        estado_actual: { val: document.getElementById('estado_actual').value, err: 'Seleccioná un estado.' },
-        fecha_alta: { val: document.getElementById('fecha_alta').value, err: 'La fecha de alta es obligatoria.' }
-      };
-
-      for (const [id, data] of Object.entries(inputs)) {
-        if (!data.val) { setError(id, 'err-' + (id==='id_tipo'?'tipo':id==='num_motor'?'motor':id==='estado_actual'?'estado':id==='fecha_alta'?'fecha-alta':id), data.err); valido = false; }
-      }
-
-      const anio = parseInt(document.getElementById('anio').value);
-      if (!anio || anio < 1900 || anio > anioActual) { setError('anio', 'err-anio', `El año debe estar entre 1900 y ${anioActual}.`); valido = false; }
-
-      const km = document.getElementById('km_actual').value;
-      if (km === '' || km < 0) { setError('km_actual', 'err-km', 'El kilometraje es obligatorio y no puede ser negativo.'); valido = false; }
-
-      const fechaAlta = document.getElementById('fecha_alta').value;
-      if (fechaAlta && anio) {
-        const anioAlta = new Date(fechaAlta).getFullYear();
-        if (anioAlta < anio) { setError('fecha_alta', 'err-fecha-alta', 'La fecha de alta no puede ser anterior al año del vehículo.'); valido = false; }
-      }
-
-      if (valido) this.submit();
-    });
-
-    ['patente','id_tipo','marca','modelo','anio','chasis','num_motor','estado_actual','km_actual','fecha_alta'].forEach(id => {
-      document.getElementById(id)?.addEventListener('input', function () {
-        this.classList.remove('input-error');
-        const errId = 'err-' + { patente: 'patente', id_tipo: 'tipo', marca: 'marca', modelo: 'modelo', anio: 'anio', chasis: 'chasis', num_motor: 'motor', estado_actual: 'estado', km_actual: 'km', fecha_alta: 'fecha-alta' }[id];
-        const er = document.getElementById(errId);
-        if (er) er.textContent = '';
+    if (btnHamburguesa && sidebar && overlay) {
+      const nuevoBtn = btnHamburguesa.cloneNode(true);
+      btnHamburguesa.parentNode.replaceChild(nuevoBtn, btnHamburguesa);
+      nuevoBtn.addEventListener('click', (e) => {
+        e.preventDefault(); e.stopPropagation();
+        sidebar.classList.toggle('abierto'); overlay.classList.toggle('activo');
       });
+    }
+  });
+
+  function setError(inputId, errId, msg) {
+    const el = document.getElementById(inputId);
+    const er = document.getElementById(errId);
+    if (msg) { el?.classList.add('input-error'); if (er) er.textContent = msg; }
+    else { el?.classList.remove('input-error'); if (er) er.textContent = ''; }
+  }
+
+  function limpiarErrores() {
+    document.querySelectorAll('.input-error').forEach(el => el.classList.remove('input-error'));
+    document.querySelectorAll('.field-error').forEach(el => el.textContent = '');
+  }
+
+  document.getElementById('form-vehiculo').addEventListener('submit', function (e) {
+    e.preventDefault();
+    limpiarErrores();
+    let valido = true;
+    const anioActual = new Date().getFullYear();
+
+    const inputs = {
+      patente:       { val: document.getElementById('patente').value.trim(),       err: 'La patente es obligatoria.' },
+      id_tipo:       { val: document.getElementById('id_tipo').value,              err: 'Seleccioná un tipo de vehículo.' },
+      marca:         { val: document.getElementById('marca').value.trim(),         err: 'La marca es obligatoria.' },
+      modelo:        { val: document.getElementById('modelo').value.trim(),        err: 'El modelo es obligatorio.' },
+      chasis:        { val: document.getElementById('chasis').value.trim(),        err: 'El número de chasis es obligatorio.' },
+      num_motor:     { val: document.getElementById('num_motor').value.trim(),     err: 'El número de motor es obligatorio.' },
+      estado_actual: { val: document.getElementById('estado_actual').value,        err: 'Seleccioná un estado.' },
+      fecha_alta:    { val: document.getElementById('fecha_alta').value,           err: 'La fecha de alta es obligatoria.' }
+    };
+
+    const errIds = {
+      patente: 'err-patente', id_tipo: 'err-tipo', marca: 'err-marca',
+      modelo: 'err-modelo', chasis: 'err-chasis', num_motor: 'err-motor',
+      estado_actual: 'err-estado', fecha_alta: 'err-fecha-alta'
+    };
+
+    for (const [id, data] of Object.entries(inputs)) {
+      if (!data.val) { setError(id, errIds[id], data.err); valido = false; }
+    }
+
+    const anio = parseInt(document.getElementById('anio').value);
+    if (!anio || anio < 1900 || anio > anioActual) {
+      setError('anio', 'err-anio', `El año debe estar entre 1900 y ${anioActual}.`);
+      valido = false;
+    }
+
+    const km = document.getElementById('km_actual').value;
+    if (km === '' || Number(km) < 0) {
+      setError('km_actual', 'err-km', 'El kilometraje es obligatorio y no puede ser negativo.');
+      valido = false;
+    }
+
+    const fechaAlta = document.getElementById('fecha_alta').value;
+    if (fechaAlta && anio) {
+      const anioAlta = new Date(fechaAlta).getFullYear();
+      if (anioAlta < anio) {
+        setError('fecha_alta', 'err-fecha-alta', 'La fecha de alta no puede ser anterior al año del vehículo.');
+        valido = false;
+      }
+    }
+
+    if (valido) this.submit();
+  });
+
+  ['patente','id_tipo','marca','modelo','anio','chasis','num_motor','estado_actual','km_actual','fecha_alta'].forEach(id => {
+    const errIds = {
+      patente: 'err-patente', id_tipo: 'err-tipo', marca: 'err-marca',
+      modelo: 'err-modelo', anio: 'err-anio', chasis: 'err-chasis',
+      num_motor: 'err-motor', estado_actual: 'err-estado',
+      km_actual: 'err-km', fecha_alta: 'err-fecha-alta'
+    };
+    document.getElementById(id)?.addEventListener('input', function () {
+      this.classList.remove('input-error');
+      const er = document.getElementById(errIds[id]);
+      if (er) er.textContent = '';
     });
-  </script>
+  });
+
+  // Previews de fotos
+  ['cedula', 'titulo', 'rto'].forEach(nombre => {
+    document.getElementById(`foto_${nombre}`)?.addEventListener('change', function(e) {
+      const p = document.getElementById(`preview-${nombre}`);
+      if (e.target.files.length > 0) {
+        p.innerHTML = `Archivo seleccionado: <strong>${e.target.files[0].name}</strong>`;
+        p.style.color = 'var(--color-blue)';
+      } else {
+        p.innerHTML = 'Sin imagen seleccionada';
+        p.style.color = 'var(--color-text-muted)';
+      }
+    });
+  });
+</script>
 </body>
 </html>

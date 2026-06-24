@@ -2,10 +2,9 @@ const path = require("path");
 const fs = require("fs");
 const db = require("../model/database/models");
 const choferService = require("../data/choferService");
-const auditoriaService = require("../data/auditoriaService"); // <-- Conectamos al Espía
+const auditoriaService = require("../data/auditoriaService");
 const { validationResult } = require("express-validator");
 
-// Formateador a prueba de Zonas Horarias
 const formatYMD = (dateObj) => {
   if (!dateObj) return "";
   const d = new Date(dateObj);
@@ -62,15 +61,14 @@ const choferController = {
       }
 
       let newChofer = await choferService.create(req);
-      
-      // LÓGICA DE AUDITORÍA: Registrar Alta
+
       const userId = req.session?.usuarioLogueado?.id || 1;
       await auditoriaService.registrarAuditoria(
-        userId, 
-        "chofer", 
-        newChofer.id_chofer, 
-        "CREAR", 
-        null, 
+        userId,
+        "chofer",
+        newChofer.id_chofer,
+        "CREAR",
+        null,
         { nombre: req.body.nombre, apellido: req.body.apellido, dni: req.body.dni },
         `Alta de chofer: ${req.body.nombre} ${req.body.apellido}`
       );
@@ -139,7 +137,9 @@ const choferController = {
       }
 
       const body = req.body;
-      const nombreImagen = req.file ? req.file.filename : undefined;
+      const nombreImagen  = req.files?.imagen?.[0]?.filename        || undefined;
+      const fotoDocumento = req.files?.foto_documento?.[0]?.filename || undefined;
+      const fotoLicencia  = req.files?.foto_licencia?.[0]?.filename  || undefined;
 
       await choferService.update(req.params.id, {
         nombre: body.nombre,
@@ -152,6 +152,7 @@ const choferController = {
         fechaNacimiento: body.fechaNacimiento || null,
         fechaIngreso: body.fechaIngreso || null,
         turno: body.Turno || null,
+        ...(fotoDocumento && { foto_documento: fotoDocumento }),
       });
 
       const licencia = chofer.licencias?.[0];
@@ -163,8 +164,8 @@ const choferController = {
         fecha_vencimiento: body.fecha_vencimiento || null,
       };
 
-      if (nombreImagen) {
-        datosLicencia.imagen = nombreImagen;
+      if (fotoLicencia) {
+        datosLicencia.imagen = fotoLicencia;
       }
 
       if (licencia) {
@@ -176,14 +177,13 @@ const choferController = {
         await db.LicenciaChofer.create(datosLicencia);
       }
 
-      // LÓGICA DE AUDITORÍA: Registrar Edición
       const userId = req.session?.usuarioLogueado?.id || 1;
       await auditoriaService.registrarAuditoria(
-        userId, 
-        "chofer", 
-        req.params.id, 
-        "EDITAR", 
-        { nombre: chofer.nombre, apellido: chofer.apellido, estado: chofer.estado }, 
+        userId,
+        "chofer",
+        req.params.id,
+        "EDITAR",
+        { nombre: chofer.nombre, apellido: chofer.apellido, estado: chofer.estado },
         { nombre: body.nombre, apellido: body.apellido, estado: body["activo-inactivo"] },
         `Edición de chofer ID: ${req.params.id} (${body.nombre} ${body.apellido})`
       );
@@ -198,9 +198,13 @@ const choferController = {
   desactivarChofer: async (req, res) => {
     try {
       await choferService.update(req.params.id, { estado: "Inactivo" });
-      
+
       const userId = req.session?.usuarioLogueado?.id || 1;
-      await auditoriaService.registrarAuditoria(userId, "chofer", req.params.id, "EDITAR", null, { estado: "Inactivo" }, `Desactivación de chofer ID: ${req.params.id}`);
+      await auditoriaService.registrarAuditoria(
+        userId, "chofer", req.params.id, "EDITAR",
+        null, { estado: "Inactivo" },
+        `Desactivación de chofer ID: ${req.params.id}`
+      );
 
       return res.redirect("/Choferes");
     } catch (error) {
@@ -214,7 +218,11 @@ const choferController = {
       await choferService.update(req.params.id, { estado: "Activo" });
 
       const userId = req.session?.usuarioLogueado?.id || 1;
-      await auditoriaService.registrarAuditoria(userId, "chofer", req.params.id, "EDITAR", null, { estado: "Activo" }, `Activación de chofer ID: ${req.params.id}`);
+      await auditoriaService.registrarAuditoria(
+        userId, "chofer", req.params.id, "EDITAR",
+        null, { estado: "Activo" },
+        `Activación de chofer ID: ${req.params.id}`
+      );
 
       return res.redirect("/Choferes");
     } catch (error) {
@@ -222,6 +230,29 @@ const choferController = {
       return res.send("Error");
     }
   },
+
+  getTodosJSON: async (req, res) => {
+    try {
+      const buscar = req.query.buscar || "";
+      const where = {};
+      if (buscar) {
+        where[db.Sequelize.Op.or] = [
+          { nombre: { [db.Sequelize.Op.like]: `%${buscar}%` } },
+          { apellido: { [db.Sequelize.Op.like]: `%${buscar}%` } },
+          { dni: { [db.Sequelize.Op.like]: `%${buscar}%` } },
+        ];
+      }
+      const choferes = await db.Chofer.findAll({
+        where,
+        include: [{ model: db.LicenciaChofer, as: "licencias" }],
+        order: [["apellido", "ASC"]],
+      });
+      res.json(choferes);
+    } catch (error) {
+      console.log(error);
+      res.json([]);
+    }
+  }
 };
 
 module.exports = choferController;

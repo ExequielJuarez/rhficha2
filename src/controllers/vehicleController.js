@@ -352,7 +352,7 @@ const vehicleController = {
 
   processEditVehiculo: async (req, res) => {
     try {
-      await vehicleService.update(req.params.id, req.body);
+      await vehicleService.update(req.params.id, req.body, req.files || {});
       res.redirect(`/Vehicles/${req.params.id}`);
     } catch (error) { res.send("Error al actualizar"); }
   },
@@ -362,7 +362,11 @@ const vehicleController = {
       const asignaciones = await vehicleService.getVehiculosAsignados();
       const historial = await vehicleService.getHistorialKm();
       const vehiculosConHistorial = await vehicleService.getVehiculosConHistorial();
-      res.render("ActualizarKm", { asignaciones, historial, vehiculosConHistorial });
+      const todosVehiculos = await db.Vehiculo.findAll({          // <-- NUEVO
+        attributes: ['id_vehiculo', 'patente', 'marca', 'modelo', 'km_actual'],
+        order: [['patente', 'ASC']]
+      });
+      res.render("ActualizarKm", { asignaciones, historial, vehiculosConHistorial, todosVehiculos });
     } catch (error) { res.send("Error al cargar la vista"); }
   },
 

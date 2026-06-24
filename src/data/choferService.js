@@ -14,7 +14,6 @@ const choferService = {
         ];
       }
 
-      //estado
       if (filtros.estado) {
         where.estado = filtros.estado;
       }
@@ -53,7 +52,6 @@ const choferService = {
         ],
       };
 
-      // Paginación
       const limite = parseInt(filtros.limite) || 8;
       const pagina = parseInt(filtros.pagina) || 1;
       const offset = (pagina - 1) * limite;
@@ -105,8 +103,10 @@ const choferService = {
   create: async function (req) {
     try {
       const body = req.body;
-
       const estado = body["activo-inactivo"];
+
+      const fotoDocumento = req.files?.foto_documento?.[0]?.filename || null;
+      const fotoLicencia  = req.files?.foto_licencia?.[0]?.filename  || null;
 
       let newChofer = await db.Chofer.create({
         nombre: body.nombre,
@@ -119,9 +119,8 @@ const choferService = {
         fechaNacimiento: body.fechaNacimiento || null,
         fechaIngreso: body.fechaIngreso || null,
         turno: body.Turno || null,
+        foto_documento: fotoDocumento,
       });
-
-      const nombreImagen = req.file ? req.file.filename : null;
 
       await db.LicenciaChofer.create({
         id_chofer: newChofer.id_chofer,
@@ -129,7 +128,7 @@ const choferService = {
         categoria: body.categoria,
         fecha_emision: body.fecha_emision,
         fecha_vencimiento: body.fecha_vencimiento,
-        imagen: nombreImagen,
+        imagen: fotoLicencia,
       });
 
       return newChofer;
@@ -144,7 +143,6 @@ const choferService = {
       await db.Chofer.update(data, {
         where: { id_chofer: id },
       });
-
       return true;
     } catch (error) {
       console.log(error);

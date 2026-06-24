@@ -122,6 +122,19 @@ module.exports = (sequelize, DataTypes) => {
       fecha_baja: {
         type: DataTypes.DATEONLY,
       },
+
+      foto_cedula: {
+        type: DataTypes.STRING(255),
+        allowNull: true,
+      },
+      foto_titulo: {
+        type: DataTypes.STRING(255),
+        allowNull: true,
+      },
+      foto_rto: {
+        type: DataTypes.STRING(255),
+        allowNull: true,
+      }
     },
     {
       tableName: "vehiculo",

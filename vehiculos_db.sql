@@ -890,3 +890,19 @@ UNLOCK TABLES;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
 -- Dump completed on 2026-06-17 17:39:27
+
+ALTER TABLE siniestro 
+  ADD COLUMN id_chofer INT NULL,
+  ADD COLUMN danos_vehiculo TEXT NULL,
+  ADD COLUMN tercero_vehiculo VARCHAR(100) NULL,
+  ADD COLUMN tercero_seguro VARCHAR(100) NULL,
+  ADD COLUMN tercero_conductor VARCHAR(100) NULL,
+  ADD COLUMN tercero_contacto VARCHAR(100) NULL;
+  
+  SHOW COLUMNS FROM chofer LIKE 'estado';
+  
+  ALTER TABLE chofer ADD COLUMN foto_documento VARCHAR(255) NULL;
+  
+  ALTER TABLE vehiculo ADD COLUMN foto_cedula VARCHAR(255) NULL;
+ALTER TABLE vehiculo ADD COLUMN foto_titulo VARCHAR(255) NULL;
+ALTER TABLE vehiculo ADD COLUMN foto_rto VARCHAR(255) NULL;

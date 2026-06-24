@@ -49,37 +49,26 @@ const vehicleService = {
     try {
       let newVehicle = await db.Vehiculo.create({
         patente: req.body.patente,
-
         id_tipo: req.body.id_tipo,
-
         marca: req.body.marca,
-
         modelo: req.body.modelo,
-
         anio: req.body.anio,
-
         num_chasis: req.body.chasis,
-
         num_motor: req.body.num_motor,
-
         transmision: req.body.transmision,
-
         estado_actual: req.body.estado_actual,
-
         km_actual: req.body.km_actual,
-
         distrito: req.body.distrito,
-
         fecha_alta: req.body.fecha_alta,
-
-        // --- NUEVA DOCUMENTACIÓN ---
         cedula_numero: req.body.cedula_numero || null,
         cedula_titular: req.body.cedula_titular || null,
         seguro_compania: req.body.seguro_compania || null,
         seguro_vencimiento: req.body.seguro_vencimiento || null,
         rto_vencimiento: req.body.rto_vencimiento || null,
+        foto_cedula: req.files?.foto_cedula?.[0]?.filename || null,
+        foto_titulo: req.files?.foto_titulo?.[0]?.filename || null,
+        foto_rto:    req.files?.foto_rto?.[0]?.filename    || null,
       });
-
       return newVehicle;
     } catch (error) {
       console.log(error);
@@ -169,27 +158,26 @@ const vehicleService = {
       console.log(error);
     }
   },
-  update: async function (id, body) {
+  update: async function (id, body, files = {}) {
     try {
-      await db.Vehiculo.update(
-        {
-          estado_actual: body.estado_actual,
-          km_actual: body.km_actual,
-          distrito: body.distrito,
-          observaciones: body.observaciones,
-          fecha_baja: body.fecha_baja || null,
-
-          // --- NUEVA DOCUMENTACIÓN (para cuando editemos) ---
-          cedula_numero: body.cedula_numero || null,
-          cedula_titular: body.cedula_titular || null,
-          seguro_compania: body.seguro_compania || null,
-          seguro_vencimiento: body.seguro_vencimiento || null,
-          rto_vencimiento: body.rto_vencimiento || null,
-        },
-        {
-          where: { id_vehiculo: id },
-        },
-      );
+      const datos = {
+        estado_actual: body.estado_actual,
+        km_actual: body.km_actual,
+        distrito: body.distrito,
+        observaciones: body.observaciones,
+        fecha_baja: body.fecha_baja || null,
+        cedula_numero: body.cedula_numero || null,
+        cedula_titular: body.cedula_titular || null,
+        seguro_compania: body.seguro_compania || null,
+        seguro_vencimiento: body.seguro_vencimiento || null,
+        rto_vencimiento: body.rto_vencimiento || null,
+      };
+  
+      if (files?.foto_cedula?.[0]) datos.foto_cedula = files.foto_cedula[0].filename;
+      if (files?.foto_titulo?.[0]) datos.foto_titulo = files.foto_titulo[0].filename;
+      if (files?.foto_rto?.[0])    datos.foto_rto    = files.foto_rto[0].filename;
+  
+      await db.Vehiculo.update(datos, { where: { id_vehiculo: id } });
     } catch (error) {
       console.log(error);
     }

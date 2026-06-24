@@ -1,4 +1,3 @@
-// src/model/database/models/Chofer.js
 module.exports = (sequelize, DataTypes) => {
   const Chofer = sequelize.define('Chofer', {
     id_chofer: {
@@ -39,8 +38,12 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: true
     },
     turno: {
-    type: DataTypes.ENUM('Mañana', 'Tarde'),
-    allowNull: true       
+      type: DataTypes.ENUM('Mañana', 'Tarde'),
+      allowNull: true
+    },
+    foto_documento: {                        // <-- NUEVO
+      type: DataTypes.STRING(255),
+      allowNull: true
     },
     createdAt: {
       type: DataTypes.DATE,
@@ -61,18 +64,15 @@ module.exports = (sequelize, DataTypes) => {
   });
 
   Chofer.associate = function(models) {
-  Chofer.hasMany(models.LicenciaChofer, {
-    foreignKey: 'id_chofer',
-    as: 'licencias'
-  });
-
-  Chofer.hasMany(models.AsignacionVehiculo, {
-    foreignKey: 'id_chofer',
-    as: 'asignaciones'
-  });
-};
-
- 
+    Chofer.hasMany(models.LicenciaChofer, {
+      foreignKey: 'id_chofer',
+      as: 'licencias'
+    });
+    Chofer.hasMany(models.AsignacionVehiculo, {
+      foreignKey: 'id_chofer',
+      as: 'asignaciones'
+    });
+  };
 
   return Chofer;
 };

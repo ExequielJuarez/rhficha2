@@ -108,6 +108,17 @@
             <input class="<%= errors?.direccion ? 'input-error' : '' %>" name="direccion" type="text" placeholder="Calle y número" value="<%= old?.direccion || '' %>">
             <% if (errors?.direccion) { %><span class="error"><%= errors.direccion.msg %></span><% } %>
           </div>
+
+          <div class="form-section" style="margin-top: 16px;">
+            <label style="font-size:13px; font-weight:600; color:#374151;">Foto del Documento (DNI)</label>
+            <div class="upload-box" style="margin-top: 8px;">
+              <label for="foto_documento">Haga clic aquí para subir foto del DNI</label>
+              <span style="font-size: 12px; color: var(--color-text-muted);">Formatos aceptados: JPG, PNG</span>
+              <input type="file" id="foto_documento" name="foto_documento" accept="image/*">
+            </div>
+            <div id="preview-documento" style="font-size:13px; color:var(--color-text-muted); margin-top:6px;">Sin imagen seleccionada</div>
+          </div>
+
         </section>
 
         <section class="form-section">
@@ -179,6 +190,16 @@
               <% if (errors?.fecha_vencimiento) { %><span class="error"><%= errors.fecha_vencimiento.msg %></span><% } %>
             </div>
           </div>
+
+          <div style="margin-top: 16px;">
+            <label style="font-size:13px; font-weight:600; color:#374151;">Foto de la Licencia</label>
+            <div class="upload-box" style="margin-top: 8px;">
+              <label for="foto_licencia">Haga clic aquí para subir foto de la licencia</label>
+              <span style="font-size: 12px; color: var(--color-text-muted);">Formatos aceptados: JPG, PNG</span>
+              <input type="file" id="foto_licencia" name="foto_licencia" accept="image/*">
+            </div>
+            <div id="preview-licencia" style="font-size:13px; color:var(--color-text-muted); margin-top:6px;">Sin imagen seleccionada</div>
+          </div>
         </section>
 
         <section class="form-section">
@@ -215,6 +236,28 @@
   
   <script src="/js/sidebar.js"></script>
   <script>
+
+document.getElementById('foto_documento').addEventListener('change', function(e) {
+  const p = document.getElementById('preview-documento');
+  if (e.target.files.length > 0) {
+    p.innerHTML = `Archivo seleccionado: <strong>${e.target.files[0].name}</strong>`;
+    p.style.color = 'var(--color-blue)';
+  } else {
+    p.innerHTML = 'Sin imagen seleccionada';
+    p.style.color = 'var(--color-text-muted)';
+  }
+});
+
+document.getElementById('foto_licencia').addEventListener('change', function(e) {
+  const p = document.getElementById('preview-licencia');
+  if (e.target.files.length > 0) {
+    p.innerHTML = `Archivo seleccionado: <strong>${e.target.files[0].name}</strong>`;
+    p.style.color = 'var(--color-blue)';
+  } else {
+    p.innerHTML = 'Sin imagen seleccionada';
+    p.style.color = 'var(--color-text-muted)';
+  }
+});
     /* ── FIX BOTÓN HAMBURGUESA BLINDADO ── */
     document.addEventListener('DOMContentLoaded', () => {
       const topbar = document.querySelector('.topbar') || document.querySelector('.app-header');
