@@ -20,8 +20,7 @@
     .btn-filtrar:hover { background-color: #1e293b; }
     .btn-limpiar { background-color: var(--color-bg); color: var(--color-text-secondary); padding: 10px 20px; border-radius: var(--radius-md); font-weight: 700; font-size: 13px; border: 1px solid var(--color-border); cursor: pointer; height: 42px; transition: 0.2s; text-decoration: none; display: inline-flex; align-items: center; justify-content: center;}
     .btn-limpiar:hover { background-color: #e2e8f0; color: var(--color-primary);}
-
-    /* ── ADAPTACIÓN MÓVIL Y BOTÓN VOLVER ── */
+  
     #mobile-back-btn {
       background-color: #f8fafc;
       color: #475569;
@@ -40,24 +39,62 @@
     }
     #mobile-back-btn:hover { background-color: #e2e8f0; color: #0f172a; }
     #mobile-back-btn svg { width: 16px; height: 16px; }
-
+  
     @media (min-width: 900px) {
       #mobile-back-btn { display: none !important; }
     }
+  
+    @media (max-width: 900px) {
+      /* Main padding reducido para ganar espacio */
+      .main-content { padding: 16px !important; }
+  
+      /* Filtros en columna */
+      .filtro-container { flex-direction: column; align-items: stretch; padding: 14px; }
+      .filtro-group { width: 100%; min-width: unset; }
+      .botones-filtro { display: flex !important; flex-direction: column; width: 100%; gap: 8px; margin-top: 4px; }
+      .botones-filtro button, .botones-filtro a { width: 100%; height: auto; padding: 12px; box-sizing: border-box; }
+  
+      /* Header título + botón exportar */
+      .header-actions { flex-direction: column !important; align-items: flex-start !important; gap: 12px; }
+      #btn-exportar { width: 100%; justify-content: center; box-sizing: border-box; }
+  
+      /* Tabla con scroll horizontal táctil */
+      .data-table-wrapper { overflow-x: auto !important; -webkit-overflow-scrolling: touch; }
+      .data-table { min-width: 750px; }
+  
+      /* data-card sin padding extra que achique la tabla */
+      .data-card { padding: 0 !important; border-radius: 8px; overflow: hidden; }
+
+    }
 
     @media (max-width: 900px) {
-      .filtro-container { flex-direction: column; align-items: stretch; }
-      .filtro-group { width: 100%; }
-      .botones-filtro { display: flex; flex-direction: column; width: 100%; gap: 10px; margin-top: 10px; }
-      .botones-filtro button, .botones-filtro a { width: 100%; height: auto; padding: 12px; }
-      
-      /* Para que la tabla se pueda deslizar con el dedo en vez de achicarse */
-      .data-table-wrapper { overflow-x: auto !important; -webkit-overflow-scrolling: touch; border-radius: 8px; border: 1px solid var(--color-border-light); }
-      .data-table { min-width: 800px; }
-      
-      .header-actions { flex-direction: column; align-items: flex-start; gap: 10px; }
-      #btn-exportar { width: 100%; justify-content: center; }
-    }
+  /* Sidebar se oculta, app-wrapper ocupa todo el ancho */
+  .app-wrapper { margin-left: 0 !important; }
+  .sidebar { transform: translateX(-100%); }
+
+  /* Topbar muestra hamburguesa */
+  .topbar__menu-toggle { display: flex !important; }
+  .topbar__mobile-brand { display: flex !important; }
+  .topbar__user-name-wrapper { display: none; }
+
+  /* Main con padding reducido */
+  .main-content { padding: 16px !important; max-width: 100% !important; }
+
+  /* Filtros en columna */
+  .filtro-container { flex-direction: column; align-items: stretch; padding: 14px; }
+  .filtro-group { width: 100%; min-width: unset; }
+  .botones-filtro { display: flex !important; flex-direction: column; width: 100%; gap: 8px; margin-top: 4px; }
+  .botones-filtro button, .botones-filtro a { width: 100%; height: auto; padding: 12px; box-sizing: border-box; }
+
+  /* Header título + botón exportar */
+  .header-actions { flex-direction: column !important; align-items: flex-start !important; gap: 12px; }
+  #btn-exportar { width: 100% !important; justify-content: center; box-sizing: border-box; }
+
+  /* Tabla con scroll horizontal táctil */
+  .data-table-wrapper { overflow-x: auto !important; -webkit-overflow-scrolling: touch; }
+  .data-table { min-width: 750px; }
+  .data-card { border-radius: 8px; overflow: hidden; }
+}
   </style>
 </head>
 <body>

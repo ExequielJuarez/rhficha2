@@ -59,14 +59,33 @@
         }
 
         @media (max-width: 900px) {
-            .stats-grid { flex-direction: column; }
-            .dashboard-charts { grid-template-columns: 1fr; }
-            .chart-card--full { grid-column: auto; }
-            .filtro-container { flex-direction: column; align-items: stretch; }
-            .filtro-group { width: 100%; }
-            .btn-filtrar { width: 100%; }
-            .page-header { margin-bottom: 16px !important; }
-        }
+    /* Fix principal */
+    .app-wrapper { margin-left: 0 !important; }
+    .topbar__menu-toggle { display: flex !important; }
+    .topbar__mobile-brand { display: flex !important; }
+    .topbar__user-name-wrapper { display: none; }
+
+    /* Main */
+    .main-content { padding: 16px !important; max-width: 100% !important; }
+
+    /* Stat cards */
+    .stats-grid { flex-direction: column; }
+    .stat-card { min-width: unset; width: 100%; }
+
+    /* Filtros */
+    .filtro-container { flex-direction: column; align-items: stretch; padding: 14px; }
+    .filtro-group { width: 100%; min-width: unset; }
+    .filtro-container > div:last-child { width: 100%; }
+    .btn-filtrar { width: 100% !important; height: auto; padding: 12px; box-sizing: border-box; }
+
+    /* Gráficos */
+    .dashboard-charts { grid-template-columns: 1fr; }
+    .chart-card--full { grid-column: auto; }
+    .chart-container { height: 240px; }
+
+    /* Botón volver ya tiene su lógica, solo ajuste */
+    .page-header { margin-bottom: 16px !important; }
+}
     </style>
 </head>
 <body>

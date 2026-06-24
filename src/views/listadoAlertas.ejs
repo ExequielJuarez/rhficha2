@@ -44,18 +44,37 @@
 
         /* ── ADAPTACIÓN MÓVIL ── */
         @media (max-width: 900px) {
-            .stats-grid { flex-direction: column; }
-            .dashboard-charts { grid-template-columns: 1fr; }
-            .filtro-container { flex-direction: column; align-items: stretch; }
-            .filtro-group { width: 100%; }
-            .filtro-acciones { display: flex; flex-direction: column; width: 100%; gap: 10px; margin-top: 10px; }
-            .btn-limpiar, .btn-filtrar { width: 100%; }
-            
-            .data-table-wrapper { overflow-x: auto !important; -webkit-overflow-scrolling: touch; border-radius: 8px; }
-            .data-table { min-width: 900px; }
-            
-            .pagination { flex-direction: column; gap: 16px; align-items: center; text-align: center; }
-        }
+    /* Fix principal */
+    .app-wrapper { margin-left: 0 !important; }
+    .topbar__menu-toggle { display: flex !important; }
+    .topbar__mobile-brand { display: flex !important; }
+    .topbar__user-name-wrapper { display: none; }
+
+    /* Main */
+    .main-content { padding: 16px !important; max-width: 100% !important; }
+
+    /* Stat cards en columna */
+    .stats-grid { flex-direction: column; }
+    .stat-card { min-width: unset; width: 100%; }
+
+    /* Gráficos en columna */
+    .dashboard-charts { grid-template-columns: 1fr; }
+    .chart-container { height: 200px; }
+
+    /* Filtros */
+    .filtro-container { flex-direction: column; align-items: stretch; padding: 14px; }
+    .filtro-group { width: 100%; min-width: unset; }
+    .filtro-acciones { display: flex !important; flex-direction: column; width: 100%; gap: 8px; margin-top: 4px; }
+    .btn-limpiar, .btn-filtrar { width: 100% !important; height: auto; padding: 12px; box-sizing: border-box; }
+
+    /* Tabla */
+    .data-table-wrapper { overflow-x: auto !important; -webkit-overflow-scrolling: touch; }
+    .data-table { min-width: 900px; }
+
+    /* Paginación */
+    .pagination { flex-direction: column; gap: 16px; align-items: center; text-align: center; }
+    .page-buttons { justify-content: center; }
+}
     </style>
 </head>
 <body>

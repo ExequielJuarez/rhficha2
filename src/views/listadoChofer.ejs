@@ -42,13 +42,21 @@
 
     /* Comportamiento de las dos columnas en Celular */
     @media (max-width: 900px) {
-      .main-content { flex-direction: column !important; }
-      .vehicle-list-panel { width: 100% !important; border-right: none !important; }
-      .vehicle-detail { display: none; width: 100% !important; }
-      
-      .vehicle-list-panel--hidden { display: none !important; }
-      .vehicle-detail--visible { display: block !important; }
-    }
+  .main-content { flex-direction: column !important; }
+  .vehicle-list-panel { width: 100% !important; border-right: none !important; }
+  .vehicle-detail { display: none; width: 100% !important; }
+
+  #choferList { width: 100% !important; }
+  .vehicle-card { width: 100% !important; box-sizing: border-box; }
+
+  /* AGREGAR ESTOS: */
+  .vehicle-list-panel { height: auto !important; max-height: none !important; overflow: visible !important; }
+  #choferList { height: auto !important; max-height: none !important; overflow: visible !important; }
+  .vehicle-list { height: auto !important; max-height: none !important; overflow-y: visible !important; }
+
+  .vehicle-list-panel--hidden { display: none !important; }
+  .vehicle-detail--visible { display: block !important; }
+}
   </style>
 </head>
 <body>
@@ -80,7 +88,7 @@
 
     <main class="main-content" id="main-content">
 
-      <section class="vehicle-list-panel" id="vehicle-list-panel" style="width: 340px;">
+      <section class="vehicle-list-panel" id="vehicle-list-panel">
         <div class="vehicle-list-panel__top" style="display: flex; justify-content: space-between; align-items: center;">
           <h2 class="vehicle-list-panel__title">Plantilla de Choferes</h2>
           <a href="/Choferes/Carga" style="background-color: #2563eb; color: white; border-radius: 6px; padding: 6px 12px; font-size: 12px; font-weight: 700; text-decoration: none; display: flex; align-items: center; transition: 0.2s;">

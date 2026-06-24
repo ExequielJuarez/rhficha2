@@ -30,20 +30,29 @@
 
         /* ── ADAPTACIÓN MÓVIL ── */
         @media (max-width: 900px) {
-            .header-actions { flex-direction: column; align-items: flex-start !important; gap: 12px; }
-            .header-actions div { width: 100%; display: flex; flex-direction: column; gap: 10px; }
-            .header-actions a, .header-actions button { width: 100%; justify-content: center; }
-            
-            .siniestro-grid-filtros { grid-template-columns: 1fr; }
-            
-            /* Contenedor de la tabla deslizable con el dedo */
-            .tabla-responsive-wrapper {
-                width: 100%;
-                overflow-x: auto;
-                -webkit-overflow-scrolling: touch;
-            }
-            .tabla-siniestros { min-width: 800px; } /* Fuerza a la tabla a mantener su ancho para que no se apriete */
-        }
+    /* Fix principal: quitar el margen del sidebar */
+    .app-wrapper { margin-left: 0 !important; }
+
+    /* Topbar */
+    .topbar__menu-toggle { display: flex !important; }
+    .topbar__mobile-brand { display: flex !important; }
+    .topbar__user-name-wrapper { display: none; }
+
+    /* Main */
+    .main-content { padding: 16px !important; max-width: 100% !important; }
+
+    /* Header título + botones */
+    .header-actions { flex-direction: column !important; align-items: flex-start !important; gap: 12px; }
+    .header-actions > div:last-child { width: 100%; display: flex; flex-direction: column; gap: 10px; }
+    .btn-descargar, .btn-nuevo { width: 100% !important; justify-content: center; box-sizing: border-box; }
+
+    /* Filtros ya son grid 1 col, solo ajustar padding */
+    .siniestro-grid-filtros { padding: 14px; }
+
+    /* Tabla deslizable */
+    .tabla-responsive-wrapper { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+    .tabla-siniestros { min-width: 800px; }
+}
     </style>
 </head>
 <body>

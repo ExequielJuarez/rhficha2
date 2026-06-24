@@ -17,14 +17,22 @@
 
         /* ── ADAPTACIÓN MÓVIL ── */
         @media (max-width: 900px) {
-            .filtro-container { flex-direction: column; align-items: stretch; }
-            .filtro-group { width: 100%; }
-            .header-acciones { flex-direction: column; align-items: flex-start !important; gap: 16px; }
-            .btn-add { width: 100%; }
-            
-            .data-table-wrapper { overflow-x: auto !important; -webkit-overflow-scrolling: touch; border-radius: 8px; border: 1px solid var(--color-border-light); }
-            .data-table { min-width: 700px; }
-        }
+    .app-wrapper { margin-left: 0 !important; }
+    .topbar__menu-toggle { display: flex !important; }
+    .topbar__mobile-brand { display: flex !important; }
+    .topbar__user-name-wrapper { display: none; }
+
+    .main-content { padding: 16px !important; max-width: 100% !important; }
+
+    .header-acciones { flex-direction: column; align-items: flex-start !important; gap: 16px; }
+    .btn-add { width: 100%; box-sizing: border-box; }
+
+    .filtro-container { flex-direction: column; align-items: stretch; padding: 14px; }
+    .filtro-group { width: 100%; min-width: unset; }
+
+    .data-table-wrapper { overflow-x: auto !important; -webkit-overflow-scrolling: touch; }
+    .data-table { min-width: 700px; }
+}
     </style>
 </head>
 <body>
