@@ -69,14 +69,14 @@
         <p class="page-subtitle">Asociá un vehículo a un chofer y definí el período de uso autorizado.</p>
       </div>
 
-      <% if (error) { %>
+      <% if (typeof error !== 'undefined' && error) { %>
         <div style="background:#fef2f2; border:1px solid #fecaca; color:#991b1b; padding:16px; border-radius:8px; margin-bottom:24px; display:flex; align-items:center; gap:10px; font-weight:600;">
           <svg viewBox="0 0 20 20" fill="currentColor" style="width:20px;height:20px;"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>
           <span><%= error %></span>
         </div>
       <% } %>
       
-      <% if (success) { %>
+      <% if (typeof success !== 'undefined' && success) { %>
         <div style="background:#f0fdf4; border:1px solid #bbf7d0; color:#166534; padding:16px; border-radius:8px; margin-bottom:24px; display:flex; align-items:center; gap:10px; font-weight:600;">
           <svg viewBox="0 0 20 20" fill="currentColor" style="width:20px;height:20px;"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
           <span><%= success %></span>
@@ -92,11 +92,13 @@
               <label for="select-vehiculo">Vehículo <span class="req">*</span></label>
               <select id="select-vehiculo" name="id_vehiculo" required>
                 <option value="">— Seleccioná un vehículo disponible —</option>
-                <% vehiculos.forEach(v => { %>
-                  <option value="<%= v.id_vehiculo %>" data-modelo="<%= v.marca %> <%= v.modelo %>" data-km="<%= v.km_actual %>">
-                    <%= v.patente %> — <%= v.marca %> <%= v.modelo %>
-                  </option>
-                <% }) %>
+                <% if (typeof vehiculos !== 'undefined') { %>
+                  <% vehiculos.forEach(v => { %>
+                    <option value="<%= v.id_vehiculo %>" data-modelo="<%= v.marca %> <%= v.modelo %>" data-km="<%= v.km_actual %>">
+                      <%= v.patente %> — <%= v.marca %> <%= v.modelo %>
+                    </option>
+                  <% }) %>
+                <% } %>
               </select>
             </div>
 
@@ -104,11 +106,13 @@
               <label for="select-chofer">Chofer <span class="req">*</span></label>
               <select id="select-chofer" name="id_chofer" required>
                 <option value="">— Seleccioná un chofer activo —</option>
-                <% choferes.forEach(c => { %>
-                  <option value="<%= c.id_chofer %>" data-dni="<%= c.dni %>" data-licencia="">
-                    <%= c.apellido %>, <%= c.nombre %>
-                  </option>
-                <% }) %>
+                <% if (typeof choferes !== 'undefined') { %>
+                  <% choferes.forEach(c => { %>
+                    <option value="<%= c.id_chofer %>" data-dni="<%= c.dni %>" data-licencia="">
+                      <%= c.apellido %>, <%= c.nombre %>
+                    </option>
+                  <% }) %>
+                <% } %>
               </select>
             </div>
           </div>
@@ -192,7 +196,7 @@
                 </tr>
               </thead>
               <tbody class="data-table__body">
-                <% if (asignaciones && asignaciones.length > 0) { %>
+                <% if (typeof asignaciones !== 'undefined' && asignaciones && asignaciones.length > 0) { %>
                   <% asignaciones.forEach(a => { %>
                     <tr class="data-table__row">
                       <td class="data-table__td" style="font-weight: 700;">
@@ -252,40 +256,44 @@
     const prevChoferCard   = document.getElementById('preview-chofer');
     const prevChoferNombre = document.getElementById('prev-chofer-nombre');
     const prevChoferInfo   = document.getElementById('prev-chofer-info');
+    
+    if (selectVehiculo) {
+        selectVehiculo.addEventListener('change', function () {
+        const opt = this.options[this.selectedIndex];
+        if (this.value) {
+            const patente = opt.text.split('—')[0].trim();
+            const modelo  = opt.dataset.modelo || '—';
+            const kmRaw   = opt.dataset.km ? Number(opt.dataset.km) : 0;
+            prevVehiculoPatente.textContent = patente;
+            prevVehiculoInfo.textContent    = modelo + ' · ' + kmRaw.toLocaleString('es-AR') + ' km';
+            prevVehiculoCard.classList.add('preview-card--active');
+            kmSalidaInput.min = kmRaw;
+            kmSalidaInput.value = kmRaw; 
+        } else {
+            prevVehiculoPatente.textContent = 'Ninguno';
+            prevVehiculoInfo.textContent    = '—';
+            prevVehiculoCard.classList.remove('preview-card--active');
+            kmSalidaInput.min = 0;
+            kmSalidaInput.value = '';
+        }
+        });
+    }
 
-    selectVehiculo.addEventListener('change', function () {
-      const opt = this.options[this.selectedIndex];
-      if (this.value) {
-        const patente = opt.text.split('—')[0].trim();
-        const modelo  = opt.dataset.modelo || '—';
-        const kmRaw   = opt.dataset.km ? Number(opt.dataset.km) : 0;
-        prevVehiculoPatente.textContent = patente;
-        prevVehiculoInfo.textContent    = modelo + ' · ' + kmRaw.toLocaleString('es-AR') + ' km';
-        prevVehiculoCard.classList.add('preview-card--active');
-        kmSalidaInput.min = kmRaw;
-        kmSalidaInput.value = kmRaw; 
-      } else {
-        prevVehiculoPatente.textContent = 'Ninguno';
-        prevVehiculoInfo.textContent    = '—';
-        prevVehiculoCard.classList.remove('preview-card--active');
-        kmSalidaInput.min = 0;
-        kmSalidaInput.value = '';
-      }
-    });
-
-    selectChofer.addEventListener('change', function () {
-      const opt = this.options[this.selectedIndex];
-      if (this.value) {
-        prevChoferNombre.textContent = opt.text.trim();
-        const dni = opt.dataset.dni ? 'DNI ' + opt.dataset.dni : '';
-        prevChoferInfo.textContent = dni || '—';
-        prevChoferCard.classList.add('preview-card--active');
-      } else {
-        prevChoferNombre.textContent = 'Ninguno';
-        prevChoferInfo.textContent   = '—';
-        prevChoferCard.classList.remove('preview-card--active');
-      }
-    });
+    if (selectChofer) {
+        selectChofer.addEventListener('change', function () {
+        const opt = this.options[this.selectedIndex];
+        if (this.value) {
+            prevChoferNombre.textContent = opt.text.trim();
+            const dni = opt.dataset.dni ? 'DNI ' + opt.dataset.dni : '';
+            prevChoferInfo.textContent = dni || '—';
+            prevChoferCard.classList.add('preview-card--active');
+        } else {
+            prevChoferNombre.textContent = 'Ninguno';
+            prevChoferInfo.textContent   = '—';
+            prevChoferCard.classList.remove('preview-card--active');
+        }
+        });
+    }
 
     /* Fechas */
     const fechaDesde = document.getElementById('fecha-desde');
@@ -293,36 +301,43 @@
     const durHint    = document.getElementById('duracion-hint');
 
     function calcDuracion() {
-      if (!fechaDesde.value || !fechaHasta.value) { durHint.textContent = ''; return; }
+      if (!fechaDesde || !fechaHasta || !fechaDesde.value || !fechaHasta.value) { if(durHint) durHint.textContent = ''; return; }
       const diff = Math.round((new Date(fechaHasta.value) - new Date(fechaDesde.value)) / 86400000);
-      if (diff < 0) {
-        durHint.textContent = '⚠ La fecha de fin debe ser posterior a la de inicio.';
-        durHint.style.color = 'var(--color-red)';
-      } else {
-        durHint.textContent = `Tiempo asignado: ${diff} día${diff !== 1 ? 's' : ''}.`;
-        durHint.style.color = '#059669'; // Verde
+      if (durHint) {
+          if (diff < 0) {
+            durHint.textContent = '⚠ La fecha de fin debe ser posterior a la de inicio.';
+            durHint.style.color = 'var(--color-red)';
+          } else {
+            durHint.textContent = `Tiempo asignado: ${diff} día${diff !== 1 ? 's' : ''}.`;
+            durHint.style.color = '#059669'; // Verde
+          }
       }
     }
 
-    fechaDesde.addEventListener('change', calcDuracion);
-    fechaHasta.addEventListener('change', calcDuracion);
+    if (fechaDesde && fechaHasta) {
+        fechaDesde.addEventListener('change', calcDuracion);
+        fechaHasta.addEventListener('change', calcDuracion);
 
-    const hoy = new Date().toISOString().split('T')[0];
-    fechaDesde.min   = hoy;
-    fechaDesde.value = hoy;
-    fechaHasta.min   = hoy;
+        const hoy = new Date().toISOString().split('T')[0];
+        fechaDesde.min   = hoy;
+        fechaDesde.value = hoy;
+        fechaHasta.min   = hoy;
+    }
 
     /* Envío y pre-selección */
-    document.getElementById('btn-submit').addEventListener('click', function (e) {
-      if (kmSalidaInput.value && Number(kmSalidaInput.value) < Number(kmSalidaInput.min)) {
-        e.preventDefault();
-        alert(`El kilometraje ingresado no puede ser menor al actual (${Number(kmSalidaInput.min).toLocaleString('es-AR')} km).`);
-        kmSalidaInput.classList.add('input-error');
-      }
-    });
+    const btnSubmit = document.getElementById('btn-submit');
+    if (btnSubmit) {
+        btnSubmit.addEventListener('click', function (e) {
+        if (kmSalidaInput && kmSalidaInput.value && Number(kmSalidaInput.value) < Number(kmSalidaInput.min)) {
+            e.preventDefault();
+            alert(`El kilometraje ingresado no puede ser menor al actual (${Number(kmSalidaInput.min).toLocaleString('es-AR')} km).`);
+            kmSalidaInput.classList.add('input-error');
+        }
+        });
+    }
 
     const idVehiculo = new URLSearchParams(window.location.search).get('id_vehiculo');
-    if (idVehiculo) {
+    if (idVehiculo && selectVehiculo) {
       selectVehiculo.value = idVehiculo;
       selectVehiculo.dispatchEvent(new Event('change'));
     }

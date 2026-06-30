@@ -99,8 +99,18 @@ img { display: block; }
 }
 
 .sidebar__brand {
-  display: flex; align-items: center; gap: 12px; padding: 20px 16px;
-  background-color: #080c17; border-bottom: 1px solid #1e293b; flex-shrink: 0;
+  display: flex; 
+  align-items: center; 
+  gap: 12px; 
+  padding: 20px 16px;
+  background-color: #080c17; 
+  border-bottom: 1px solid #1e293b; 
+  flex-shrink: 0;
+
+  /* NUEVO: Efecto Fijo (Sticky) para que no se pierda al bajar */
+  position: sticky;
+  top: 0;
+  z-index: 50;
 }
 .imglogosidebar { width: 100%; height: 45px; object-fit: contain; filter: brightness(1.2); }
 .imglogosidebarcel { width: auto; height: 35px; }
@@ -138,7 +148,16 @@ img { display: block; }
 .sidebar::-webkit-scrollbar { width: 6px; }
 .sidebar::-webkit-scrollbar-thumb { background-color: #334155; border-radius: var(--radius-full); }
 
-.app-wrapper { display: flex; flex-direction: column; flex: 1; margin-left: var(--sidebar-width); min-height: 100vh; transition: margin-left 0.3s ease; }
+/* Altura y desborde estricto para que las cuadrículas no muevan la página entera */
+.app-wrapper { 
+  display: flex; 
+  flex-direction: column; 
+  flex: 1; 
+  margin-left: var(--sidebar-width); 
+  height: 100vh; 
+  overflow: hidden; 
+  transition: margin-left 0.3s ease; 
+}
 
 .topbar {
   position: sticky; top: 0; z-index: 50; height: var(--topbar-height);
@@ -251,11 +270,17 @@ img { display: block; }
 
 .vehicle-detail__breadcrumb { display: none; } /* Oculto en PC */
 
-/* PROFILE CARD (INFO PRINCIPAL) */
+/* PROFILE CARD (INFO PRINCIPAL) - FIX: Se quitó el Sticky para que no tape las tablas */
 .vehicle-profile {
-  background-color: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius-lg);
-  padding: 30px; margin-bottom: 24px; box-shadow: var(--shadow-sm); position: relative; width: 100%;
+  background-color: var(--color-surface); 
+  border: 1px solid var(--color-border); 
+  border-radius: var(--radius-lg);
+  padding: 30px; 
+  margin-bottom: 24px; 
+  box-shadow: var(--shadow-sm); 
+  width: 100%;
 }
+
 .vehicle-profile__header { display: flex; align-items: center; gap: 16px; margin-bottom: 24px; }
 .vehicle-profile__plate { font-size: 28px; font-weight: 800; color: var(--color-text-primary); letter-spacing: 0.5px; }
 
@@ -322,4 +347,7 @@ img { display: block; }
   .topbar__menu-toggle { display: flex; }
   .topbar__mobile-brand { display: flex; }
   .topbar__user-name-wrapper { display: none; }
+  
+  /* Deshacemos las restricciones en dispositivos móviles */
+  .app-wrapper { height: auto; overflow: visible; }
 }

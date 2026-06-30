@@ -10,6 +10,31 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 
     <style>
+        /* ── FIX: Aseguramos el layout fijo y scroll independiente ── */
+        .app-wrapper {
+            height: 100vh;
+            overflow: hidden;
+        }
+        .main-content {
+            flex: 1;
+            display: flex;
+            overflow: hidden;
+            height: calc(100vh - var(--topbar-height, 56px));
+        }
+        .vehicle-list-panel {
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .vehicle-detail {
+            flex: 1;
+            overflow-y: auto;
+        }
+        /* FIX: Le quitamos el sticky para que no tape las tablas inferiores */
+        .vehicle-profile {
+            background-color: #ffffff;
+        }
+
         .detail-maint-content { display: none; }
         .detail-maint-content.active { display: flex; flex-direction: column; gap: 24px; }
         .cost-box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; text-align: center; }
@@ -40,14 +65,16 @@
         }
 
         @media (max-width: 900px) {
-          .main-content { flex-direction: column !important; }
+          /* Deshacemos el fijado en celulares */
+          .app-wrapper { height: auto; overflow: visible; }
+          .main-content { height: auto; overflow: visible; flex-direction: column !important; }
           
           /* ── FIX: EVITAMOS QUE LA LISTA SE APLASTE ── */
           .vehicle-list-panel { 
-              width: 100% !important; 
+              width: 100% !important;
               border-right: none !important; 
               flex: 1 1 auto !important;
-              min-height: 70vh !important; /* Obliga a la lista a ocupar pantalla */
+              min-height: 70vh !important;
           }
           .vehicle-detail { display: none; width: 100% !important; flex: 1 1 auto !important; }
           
@@ -93,7 +120,8 @@
                 </div>
 
                 <div class="vehicle-list-panel__search-bar" style="flex-direction: column; align-items: stretch; gap: 10px;">
-                    <input class="vehicle-list-panel__search-input" id="filtro-busqueda" type="search" placeholder="Patente, servicio...">
+          
+                  <input class="vehicle-list-panel__search-input" id="filtro-busqueda" type="search" placeholder="Patente, servicio...">
                     
                     <details style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 8px 12px; cursor: pointer;">
                         <summary style="font-size: 12px; font-weight: 700; color: #475569; outline: none;">Filtros Avanzados</summary>
@@ -160,7 +188,7 @@
             </section>
 
             <section class="vehicle-detail" id="vehicle-detail">
-                
+          
                 <nav aria-label="Navegación móvil" style="padding: 20px 24px 0 24px;">
                   <button id="detail-back-btn">
                     <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clip-rule="evenodd"/></svg>
@@ -196,20 +224,7 @@
                                         <svg viewBox="0 0 20 20" fill="currentColor" style="width: 14px; height: 14px; margin-right: 5px;"><path fill-rule="evenodd" d="M5 4v3H4a2 2 0 00-2 2v3a2 2 0 002 2h1v2a2 2 0 002 2h6a2 2 0 002-2v-2h1a2 2 0 002-2V9a2 2 0 00-2-2h-1V4a2 2 0 00-2-2H7a2 2 0 00-2 2zm8 0H7v3h6V4zm0 8H7v4h6v-4z" clip-rule="evenodd"/></svg>
                                         Imprimir Remito
                                     </button>
-
-                                    <% if (m.estado !== 'Realizado' && m.estado !== 'Cancelado') { %>
-                                    <form action="/Mantenimientos/<%= m.id_mantenimiento %>/estado" method="POST" style="display:inline;">
-                                        <input type="hidden" name="estado" value="Realizado">
-                                        <input type="hidden" name="km_servicio" value="<%= m.km_servicio %>">
-                                        <button type="submit" style="background-color: #16a34a; color: white; border: none; padding: 8px 14px; font-size: 12px; font-weight: 700; border-radius: 6px; cursor: pointer; display: flex; align-items: center; gap: 6px;">
-                                        Marcar como Realizado
-                                        </button>
-                                    </form>
-                                    <% } %>
-
                                 </div>
-
-                                
 
                                 <div class="vehicle-profile__specs" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px;">
                                     <dl class="vehicle-profile__spec-group">

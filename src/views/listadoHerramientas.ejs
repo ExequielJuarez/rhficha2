@@ -7,6 +7,33 @@
   <link rel="stylesheet" href="/css/ListadoVehiculos.css" />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
   <style>
+    /* ── FIX: Aseguramos el layout fijo y scroll independiente ── */
+    .app-wrapper {
+        height: 100vh;
+        overflow: hidden;
+    }
+    .main-content {
+        flex: 1;
+        display: flex;
+        overflow: hidden;
+        height: calc(100vh - var(--topbar-height, 56px));
+        padding: 0;
+    }
+    .vehicle-list-panel {
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+    }
+    .vehicle-detail {
+        flex: 1;
+        overflow-y: auto;
+    }
+    
+    /* FIX: Le quitamos el sticky para que no tape las tablas inferiores */
+    .vehicle-profile {
+        background-color: #ffffff;
+    }
+
     /* Diseño del botón Volver (Solo visible en celulares) */
     #detail-back-btn {
       background-color: #f8fafc;
@@ -25,15 +52,14 @@
     #detail-back-btn:hover { background-color: #e2e8f0; color: #0f172a; }
     #detail-back-btn svg { width: 16px; height: 16px; }
 
-    /* Ocultarlo en pantallas grandes (PC) */
     @media (min-width: 900px) {
       #detail-back-btn { display: none !important; }
     }
 
     @media (max-width: 900px) {
-      .main-content { flex-direction: column !important; }
-      
-      /* FIX: EVITAMOS QUE LA LISTA SE APLASTE */
+      .app-wrapper { height: auto; overflow: visible; }
+      .main-content { height: auto; overflow: visible; flex-direction: column !important; }
+
       .vehicle-list-panel { 
           width: 100% !important; 
           border-right: none !important; 
@@ -44,6 +70,13 @@
       
       .vehicle-list-panel--hidden { display: none !important; }
       .vehicle-detail--visible { display: block !important; }
+    }
+
+    @media print {
+      #sidebar, .app-header, .vehicle-list-panel, .vehicle-profile__actions, .alerts-card, .data-card__see-all, .topbar { display: none !important; }
+      .app-wrapper { margin: 0 !important; padding: 0 !important; }
+      .vehicle-detail { width: 100% !important; padding: 0 !important; background: #fff !important; }
+      .vehicle-profile { box-shadow: none !important; border: 1px solid #000 !important; }
     }
   </style>
 </head>
@@ -56,14 +89,13 @@
     <%- include('./partials/topbar') %>
 
     <%
-      // LÓGICA SENIOR: Helper para el Semáforo de Estados
       const getBadgeClass = (estado) => {
         const e = (estado || '').toLowerCase();
         if (e.includes('disponible')) return 'badge--success';
         if (e.includes('uso')) return 'badge--info';
         if (e.includes('mantenimiento') || e.includes('reparación')) return 'badge--warning';
         if (e.includes('baja') || e.includes('perdida') || e.includes('roto')) return 'badge--danger';
-        return 'badge--success'; // Default
+        return 'badge--success'; 
       };
     %>
 
@@ -86,8 +118,11 @@
 
           <% if (herramientas && herramientas.length > 0) { %>
             <% herramientas.forEach(herramienta => { %>
+            
+            <% /* LÓGICA CORREGIDA PARA PINTAR EL ACTIVO CON STRING() */ %>
+            <% const isActive = (typeof herramientaSeleccionada !== 'undefined' && herramientaSeleccionada && String(herramientaSeleccionada.id_herramienta) === String(herramienta.id_herramienta)) ? 'vehicle-card--active' : ''; %>
 
-            <li class="vehicle-card" style="padding-left: 20px;">
+            <li class="vehicle-card <%= isActive %>" style="padding-left: 20px;">
               <a href="/Tools/<%= herramienta.id_herramienta %>" class="vehicle-card__link">
                 <div class="vehicle-card__info" style="padding-left: 0;">
                   <span class="vehicle-card__plate"><%= herramienta.codigo_activo %></span>
@@ -218,7 +253,7 @@
           </div>
         </article>
 
-        <div class="detail-columns">
+        <div class="detail-columns" style="padding: 0 24px 24px 24px;">
           <div class="detail-main-column">
             <section class="data-card" aria-label="Préstamos y uso recientes">
               <header class="data-card__header">
@@ -369,7 +404,6 @@
       card.addEventListener('click', function () {
         document.querySelectorAll('.vehicle-card').forEach(c => c.classList.remove('vehicle-card--active'));
         this.classList.add('vehicle-card--active');
-        // No ocultamos por JS acá, porque el <a> del HTML ya se encarga de recargar la página hacia la nueva URL
       });
     });
 

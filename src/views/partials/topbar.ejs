@@ -1,14 +1,77 @@
 <style>
+  :root {
+    /* Normalizamos la altura real del topbar para que el offset sticky calcule bien */
+    --topbar-height: 70px;
+  }
+
   .topbar {
     background-color: #ffffff;
     border-bottom: 1px solid #e2e8f0;
-    height: 70px;
+    height: var(--topbar-height);
     padding: 0 24px;
     display: flex;
     align-items: center;
     justify-content: space-between;
     font-family: 'DM Sans', sans-serif;
     box-shadow: 0 1px 3px rgba(0,0,0,0.02);
+    position: sticky;
+    top: 0;
+    z-index: 50;
+  }
+
+  /* ============================================================
+     TÍTULOS FIJOS (STICKY) - GLOBAL PARA TODAS LAS VISTAS
+     El título de cada página queda fijo en una barra blanca con
+     divisor inferior; solo el contenido de abajo hace scroll.
+
+     NOTA TÉCNICA: para que position:sticky funcione, el scroll debe
+     ocurrir en el <body>. ListadoVehiculos.css fuerza .app-wrapper y
+     .main-content con overflow:hidden (modelo master-detalle), lo que
+     bloquea el sticky en las vistas de una sola columna. Por eso
+     anulamos ese overflow SOLO en las vistas que NO son master-detalle
+     (las master-detalle tienen .vehicle-list-panel y su título lateral
+     ya queda fijo por diseño).
+     ============================================================ */
+
+  /* Vistas de UNA COLUMNA: dejamos que el body scrollee */
+  body:not(:has(.vehicle-list-panel)) .app-wrapper {
+    height: auto !important;
+    overflow: visible !important;
+    min-height: 100vh !important;
+  }
+  body:not(:has(.vehicle-list-panel)) .main-content {
+    overflow: visible !important;
+    height: auto !important;
+    flex: 1 1 auto !important;
+  }
+
+  /* Título fijo debajo del topbar */
+  .page-header {
+    position: sticky;
+    top: var(--topbar-height);
+    z-index: 40;
+    background-color: #ffffff;
+    padding: 16px 0 14px 0;
+    border-bottom: 1px solid #e2e8f0;
+    margin-bottom: 20px;
+  }
+
+  /* Vistas legacy que usan .Main-content con h2 + .descripcion */
+  .Main-content > h2 {
+    position: sticky;
+    top: var(--topbar-height);
+    z-index: 40;
+    background-color: #ffffff;
+    padding: 16px 0 14px 0;
+    border-bottom: 1px solid #e2e8f0;
+    margin-bottom: 0;
+  }
+  .Main-content > .descripcion {
+    position: sticky;
+    top: calc(var(--topbar-height) + 52px);
+    z-index: 39;
+    background-color: #ffffff;
+    padding-bottom: 8px;
   }
   .topbar__actions {
     display: flex;

@@ -16,6 +16,16 @@
       .vehicle-profile { box-shadow: none !important; border: 1px solid #000 !important; }
     }
 
+    /* ── FORZAMOS EL COLOR AZUL DE LA SELECCIÓN AQUÍ ── */
+    .vehicle-card {
+      border-left: 4px solid transparent;
+      transition: background-color 0.2s, border-left-color 0.2s;
+    }
+    .vehicle-card--active {
+      background-color: #eff6ff !important; /* Fondo azul clarito */
+      border-left-color: #2563eb !important; /* Borde azul oscuro a la izquierda */
+    }
+
     /* ── LÓGICA RESPONSIVE Y BOTÓN VOLVER (CELULARES) ── */
     #detail-back-btn {
       background-color: #f8fafc;
@@ -46,10 +56,10 @@
       
       /* FIX PARA QUE LA LISTA NO SE APLASTE */
       .vehicle-list-panel { 
-        width: 100% !important; 
+        width: 100% !important;
         border-right: none !important; 
         flex: 1 1 auto !important;
-        min-height: 70vh !important; 
+        min-height: 70vh !important;
       }
       .vehicle-detail { display: none; width: 100% !important; flex: 1 1 auto !important; }
       
@@ -93,9 +103,13 @@
         </div>
 
         <ul class="vehicle-list" style="flex: 1; overflow-y: auto;">
-          <% if (vehiculos && vehiculos.length > 0) { %>
+          <% if (typeof vehiculos !== 'undefined' && vehiculos && vehiculos.length > 0) { %>
             <% vehiculos.forEach(vehiculo => { %>
-            <li class="vehicle-card" data-patente="<%= vehiculo.patente %>" data-marca="<%= vehiculo.marca %>" data-modelo="<%= vehiculo.modelo %>" style="padding: 12px 16px;">
+            
+            <% /* LÓGICA DE SERVIDOR INFALIBLE: Comparamos patente contra patente */ %>
+            <% const isActive = (typeof vehiculoSeleccionado !== 'undefined' && vehiculoSeleccionado && vehiculoSeleccionado.patente === vehiculo.patente) ? 'vehicle-card--active' : ''; %>
+            
+            <li class="vehicle-card <%= isActive %>" data-patente="<%= vehiculo.patente %>" data-marca="<%= vehiculo.marca %>" data-modelo="<%= vehiculo.modelo %>" style="padding: 12px 16px;">
               <a href="/Vehicles/<%= vehiculo.id_vehiculo %>" class="vehicle-card__link">
                 <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 4px;">
                   <span class="vehicle-card__plate" style="font-size: 14px;"><%= vehiculo.patente %></span>
@@ -130,9 +144,7 @@
           <div style="display: flex; justify-content: space-between; align-items: flex-start; width: 100%; flex-wrap: wrap; gap: 16px; border-bottom: 1px solid #e2e8f0; padding-bottom: 16px;">
             
             <div style="display: flex; align-items: center; gap: 12px; flex-wrap: wrap;">
-              <h2 style="margin:0; font-size: 26px; font-weight: 800; color: #0f172a; font-family: var(--font-mono); letter-spacing: 0.5px;">
-                <%= vehiculoSeleccionado.patente %>
-              </h2>
+              <h2 class="vehicle-profile__plate" style="margin:0; font-size: 26px; font-weight: 800; color: #0f172a; font-family: var(--font-mono); letter-spacing: 0.5px;"><%= vehiculoSeleccionado.patente %></h2>
               <span class="badge <%= getBadgeClass(vehiculoSeleccionado.estado_actual) %>" style="font-size: 12px; height: fit-content;">
                 <%= vehiculoSeleccionado.estado_actual %>
               </span>
@@ -156,22 +168,6 @@
                 <a href="/asignaciones?id_vehiculo=<%= vehiculoSeleccionado.id_vehiculo %>" style="background-color: #2563eb; color: white; padding: 8px 14px; font-size: 12px; font-weight: 700; border-radius: 6px; text-decoration: none; transition: 0.2s;">
                   Asignar Chofer
                 </a>
-              <% } %>
-
-              <% if (vehiculoSeleccionado.foto_cedula) { %>
-                <button onclick="abrirFotoVehiculo('/img/vehiculos/<%= vehiculoSeleccionado.foto_cedula %>')" style="background-color:#f1f5f9;color:#2563eb;border:1px solid #cbd5e1;padding:8px 14px;font-size:12px;font-weight:700;border-radius:6px;cursor:pointer;">
-                  📄 Ver Cédula
-                </button>
-              <% } %>
-              <% if (vehiculoSeleccionado.foto_titulo) { %>
-                <button onclick="abrirFotoVehiculo('/img/vehiculos/<%= vehiculoSeleccionado.foto_titulo %>')" style="background-color:#f1f5f9;color:#2563eb;border:1px solid #cbd5e1;padding:8px 14px;font-size:12px;font-weight:700;border-radius:6px;cursor:pointer;">
-                  📋 Ver Título
-                </button>
-              <% } %>
-              <% if (vehiculoSeleccionado.foto_rto) { %>
-                <button onclick="abrirFotoVehiculo('/img/vehiculos/<%= vehiculoSeleccionado.foto_rto %>')" style="background-color:#f1f5f9;color:#2563eb;border:1px solid #cbd5e1;padding:8px 14px;font-size:12px;font-weight:700;border-radius:6px;cursor:pointer;">
-                  🔧 Ver RTO
-                </button>
               <% } %>
             </div>
           </div>
@@ -304,7 +300,7 @@
                     <tr><th class="data-table__th">Fecha</th><th class="data-table__th">Ubicación</th><th class="data-table__th">Estado</th></tr>
                   </thead>
                   <tbody class="data-table__body">
-                    <% if (typeof siniestrosVehiculo !== 'undefined' && siniestrosVehiculo.length > 0) { %>
+                    <% if (typeof siniestrosVehiculo !== 'undefined' && siniestrosVehiculo && siniestrosVehiculo.length > 0) { %>
                       <% siniestrosVehiculo.slice(0,3).forEach(s => { %>
                       <tr class="data-table__row">
                         <td class="data-table__td" data-label="Fecha"><%= s.fecha_siniestro ? new Date(s.fecha_siniestro).toLocaleDateString('es-AR') : '—' %></td>
@@ -369,131 +365,107 @@
   </div>
 
   <script src="/js/sidebar.js"></script>
-<script>
-  const searchInput = document.querySelector('.vehicle-list-panel__search-input');
-  const toolCards = document.querySelectorAll('.vehicle-card');
-  
-  if (searchInput) {
-    searchInput.addEventListener('input', function(e) {
-      const searchTerm = e.target.value.toLowerCase().trim();
-      toolCards.forEach(card => {
-        const code = card.querySelector('.vehicle-card__plate')?.textContent.toLowerCase() || '';
-        if (code.includes(searchTerm)) card.style.display = ''; 
-        else card.style.display = 'none'; 
-      });
+
+  <script>
+    /* ── FIX: SCROLL AUTOMÁTICO HACIA LA TARJETA PINTADA ── */
+    document.addEventListener("DOMContentLoaded", () => {
+      const tarjetaActiva = document.querySelector('.vehicle-card--active');
+      if (tarjetaActiva) {
+        setTimeout(() => {
+          tarjetaActiva.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }, 100);
+      }
     });
-  }
+  </script>
 
-  const btnExport = document.getElementById('btn-export-csv');
-  if (btnExport) {
-    btnExport.addEventListener('click', function() {
-      let csvContent = "data:text/csv;charset=utf-8,Patente,Marca,Modelo\n";
-      toolCards.forEach(card => csvContent += `${card.dataset.patente},${card.dataset.marca},${card.dataset.modelo}\n`);
-      const encodedUri = encodeURI(csvContent);
-      const link = document.createElement("a");
-      link.setAttribute("href", encodedUri);
-      link.setAttribute("download", "Flota_Vehiculos.csv");
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    });
-  }
-
-  // ── MODAL FOTOS VEHÍCULO ──
-  const modalVehiculo = document.createElement('div');
-  modalVehiculo.style.cssText = `
-    display:none; position:fixed; inset:0; background:rgba(0,0,0,0.75);
-    z-index:9999; align-items:center; justify-content:center; padding:20px;
-  `;
-  modalVehiculo.innerHTML = `
-    <div style="position:relative; max-width:90vw; max-height:90vh;">
-      <button id="modal-vehiculo-close" style="
-        position:absolute; top:-14px; right:-14px; width:32px; height:32px;
-        background:#fff; border:none; border-radius:50%; font-size:18px;
-        font-weight:800; cursor:pointer; color:#0f172a; line-height:1;
-        box-shadow:0 2px 8px rgba(0,0,0,0.3);
-      ">×</button>
-      <img id="modal-vehiculo-img" src="" alt="Foto"
-        style="max-width:100%; max-height:85vh; border-radius:8px; display:block;">
-    </div>
-  `;
-  document.body.appendChild(modalVehiculo);
-
-  document.getElementById('modal-vehiculo-close').addEventListener('click', () => {
-    modalVehiculo.style.display = 'none';
-  });
-  modalVehiculo.addEventListener('click', (e) => {
-    if (e.target === modalVehiculo) modalVehiculo.style.display = 'none';
-  });
-
-  function abrirFotoVehiculo(src) {
-    document.getElementById('modal-vehiculo-img').src = src;
-    modalVehiculo.style.display = 'flex';
-  }
-
-  // ── LÓGICA DE NAVEGACIÓN MÓVIL (MASTER-DETAIL) ──
-  const listPanel   = document.getElementById('vehicle-list-panel');
-  const detailPanel = document.getElementById('vehicle-detail');
-  const backBtn     = document.getElementById('detail-back-btn');
-  
-  function isMobileView() { return window.innerWidth < 900; }
-
-  const haySeleccion = <%= (typeof vehiculoSeleccionado !== 'undefined' && vehiculoSeleccionado) ? 'true' : 'false' %>;
-
-  if (haySeleccion && isMobileView()) {
-    if (listPanel) listPanel.classList.add('vehicle-list-panel--hidden');
-    if (detailPanel) {
-      detailPanel.classList.add('vehicle-detail--visible');
-      detailPanel.scrollTop = 0;
-    }
-  }
-
-  document.querySelectorAll('.vehicle-card').forEach(card => {
-    card.addEventListener('click', function () {
-      document.querySelectorAll('.vehicle-card').forEach(c => c.classList.remove('vehicle-card--active'));
-      this.classList.add('vehicle-card--active');
-    });
-  });
-
-  if (backBtn) {
-    backBtn.addEventListener('click', function () {
-      listPanel.classList.remove('vehicle-list-panel--hidden');
-      detailPanel.classList.remove('vehicle-detail--visible');
-    });
-  }
-
-  window.addEventListener('resize', function () {
-    if (!isMobileView()) {
-      listPanel.classList.remove('vehicle-list-panel--hidden');
-      detailPanel.classList.remove('vehicle-detail--visible');
-    } else if (haySeleccion) {
-      listPanel.classList.add('vehicle-list-panel--hidden');
-      detailPanel.classList.add('vehicle-detail--visible');
-    }
-  });
-</script>
-
-<script>
-  // ── FIX BOTÓN HAMBURGUESA BLINDADO ──
-  document.addEventListener('DOMContentLoaded', () => {
-    const topbar = document.querySelector('.topbar') || document.querySelector('.app-header');
-    if (!topbar) return;
+  <script>
+    const searchInput = document.querySelector('.vehicle-list-panel__search-input');
+    const toolCards = document.querySelectorAll('.vehicle-card');
     
-    const btnHamburguesa = topbar.querySelector('button') || document.getElementById('menu-toggle');
-    const sidebar = document.getElementById('mi-sidebar-blindado');
-    const overlay = document.getElementById('sb-overlay-blindado');
-
-    if (btnHamburguesa && sidebar && overlay) {
-      const nuevoBtn = btnHamburguesa.cloneNode(true);
-      btnHamburguesa.parentNode.replaceChild(nuevoBtn, btnHamburguesa);
-      nuevoBtn.addEventListener('click', (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        sidebar.classList.toggle('abierto');
-        overlay.classList.toggle('activo');
+    if (searchInput) {
+      searchInput.addEventListener('input', function(e) {
+        const searchTerm = e.target.value.toLowerCase().trim();
+        toolCards.forEach(card => {
+          const code = card.querySelector('.vehicle-card__plate')?.textContent.toLowerCase() || '';
+          if (code.includes(searchTerm)) card.style.display = ''; 
+          else card.style.display = 'none'; 
+        });
       });
     }
-  });
-</script>
+
+    const btnExport = document.getElementById('btn-export-csv');
+    if (btnExport) {
+        btnExport.addEventListener('click', function() {
+            let csvContent = "data:text/csv;charset=utf-8,Patente,Marca,Modelo\n";
+            toolCards.forEach(card => csvContent += `${card.dataset.patente},${card.dataset.marca},${card.dataset.modelo}\n`);
+            const encodedUri = encodeURI(csvContent);
+            const link = document.createElement("a");
+            link.setAttribute("href", encodedUri);
+            link.setAttribute("download", "Flota_Vehiculos.csv");
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        });
+    }
+
+    // ── LÓGICA DE NAVEGACIÓN MÓVIL (MASTER-DETAIL) ──
+    const listPanel   = document.getElementById('vehicle-list-panel');
+    const detailPanel = document.getElementById('vehicle-detail');
+    const backBtn     = document.getElementById('detail-back-btn');
+    
+    function isMobileView() { return window.innerWidth < 900; }
+
+    const haySeleccion = <%= (typeof vehiculoSeleccionado !== 'undefined' && vehiculoSeleccionado) ? 'true' : 'false' %>;
+
+    if (haySeleccion && isMobileView()) {
+      if (listPanel) listPanel.classList.add('vehicle-list-panel--hidden');
+      if (detailPanel) {
+        detailPanel.classList.add('vehicle-detail--visible');
+        detailPanel.scrollTop = 0;
+      }
+    }
+
+    if(backBtn) {
+      backBtn.addEventListener('click', function () {
+        listPanel.classList.remove('vehicle-list-panel--hidden');
+        detailPanel.classList.remove('vehicle-detail--visible');
+      });
+    }
+
+    window.addEventListener('resize', function () {
+      if (!isMobileView()) {
+        listPanel.classList.remove('vehicle-list-panel--hidden');
+        detailPanel.classList.remove('vehicle-detail--visible');
+      } else if (haySeleccion) {
+        listPanel.classList.add('vehicle-list-panel--hidden');
+        detailPanel.classList.add('vehicle-detail--visible');
+      }
+    });
+  </script>
+  
+  <script>
+    // ── FIX BOTÓN HAMBURGUESA BLINDADO ──
+    document.addEventListener('DOMContentLoaded', () => {
+      const topbar = document.querySelector('.topbar') || document.querySelector('.app-header');
+      if (!topbar) return;
+      
+      const btnHamburguesa = topbar.querySelector('button') || document.getElementById('menu-toggle');
+      
+      const sidebar = document.getElementById('mi-sidebar-blindado');
+      const overlay = document.getElementById('sb-overlay-blindado');
+
+      if (btnHamburguesa && sidebar && overlay) {
+        const nuevoBtn = btnHamburguesa.cloneNode(true);
+        btnHamburguesa.parentNode.replaceChild(nuevoBtn, btnHamburguesa);
+
+        nuevoBtn.addEventListener('click', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          sidebar.classList.toggle('abierto');
+          overlay.classList.toggle('activo');
+        });
+      }
+    });
+  </script>
 </body>
 </html>

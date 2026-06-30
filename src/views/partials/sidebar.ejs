@@ -10,13 +10,26 @@
     font-family: 'DM Sans', sans-serif !important;
     width: 280px !important; display: flex !important; flex-direction: column !important;
     border-right: 1px solid #1e293b !important;
-    overflow-y: auto !important; transition: transform 0.3s ease !important;
+    overflow: hidden !important; transition: transform 0.3s ease !important;
   }
-  #mi-sidebar-blindado::-webkit-scrollbar { width: 6px; }
-  #mi-sidebar-blindado::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
-  
-  /* ── 2. LOGO Y MARCA ── */
-  .sb-header { padding: 24px !important; display: flex !important; align-items: center !important; gap: 16px !important; border-bottom: 1px solid #1e293b !important; margin-bottom: 16px !important; }
+
+  /* ── 2. LOGO Y MARCA (HEADER FIJO, NO SCROLLA) ── */
+  /* ── 2. LOGO Y MARCA (HEADER FIJO, NO SCROLLA) ── */
+  .sb-header {
+    padding: 24px !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 16px !important;
+    border-bottom: 1px solid #1e293b !important;
+    margin-bottom: 10px !important;
+    flex-shrink: 0 !important;
+    
+    /* ── FIX DEFINITIVO: STICKY BLINDADO ── */
+    position: sticky !important;
+    top: 0 !important;
+    background-color: #0f172a !important; /* Mismo azul noche del menú */
+    z-index: 50 !important;
+  }
   .sb-logo-box { width: 44px !important; height: 44px !important; background: #ffffff !important; border-radius: 10px !important; padding: 4px !important; display: flex; align-items: center; justify-content: center; }
   .sb-logo-box img { width: 100% !important; height: auto !important; }
   .sb-title-box { display: flex !important; flex-direction: column !important; }
