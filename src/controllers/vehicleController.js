@@ -412,9 +412,16 @@ const vehicleController = {
     } catch (error) { res.send("Error al actualizar"); }
   },
 
+  // 👇 CAMBIO: ya no depende de vehicleService.getVehiculosAsignados() (rota / mal filtrada).
+  // Ahora se traen los vehículos directamente de la tabla Vehiculo, filtrando
+  // sólo por estado_actual = 'En uso', igual que se hace más abajo para todosVehiculos.
   CargaActualizarKm: async (req, res) => {
     try {
-      const asignaciones = await vehicleService.getVehiculosAsignados();
+      const asignaciones = await db.Vehiculo.findAll({
+        where: { estado_actual: 'En uso' },
+        attributes: ['id_vehiculo', 'patente', 'marca', 'modelo', 'km_actual'],
+        order: [['patente', 'ASC']]
+      });
       const historial = await vehicleService.getHistorialKm();
       const vehiculosConHistorial = await vehicleService.getVehiculosConHistorial();
       const todosVehiculos = await db.Vehiculo.findAll({
@@ -422,7 +429,10 @@ const vehicleController = {
         order: [['patente', 'ASC']]
       });
       res.render("ActualizarKm", { asignaciones, historial, vehiculosConHistorial, todosVehiculos });
-    } catch (error) { res.send("Error al cargar la vista"); }
+    } catch (error) {
+      console.log(error);
+      res.send("Error al cargar la vista");
+    }
   },
 
   processActualizarKm: async (req, res) => {

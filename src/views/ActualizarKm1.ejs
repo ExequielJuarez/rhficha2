@@ -76,30 +76,35 @@
           <h3>1. Seleccionar Vehículo</h3>
           <div class="form-group">
             <select name="id_vehiculo" id="id_vehiculo" required>
-    <option value="">— Elegir un vehículo —</option>
-
-    <% if (todosVehiculos && todosVehiculos.length > 0) { %>
-        <% todosVehiculos.forEach(v => { %>
-            <option
-                value="<%= v.id_vehiculo %>"
-                data-patente="<%= v.patente %>"
-                data-detalle="<%= v.marca %> <%= v.modelo %>"
-                data-km="<%= v.km_actual %>">
-                <%= v.patente %> · <%= v.marca %> <%= v.modelo %>
-            </option>
-        <% }) %>
-    <% } %>
-</select>
+              <option value="">— Elegir un vehículo en uso —</option>
+              <% asignaciones.forEach(asig => { %>
+                <option value="<%= asig.id_vehiculo %>" data-patente="<%= asig.patente %>" data-detalle="<%= asig.marca %> <%= asig.modelo %>" data-km="<%= asig.km_actual %>" data-chofer="<%= asig.chofer_nombre %> <%= asig.chofer_apellido %>">
+                  <%= asig.patente %> · <%= asig.marca %> <%= asig.modelo %>
+                </option>
+              <% }) %>
+            </select>
             <span class="field-error" id="err-vehiculo"></span>
           </div>
 
-          <div class="info-box" id="box-vehiculo" style="margin-top: 16px;">
-            <div class="info-box__icon">
-              <svg viewBox="0 0 20 20" fill="currentColor" style="width:20px;height:20px;"><path d="M8 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zM15 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0z"/><path d="M3 4a1 1 0 00-1 1v10a1 1 0 001 1h1.05a2.5 2.5 0 014.9 0H10a1 1 0 001-1V5a1 1 0 00-1-1H3zM14 7a1 1 0 00-1 1v6.05A2.5 2.5 0 0115.95 16H17a1 1 0 001-1v-5a1 1 0 00-.293-.707l-2-2A1 1 0 0015 7h-1z"/></svg>
+          <div class="grid-2" style="margin-top: 16px;">
+            <div class="info-box" id="box-vehiculo">
+              <div class="info-box__icon">
+                <svg viewBox="0 0 20 20" fill="currentColor" style="width:20px;height:20px;"><path d="M8 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zM15 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0z"/><path d="M3 4a1 1 0 00-1 1v10a1 1 0 001 1h1.05a2.5 2.5 0 014.9 0H10a1 1 0 001-1V5a1 1 0 00-1-1H3zM14 7a1 1 0 00-1 1v6.05A2.5 2.5 0 0115.95 16H17a1 1 0 001-1v-5a1 1 0 00-.293-.707l-2-2A1 1 0 0015 7h-1z"/></svg>
+              </div>
+              <div>
+                <span style="font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase;">Última lectura</span>
+                <span class="km-giant" id="km-actual-display">0 km</span>
+              </div>
             </div>
-            <div>
-              <span style="font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase;">Última lectura</span>
-              <span class="km-giant" id="km-actual-display">0 km</span>
+
+            <div class="info-box" id="box-chofer">
+              <div class="info-box__icon">
+                <svg viewBox="0 0 20 20" fill="currentColor" style="width:20px;height:20px;"><path d="M9 6a3 3 0 11-6 0 3 3 0 016 0zM17 6a3 3 0 11-6 0 3 3 0 016 0zM12.93 17c.046-.327.07-.66.07-1a6.97 6.97 0 00-1.5-4.33A5 5 0 0119 16v1h-6.07zM6 11a5 5 0 015 5v1H1v-1a5 5 0 015-5z"/></svg>
+              </div>
+              <div>
+                <span style="font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase;">Chofer asignado</span>
+                <span style="display:block; font-size:15px; font-weight:700; color:#0f172a;" id="chofer-display">Sin asignar</span>
+              </div>
             </div>
           </div>
         </section>
@@ -178,6 +183,7 @@
     /* ── Lógica del formulario principal ── */
     const vehicleSelect = document.getElementById('id_vehiculo');
     const kmActualDisplay = document.getElementById('km-actual-display');
+    const choferDisplay = document.getElementById('chofer-display');
     const kmNuevoInput = document.getElementById('km_nuevo');
     const kmDiffHint = document.getElementById('km-diff-hint');
     let kmActualGlobal = null;
@@ -186,6 +192,7 @@
       const opt = this.options[this.selectedIndex];
       if (!this.value) {
         kmActualDisplay.textContent = '0 km';
+        choferDisplay.textContent = 'Sin asignar';
         kmActualGlobal = null;
         kmDiffHint.textContent = '';
         return;
@@ -193,6 +200,7 @@
       
       const kmNum = parseInt(opt.dataset.km) || 0;
       kmActualDisplay.textContent = kmNum.toLocaleString('es-AR') + ' km';
+      choferDisplay.textContent = opt.dataset.chofer || '—';
       kmActualGlobal = kmNum;
       
       if (!kmNuevoInput.value) kmNuevoInput.value = kmNum;
