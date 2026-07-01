@@ -159,25 +159,29 @@ const alertaService = {
         const diffDias = Math.ceil((venc - hoy) / (1000 * 60 * 60 * 24));
         const nombre = `${lic.Chofer.nombre} ${lic.Chofer.apellido}`;
         const vencida = diffDias < 0;
+        const tipoActual = vencida ? 'licencia_vencida' : 'licencia_proxima';
 
+        // 👈 CORREGIDO: ya no filtramos por leida, y matcheamos por categoría
+        // (licencia_%) para no duplicar cuando pasa de "proxima" a "vencida"
         const existe = await db.Alerta.findOne({
             where: {
-                tipo:       vencida ? 'licencia_vencida' : 'licencia_proxima',
-                entidad_id: lic.id_chofer,  // por chofer, no por licencia
-                leida:      false
+                tipo:       { [Op.like]: 'licencia_%' },
+                entidad_id: lic.id_chofer,
             }
         });
         if (existe){
-          // Actualizar en lugar de saltear
+          // Actualizar en lugar de saltear (incluye el tipo, por si cruzó de proxima a vencida)
           await existe.update({
+              tipo:      tipoActual,
               mensaje:   vencida
                   ? `Licencia de ${nombre} vencida hace ${Math.abs(diffDias)} días`
                   : `Licencia de ${nombre} vence en ${diffDias} días`,
-              prioridad: vencida ? 'alta' : 'media'
+              prioridad: vencida ? 'alta' : 'media',
+              leida:     false, // vuelve a marcarse como pendiente si cambió la situación
           });
       } else {
           await db.Alerta.create({
-              tipo:                     vencida ? 'licencia_vencida' : 'licencia_proxima',
+              tipo:                     tipoActual,
               prioridad:                vencida ? 'alta' : 'media',
               mensaje:                  vencida
                   ? `Licencia de ${nombre} vencida hace ${Math.abs(diffDias)} días`
@@ -219,11 +223,11 @@ const alertaService = {
             const vencida = diffRto < 0;
             const msg = vencida ? `RTO/VTV vencida hace ${Math.abs(diffRto)} días` : `RTO/VTV vence en ${diffRto} días`;
 
+            // 👈 CORREGIDO: sin leida:false
             const existeRto = await db.Alerta.findOne({
                 where: {
                     tipo:       'documentacion_vencida',
                     entidad_id: v.id_vehiculo,
-                    leida:      false,
                     mensaje:    { [Op.like]: '%RTO%' }  // distingue RTO de seguro
                 }
             });
@@ -239,8 +243,8 @@ const alertaService = {
                     generada_automaticamente: true,
                 });
             } else {
-                // Actualizar mensaje y prioridad si cambió
-                await existeRto.update({ mensaje: msg, prioridad: vencida ? 'alta' : 'media' });
+                // Actualizar mensaje y prioridad si cambió, y reabrir si ya estaba leída
+                await existeRto.update({ mensaje: msg, prioridad: vencida ? 'alta' : 'media', leida: false });
             }
           }
         }
@@ -252,15 +256,15 @@ const alertaService = {
             const vencida = diffSeguro < 0;
             const msg = vencida ? `Póliza de seguro vencida hace ${Math.abs(diffSeguro)} días` : `Póliza de seguro vence en ${diffSeguro} días`;
 
+            // 👈 CORREGIDO: sin leida:false
             const existeSeguro = await db.Alerta.findOne({
                 where: {
                     tipo:       'documentacion_vencida',
                     entidad_id: v.id_vehiculo,
-                    leida:      false,
                     mensaje:    { [Op.like]: '%seguro%' }
                 }
             });
-            if (!existeSeguro) if (!existeSeguro) {
+            if (!existeSeguro) {
               await db.Alerta.create({
                   tipo:                     'documentacion_vencida',
                   prioridad:                vencida ? 'alta' : 'media',
@@ -271,7 +275,7 @@ const alertaService = {
                   generada_automaticamente: true,
               });
           } else {
-              await existeSeguro.update({ mensaje: msg, prioridad: vencida ? 'alta' : 'media' });
+              await existeSeguro.update({ mensaje: msg, prioridad: vencida ? 'alta' : 'media', leida: false });
           }
           }
         }
@@ -287,11 +291,12 @@ const alertaService = {
         for (const s of siniestrosActivos) {
           const msg = `Siniestro en proceso no resuelto: ${s.ubicacion}`;
           const patente = s.Vehiculo ? `(${s.Vehiculo.patente})` : '';
-          
+
+          // 👈 CORREGIDO: sin leida:false
           const existeSiniestro = await db.Alerta.findOne({
-            where: { tipo: "siniestro_activo", entidad_id: s.id_siniestro, leida: false }
+            where: { tipo: "siniestro_activo", entidad_id: s.id_siniestro }
           });
-          
+
           if (!existeSiniestro) {
             await db.Alerta.create({
               tipo: "siniestro_activo",
@@ -305,7 +310,7 @@ const alertaService = {
           }
         }
       }
-      
+
     } catch (error) {
       console.log("Error generando alertas de vehículos y siniestros:", error);
     }
@@ -353,12 +358,14 @@ const alertaService = {
         continue; // todavía falta mucho, no corresponde alerta
       }
 
+      // 👈 CORREGIDO: sin leida:false, y matcheamos por categoría (mantenimiento_%)
+      // para no duplicar cuando pasa de "proximo" a "vencido"
       const existente = await db.Alerta.findOne({
-        where: { tipo, entidad_id: v.id_vehiculo, leida: false },
+        where: { tipo: { [Op.like]: 'mantenimiento_%' }, entidad_id: v.id_vehiculo },
       });
 
       if (existente) {
-        await existente.update({ mensaje, prioridad });
+        await existente.update({ tipo, mensaje, prioridad, leida: false });
       } else {
         await db.Alerta.create({
           tipo,

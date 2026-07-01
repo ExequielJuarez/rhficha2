@@ -14,14 +14,21 @@
   }
 
   /* ── 2. LOGO Y MARCA (HEADER FIJO, NO SCROLLA) ── */
+  /* ── 2. LOGO Y MARCA (HEADER FIJO, NO SCROLLA) ── */
   .sb-header {
     padding: 24px !important;
     display: flex !important;
     align-items: center !important;
     gap: 16px !important;
     border-bottom: 1px solid #1e293b !important;
-    margin-bottom: 0 !important;
+    margin-bottom: 10px !important;
     flex-shrink: 0 !important;
+    
+    /* ── FIX DEFINITIVO: STICKY BLINDADO ── */
+    position: sticky !important;
+    top: 0 !important;
+    background-color: #0f172a !important; /* Mismo azul noche del menú */
+    z-index: 50 !important;
   }
   .sb-logo-box { width: 44px !important; height: 44px !important; background: #ffffff !important; border-radius: 10px !important; padding: 4px !important; display: flex; align-items: center; justify-content: center; }
   .sb-logo-box img { width: 100% !important; height: auto !important; }
@@ -29,31 +36,20 @@
   .sb-title { color: #ffffff !important; font-weight: 800 !important; font-size: 17px !important; letter-spacing: -0.02em !important; margin: 0 !important; line-height: 1.2 !important; }
   .sb-subtitle { color: #38bdf8 !important; font-size: 11px !important; font-weight: 800 !important; text-transform: uppercase !important; letter-spacing: 0.1em !important; margin: 0 !important; }
   
-  /* ── 3. NAVEGACIÓN PRINCIPAL (SCROLL INDEPENDIENTE) ── */
-  .sb-nav { 
-    padding: 16px 16px 24px 16px !important; 
-    flex: 1 !important; 
-    overflow-y: auto !important; /* La magia para que los botones scrolleen */
-  }
-  
-  /* Diseño de la barra de scroll del menú */
-  .sb-nav::-webkit-scrollbar { width: 4px; }
-  .sb-nav::-webkit-scrollbar-track { background: transparent; }
-  .sb-nav::-webkit-scrollbar-thumb { background-color: #334155; border-radius: 10px; }
-
+  /* ── 3. NAVEGACIÓN PRINCIPAL ── */
+  .sb-nav { padding: 0 16px 24px 16px !important; }
   .sb-label { display: block !important; padding: 0 12px !important; font-size: 11px !important; font-weight: 800 !important; color: #475569 !important; text-transform: uppercase !important; letter-spacing: 0.1em !important; margin-bottom: 16px !important; }
   .sb-ul { list-style: none !important; padding: 0 !important; margin: 0 !important; }
   .sb-li { margin-bottom: 6px !important; }
   
   /* Botón Principal (Títulos) */
   .sb-link { 
-    display: flex !important;
-    align-items: center !important; 
+    display: flex !important; align-items: center !important; 
     padding: 12px 14px !important; 
     color: #e2e8f0 !important; /* Color principal: Blanco Humo */
     text-decoration: none !important; 
     border-radius: 8px !important; 
-    font-weight: 600 !important;
+    font-weight: 600 !important; 
     font-size: 15px !important; /* Tipografía más grande */
     transition: all 0.2s ease !important; 
     cursor: pointer !important;
@@ -74,12 +70,12 @@
   
   /* Opciones Desplegables */
   .sb-sub-link { 
-    display: block !important;
+    display: block !important; 
     /* LA MAGIA DE LA ALINEACIÓN: 14px (padding) + 22px (icono) + 14px (margen del icono) = 50px */
-    padding: 10px 14px 10px 50px !important;
+    padding: 10px 14px 10px 50px !important; 
     color: #94a3b8 !important; /* Color secundario: Gris Azulado */
     text-decoration: none !important; 
-    font-size: 14px !important;
+    font-size: 14px !important; 
     font-weight: 500 !important;
     border-radius: 8px !important; 
     transition: all 0.2s ease !important; 
@@ -104,7 +100,7 @@
 <%
   const user = (typeof usuarioLogueado !== 'undefined') ? usuarioLogueado : null;
   const hasPerm = (permiso) => {
-      if (!user) return true;
+      if (!user) return true; 
       if (user.rol === 'Administrador') return true; 
       if (!user.permisos) return false;
       return user.permisos.includes(permiso);
@@ -119,8 +115,8 @@
       <img src="/images/header/images-removebg-preview (1).png" alt="Logo" />
     </div>
     <div class="sb-title-box">
-      <span class="sb-title">Ficha Técnica</span>
-      <span class="sb-subtitle">Municipalidad</span>
+      <span class="sb-title">Ficha tecnica</span>
+      <span class="sb-subtitle">Recursos Hidricos</span>
     </div>
   </div>
 
@@ -132,11 +128,11 @@
       <li class="sb-li">
         <a href="#" class="sb-link" onclick="event.preventDefault(); this.parentElement.classList.toggle('abierto');">
           <svg class="sb-icon" viewBox="0 0 20 20" fill="currentColor"><path d="M8 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0zM15 16.5a1.5 1.5 0 11-3 0 1.5 1.5 0 013 0z"/><path d="M3 4a1 1 0 00-1 1v10a1 1 0 001 1h1.05a2.5 2.5 0 014.9 0H10a1 1 0 001-1V5a1 1 0 00-1-1H3zM14 7a1 1 0 00-1 1v6.05A2.5 2.5 0 0115.95 16H17a1 1 0 001-1v-5a1 1 0 00-.293-.707l-2-2A1 1 0 0015 7h-1z"/></svg>
-          Flota / Vehículos
+          Vehículos
           <svg class="sb-chevron" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
         </a>
         <ul class="sb-submenu">
-          <li><a href="/Vehicles" class="sb-sub-link">Inventario de Flota</a></li>
+          <li><a href="/Vehicles" class="sb-sub-link">Inventario de vehiculo</a></li>
           <li><a href="/CargaVehiculo" class="sb-sub-link">Alta de Vehículo</a></li>
           <li><a href="/asignaciones" class="sb-sub-link">Asignar a Chofer</a></li>
           <li><a href="/ActualizarKm" class="sb-sub-link">Carga de Kilometraje</a></li>
@@ -253,6 +249,7 @@
       try {
           const urlActual = window.location.pathname.toLowerCase();
           const enlaces = document.querySelectorAll('#mi-sidebar-blindado a[href]:not([href="#"])');
+          
           let mejorEnlace = null;
           let maxCoincidencia = 0;
           
@@ -263,7 +260,7 @@
                   mejorEnlace = enlace;
               }
           });
-
+          
           if (mejorEnlace) {
               mejorEnlace.classList.add('activo');
               // Si es un submenú, abrir al padre

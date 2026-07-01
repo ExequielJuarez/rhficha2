@@ -1,6 +1,6 @@
-const db = require("../model/database/models");
-const fs = require("fs");
 const path = require("path");
+const fs = require("fs");
+const db = require("../model/database/models");
 
 const vehicleService = {
   getAll: async function () {
@@ -36,9 +36,7 @@ const vehicleService = {
   findByPk: async function (id) {
     try {
       let allVehicles = await this.getAll();
-
       let OneVehicle = allVehicles.find((onevehicle) => onevehicle.id === id);
-
       return OneVehicle;
     } catch (error) {
       console.log(error);
@@ -82,13 +80,8 @@ const vehicleService = {
   getCreateData: async function () {
     try {
       const vehiculos = await db.Vehiculo.findAll();
-
       const repuestos = await db.Repuesto.findAll();
-
-      return {
-        vehiculos,
-        repuestos,
-      };
+      return { vehiculos, repuestos };
     } catch (error) {
       console.log(error);
     }
@@ -103,27 +96,16 @@ const vehicleService = {
 
       const mantenimiento = await db.Mantenimiento.create({
         id_vehiculo: data.id_vehiculo,
-
         id_usuario: 1,
-
         tipo_servicio: data.tipo_servicio,
-
         fecha_inicio: data.fecha_inicio,
-
         fecha_fin: data.fecha_fin || null,
-
         km_servicio: data.km_servicio,
-
         costo_total: costoFinal,
-
         descripcion: data.descripcion || data.trabajo_realizado || null,
-
         observaciones: data.observaciones || null,
-
         proximo_km: data.proximo_km || data.proximo_servicio_km || null,
-
         proxima_fecha: data.proxima_fecha || null,
-
         estado: data.estado || "Realizado",
       });
       console.log("Mantenimiento guardado:", mantenimiento.id_mantenimiento);
@@ -135,18 +117,14 @@ const vehicleService = {
       if (idRepuestos) {
         if (!Array.isArray(idRepuestos)) idRepuestos = [idRepuestos];
         if (!Array.isArray(cantidades)) cantidades = [cantidades];
-        if (!Array.isArray(costosUnitarios))
-          costosUnitarios = [costosUnitarios];
+        if (!Array.isArray(costosUnitarios)) costosUnitarios = [costosUnitarios];
 
         for (let i = 0; i < idRepuestos.length; i++) {
           if (idRepuestos[i] && idRepuestos[i] !== "") {
             await db.DetalleMantenimiento.create({
               id_mantenimiento: mantenimiento.id_mantenimiento,
-
               id_repuesto: idRepuestos[i],
-
               cantidad: cantidades[i] || 1,
-
               costo_unitario: costosUnitarios[i] || 0,
             });
           }
@@ -158,8 +136,13 @@ const vehicleService = {
       console.log(error);
     }
   },
+
   update: async function (id, body, files = {}) {
     try {
+      // 👈 NUEVO: snapshot del vehículo antes de modificarlo, para poder auditar el "antes"
+      const vehiculoAnterior = await db.Vehiculo.findByPk(id);
+      const valorAnteriorPlano = vehiculoAnterior ? vehiculoAnterior.toJSON() : null;
+
       const datos = {
         estado_actual: body.estado_actual,
         km_actual: body.km_actual,
@@ -172,12 +155,15 @@ const vehicleService = {
         seguro_vencimiento: body.seguro_vencimiento || null,
         rto_vencimiento: body.rto_vencimiento || null,
       };
-  
+
       if (files?.foto_cedula?.[0]) datos.foto_cedula = files.foto_cedula[0].filename;
       if (files?.foto_titulo?.[0]) datos.foto_titulo = files.foto_titulo[0].filename;
       if (files?.foto_rto?.[0])    datos.foto_rto    = files.foto_rto[0].filename;
-  
+
       await db.Vehiculo.update(datos, { where: { id_vehiculo: id } });
+
+      // 👈 NUEVO: devolvemos antes/después para que el controller pueda auditar
+      return { valorAnterior: valorAnteriorPlano, valorNuevo: datos };
     } catch (error) {
       console.log(error);
     }
@@ -187,12 +173,8 @@ const vehicleService = {
     try {
       const mantenimientos = await db.Mantenimiento.findAll({
         include: [
-          {
-            association: "vehiculo",
-          },
-          {
-            association: "detalles",
-          },
+          { association: "vehiculo" },
+          { association: "detalles" },
         ],
         order: [["fecha_inicio", "DESC"]],
       });
@@ -204,14 +186,11 @@ const vehicleService = {
         let costoRepuestos = 0;
         if (mant.detalles && mant.detalles.length > 0) {
           costoRepuestos = mant.detalles.reduce((total, detalle) => {
-            return (
-              total + Number(detalle.cantidad) * Number(detalle.costo_unitario)
-            );
+            return total + Number(detalle.cantidad) * Number(detalle.costo_unitario);
           }, 0);
         }
 
         mant.costo_repuestos = costoRepuestos;
-
         mant.mano_obra = Math.max(0, Number(mant.costo_total) - costoRepuestos);
 
         return mant;
@@ -221,6 +200,7 @@ const vehicleService = {
       return [];
     }
   },
+
   getLastMantenimientos: async function (id_vehiculo, limit = 3) {
     try {
       return await db.Mantenimiento.findAll({
@@ -255,14 +235,7 @@ const vehicleService = {
         include: [
           {
             association: "vehiculo",
-            attributes: [
-              "id_vehiculo",
-              "patente",
-              "marca",
-              "modelo",
-              "anio",
-              "km_actual",
-            ],
+            attributes: ["id_vehiculo", "patente", "marca", "modelo", "anio", "km_actual"],
           },
           {
             model: db.Chofer,
@@ -293,10 +266,7 @@ const vehicleService = {
   getAsignacionActiva: async function (id_vehiculo) {
     try {
       return await db.AsignacionVehiculo.findOne({
-        where: {
-          id_vehiculo,
-          estado: "Activo",
-        },
+        where: { id_vehiculo, estado: "Activo" },
         include: [{ association: "Chofer" }],
       });
     } catch (error) {

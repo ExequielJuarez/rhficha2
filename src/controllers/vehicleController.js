@@ -4,6 +4,7 @@ const fs = require("fs");
 const vehicleService = require("../data/vehicleService");
 const db = require("../model/database/models");
 const alertaService = require("../data/alertaService");
+const auditoriaService = require("../data/auditoriaService"); // 👈 NUEVO: ajustá la ruta si tu service está en otra carpeta
 
 const vehicleController = {
   ListVehicles: async (req, res) => {
@@ -100,8 +101,21 @@ const vehicleController = {
     try {
       const mantenimiento = await db.Mantenimiento.findByPk(req.params.id);
       if (!mantenimiento) return res.redirect('/Mantenimientos');
-  
+
+      const estadoAnterior = mantenimiento.estado; // 👈 NUEVO
       await mantenimiento.update({ estado: req.body.estado });
+
+      // 👈 NUEVO: auditar el cambio de estado del mantenimiento
+      let idUsuarioAudit = req.session?.usuarioLogueado?.id_usuario || req.session?.usuarioLogueado?.id || 1;
+      await auditoriaService.registrarAuditoria(
+        idUsuarioAudit,
+        "mantenimiento",
+        mantenimiento.id_mantenimiento,
+        "EDITAR",
+        { estado: estadoAnterior },
+        { estado: req.body.estado },
+        `Cambio de estado de mantenimiento ID: ${mantenimiento.id_mantenimiento} (${estadoAnterior} → ${req.body.estado})`
+      );
   
       if (req.body.estado === 'Realizado') {
         const kmServicio = parseInt(req.body.km_servicio) || 0;
@@ -162,6 +176,17 @@ const vehicleController = {
       mano_obra: manoObraCalc,
       costo_total: totalCalc
     });
+
+    // 👈 NUEVO: auditar el alta de mantenimiento
+    await auditoriaService.registrarAuditoria(
+      idUsuario,
+      "mantenimiento",
+      nuevoMantenimiento.id_mantenimiento,
+      "CREAR",
+      null,
+      nuevoMantenimiento,
+      `Alta de mantenimiento (${req.body.tipo_servicio}) para vehículo ID: ${req.body.id_vehiculo}`
+    );
 
     // ── actualizar estado del vehículo según estado del mantenimiento ──
     const vehiculo = await db.Vehiculo.findByPk(req.body.id_vehiculo);
@@ -340,7 +365,20 @@ const vehicleController = {
         return res.status(400).send(`<h3>Errores:</h3><ul>${errores.map((e) => `<li>${e}</li>`).join("")}</ul><a href="javascript:history.back()">Volver</a>`);
       }
 
-      await vehicleService.create(req);
+      const nuevoVehiculo = await vehicleService.create(req); // 👈 CAMBIO: ahora capturamos el vehículo creado
+
+      // 👈 NUEVO: registrar auditoría de alta
+      let idUsuarioAudit = req.session?.usuarioLogueado?.id_usuario || req.session?.usuarioLogueado?.id || 1;
+      await auditoriaService.registrarAuditoria(
+        idUsuarioAudit,
+        "vehiculo",
+        nuevoVehiculo?.id_vehiculo,
+        "CREAR",
+        null,
+        nuevoVehiculo,
+        `Alta vehículo: ${marca} ${modelo} (${patente})`
+      );
+
       res.redirect("/Vehicles");
     } catch (error) {
       res.send("Error al guardar el vehículo");
@@ -356,7 +394,20 @@ const vehicleController = {
 
   processEditVehiculo: async (req, res) => {
     try {
-      await vehicleService.update(req.params.id, req.body, req.files || {});
+      const resultado = await vehicleService.update(req.params.id, req.body, req.files || {}); // 👈 CAMBIO: ahora capturamos el resultado
+
+      // 👈 NUEVO: registrar auditoría de edición
+      let idUsuarioAudit = req.session?.usuarioLogueado?.id_usuario || req.session?.usuarioLogueado?.id || 1;
+      await auditoriaService.registrarAuditoria(
+        idUsuarioAudit,
+        "vehiculo",
+        req.params.id,
+        "EDITAR",
+        resultado?.valorAnterior,
+        resultado?.valorNuevo,
+        `Edición de vehículo ID: ${req.params.id}`
+      );
+
       res.redirect(`/Vehicles/${req.params.id}`);
     } catch (error) { res.send("Error al actualizar"); }
   },
@@ -366,7 +417,7 @@ const vehicleController = {
       const asignaciones = await vehicleService.getVehiculosAsignados();
       const historial = await vehicleService.getHistorialKm();
       const vehiculosConHistorial = await vehicleService.getVehiculosConHistorial();
-      const todosVehiculos = await db.Vehiculo.findAll({          // <-- NUEVO
+      const todosVehiculos = await db.Vehiculo.findAll({
         attributes: ['id_vehiculo', 'patente', 'marca', 'modelo', 'km_actual'],
         order: [['patente', 'ASC']]
       });
@@ -387,9 +438,21 @@ const vehicleController = {
         return res.status(400).send(`<h3>Errores de validación:</h3><ul>${errores.map((e) => `<li>${e}</li>`).join("")}</ul><a href="javascript:history.back()">Volver</a>`);
       }
 
-      await vehicleService.actualizarKm(id_vehiculo, Number(km_nuevo), observaciones);
-      await vehicleService.actualizarKm(id_vehiculo, Number(km_nuevo), observaciones);
-      await alertaService.generarAlertasMantenimiento(); // <-- agregar
+      await vehicleService.actualizarKm(id_vehiculo, Number(km_nuevo), observaciones); // 👈 CAMBIO: se quitó la llamada duplicada que estaba en el original
+
+      // 👈 NUEVO: registrar auditoría de actualización de km
+      let idUsuarioAudit = req.session?.usuarioLogueado?.id_usuario || req.session?.usuarioLogueado?.id || 1;
+      await auditoriaService.registrarAuditoria(
+        idUsuarioAudit,
+        "vehiculo",
+        id_vehiculo,
+        "EDITAR",
+        null,
+        { km_actual: km_nuevo },
+        `Actualización de kilometraje del vehículo ID: ${id_vehiculo} a ${km_nuevo} km`
+      );
+
+      await alertaService.generarAlertasMantenimiento();
       res.redirect("/Vehicles");
     } catch (error) { res.send("Error al actualizar el kilometraje"); }
   },
