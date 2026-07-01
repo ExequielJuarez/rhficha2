@@ -169,6 +169,23 @@
                   Asignar Chofer
                 </a>
               <% } %>
+
+              <%# ── BOTONES VER DOCUMENTOS (AGREGADO) ── %>
+              <% if (vehiculoSeleccionado.foto_cedula) { %>
+                <button onclick="abrirFotoVehiculo('/img/vehiculos/<%= vehiculoSeleccionado.foto_cedula %>')" style="background-color:#f1f5f9;color:#2563eb;border:1px solid #cbd5e1;padding:8px 14px;font-size:12px;font-weight:700;border-radius:6px;cursor:pointer;">
+                   Ver Cédula
+                </button>
+              <% } %>
+              <% if (vehiculoSeleccionado.foto_titulo) { %>
+                <button onclick="abrirFotoVehiculo('/img/vehiculos/<%= vehiculoSeleccionado.foto_titulo %>')" style="background-color:#f1f5f9;color:#2563eb;border:1px solid #cbd5e1;padding:8px 14px;font-size:12px;font-weight:700;border-radius:6px;cursor:pointer;">
+                   Ver Título
+                </button>
+              <% } %>
+              <% if (vehiculoSeleccionado.foto_rto) { %>
+                <button onclick="abrirFotoVehiculo('/img/vehiculos/<%= vehiculoSeleccionado.foto_rto %>')" style="background-color:#f1f5f9;color:#2563eb;border:1px solid #cbd5e1;padding:8px 14px;font-size:12px;font-weight:700;border-radius:6px;cursor:pointer;">
+                  Ver RTO
+                </button>
+              <% } %>
             </div>
           </div>
 
@@ -406,6 +423,38 @@
             link.click();
             document.body.removeChild(link);
         });
+    }
+
+    // ── MODAL FOTOS VEHÍCULO (AGREGADO) ──
+    const modalVehiculo = document.createElement('div');
+    modalVehiculo.style.cssText = `
+      display:none; position:fixed; inset:0; background:rgba(0,0,0,0.75);
+      z-index:9999; align-items:center; justify-content:center; padding:20px;
+    `;
+    modalVehiculo.innerHTML = `
+      <div style="position:relative; max-width:90vw; max-height:90vh;">
+        <button id="modal-vehiculo-close" style="
+          position:absolute; top:-14px; right:-14px; width:32px; height:32px;
+          background:#fff; border:none; border-radius:50%; font-size:18px;
+          font-weight:800; cursor:pointer; color:#0f172a; line-height:1;
+          box-shadow:0 2px 8px rgba(0,0,0,0.3);
+        ">×</button>
+        <img id="modal-vehiculo-img" src="" alt="Foto"
+          style="max-width:100%; max-height:85vh; border-radius:8px; display:block;">
+      </div>
+    `;
+    document.body.appendChild(modalVehiculo);
+
+    document.getElementById('modal-vehiculo-close').addEventListener('click', () => {
+      modalVehiculo.style.display = 'none';
+    });
+    modalVehiculo.addEventListener('click', (e) => {
+      if (e.target === modalVehiculo) modalVehiculo.style.display = 'none';
+    });
+
+    function abrirFotoVehiculo(src) {
+      document.getElementById('modal-vehiculo-img').src = src;
+      modalVehiculo.style.display = 'flex';
     }
 
     // ── LÓGICA DE NAVEGACIÓN MÓVIL (MASTER-DETAIL) ──

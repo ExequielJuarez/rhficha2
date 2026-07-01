@@ -79,17 +79,18 @@ const alertaService = {
 
   getResumen: async function () {
     try {
-        const [licVencidas, licProximas, docsVencidas, siniestrosActivos] = await Promise.all([
+        const [licVencidas, licProximas, docsVencidas, siniestrosActivos, mantProximos] = await Promise.all([
             db.Alerta.count({ where: { tipo: 'licencia_vencida',   leida: false } }),
             db.Alerta.count({ where: { tipo: 'licencia_proxima',   leida: false } }),
             db.Alerta.count({ where: { tipo: 'documentacion_vencida', leida: false } }),
             db.Alerta.count({ where: { tipo: 'siniestro_activo',   leida: false } }),
+            db.Alerta.count({ where: { tipo: { [Op.in]: ['mantenimiento_proximo', 'mantenimiento_vencido'] }, leida: false } }),
         ]);
 
-        return { licVencidas, licProximas, docsVencidas, siniestrosActivos };
+        return { licVencidas, licProximas, docsVencidas, siniestrosActivos, mantProximos };
     } catch (error) {
         console.log("Error en getResumen:", error);
-        return { licVencidas: 0, licProximas: 0, docsVencidas: 0, siniestrosActivos: 0 };
+        return { licVencidas: 0, licProximas: 0, docsVencidas: 0, siniestrosActivos: 0, mantProximos: 0 };
     }
 },
 
@@ -280,12 +281,12 @@ const alertaService = {
       if (db.Siniestro) {
         const siniestrosActivos = await db.Siniestro.findAll({
           where: { estado: { [Op.in]: ['EN PROCESO', 'En Proceso', 'En proceso'] } },
-          include: [{ model: db.Vehiculo, as: 'vehiculo' }]
+          include: [{ model: db.Vehiculo, as: 'Vehiculo' }]
         });
 
         for (const s of siniestrosActivos) {
           const msg = `Siniestro en proceso no resuelto: ${s.ubicacion}`;
-          const patente = s.vehiculo ? `(${s.vehiculo.patente})` : '';
+          const patente = s.Vehiculo ? `(${s.Vehiculo.patente})` : '';
           
           const existeSiniestro = await db.Alerta.findOne({
             where: { tipo: "siniestro_activo", entidad_id: s.id_siniestro, leida: false }
@@ -309,6 +310,71 @@ const alertaService = {
       console.log("Error generando alertas de vehículos y siniestros:", error);
     }
   },
+
+  generarAlertasMantenimiento: async function () {
+  try {
+    const UMBRAL_MEDIA = 5000; // "falta poco"
+    const UMBRAL_ALTA = 2000;  // "falta muy poco"
+
+    const vehiculos = await db.Vehiculo.findAll({
+      where: { estado_actual: { [Op.ne]: "Baja" } },
+    });
+
+    for (const v of vehiculos) {
+      // Buscamos el último mantenimiento que tenga definido un próximo service
+      const ultimoMant = await db.Mantenimiento.findOne({
+        where: {
+          id_vehiculo: v.id_vehiculo,
+          proximo_km: { [Op.ne]: null },
+        },
+        order: [["fecha_inicio", "DESC"]],
+      });
+
+      if (!ultimoMant || !ultimoMant.proximo_km) continue;
+
+      const kmRestantes = ultimoMant.proximo_km - v.km_actual;
+      const nombreVehiculo = `${v.marca} ${v.modelo} (${v.patente})`;
+
+      let tipo, prioridad, mensaje;
+
+      if (kmRestantes <= 0) {
+        tipo = "mantenimiento_vencido";
+        prioridad = "alta";
+        mensaje = `Service recomendado superado hace ${Math.abs(kmRestantes)} km (recomendado a los ${ultimoMant.proximo_km} km)`;
+      } else if (kmRestantes <= UMBRAL_ALTA) {
+        tipo = "mantenimiento_proximo";
+        prioridad = "alta";
+        mensaje = `Faltan solo ${kmRestantes} km para el service recomendado (${ultimoMant.proximo_km} km)`;
+      } else if (kmRestantes <= UMBRAL_MEDIA) {
+        tipo = "mantenimiento_proximo";
+        prioridad = "media";
+        mensaje = `Faltan ${kmRestantes} km para el service recomendado (${ultimoMant.proximo_km} km)`;
+      } else {
+        continue; // todavía falta mucho, no corresponde alerta
+      }
+
+      const existente = await db.Alerta.findOne({
+        where: { tipo, entidad_id: v.id_vehiculo, leida: false },
+      });
+
+      if (existente) {
+        await existente.update({ mensaje, prioridad });
+      } else {
+        await db.Alerta.create({
+          tipo,
+          prioridad,
+          mensaje,
+          entidad_tipo: "Vehiculo",
+          entidad_id: v.id_vehiculo,
+          entidad_nombre: nombreVehiculo,
+          generada_automaticamente: true,
+        });
+      }
+    }
+  } catch (error) {
+    console.log("Error generando alertas de mantenimiento:", error);
+  }
+},
 };
 
 module.exports = alertaService;

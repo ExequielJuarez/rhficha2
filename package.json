@@ -19,6 +19,7 @@
     "method-override": "^3.0.0",
     "multer": "^2.1.1",
     "mysql2": "^3.22.2",
+    "node-cron": "^4.5.0",
     "sequelize": "^6.37.8"
   },
   "devDependencies": {

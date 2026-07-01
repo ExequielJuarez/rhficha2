@@ -5,9 +5,16 @@ const db = require("../model/database/models");
 const alertaController = {
   ListAlertas: async (req, res) => {
     try {
-      
+      // Recalculamos las alertas automáticas antes de mostrar el panel,
+      // así no dependemos de que se haya disparado desde otra acción
+      await Promise.all([
+        alertaService.generarAlertasLicencias(),
+        alertaService.generarAlertasVehiculos(),
+        alertaService.generarAlertasMantenimiento(),
+      ]);
 
-      const filtros = req.query;
+      // Traemos todo sin paginar: el filtrado ahora es 100% client-side, como en Mantenimientos
+      const filtros = { ...req.query, limite: 100000, pagina: 1 };
 
       // Luego traemos todo para mostrarlo en pantalla, incluyendo estadísticas para gráficos
       const [resultado, resumen, noLeidas, estadisticas] = await Promise.all([
@@ -33,7 +40,7 @@ const alertaController = {
         queryString,
         resumen,
         noLeidas,
-        estadisticas, // <--- Enviamos los datos para Chart.js
+        estadisticas,
         filtros: req.query,
       });
     } catch (error) {

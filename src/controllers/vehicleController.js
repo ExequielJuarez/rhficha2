@@ -3,6 +3,7 @@ const fs = require("fs");
 
 const vehicleService = require("../data/vehicleService");
 const db = require("../model/database/models");
+const alertaService = require("../data/alertaService");
 
 const vehicleController = {
   ListVehicles: async (req, res) => {
@@ -134,95 +135,98 @@ const vehicleController = {
   },
 
   processMaintenance: async (req, res) => {
-    try {
-      let idUsuario = 1;
-      if (req.session && req.session.usuarioLogueado) {
-        idUsuario = req.session.usuarioLogueado.id_usuario || req.session.usuarioLogueado.id || 1;
-      }
-  
-      const repuestosCalc = parseFloat(req.body.costo_repuestos) || 0;
-      const manoObraCalc = parseFloat(req.body.mano_obra) || 0;
-      const totalCalc = parseFloat(req.body.costo_total) || 0;
-      const proxKm = req.body.proximo_servicio_km ? parseInt(req.body.proximo_servicio_km) : null;
-      const kmServicio = parseInt(req.body.km_servicio) || 0;
-      const estadoMantenimiento = req.body.estado;
-  
-      const nuevoMantenimiento = await db.Mantenimiento.create({
-        id_vehiculo: req.body.id_vehiculo,
-        id_usuario: idUsuario,
-        fecha_inicio: req.body.fecha_inicio,
-        tipo_servicio: req.body.tipo_servicio,
-        estado: estadoMantenimiento,
-        km_servicio: kmServicio,
-        proximo_km: proxKm,
-        descripcion: req.body.descripcion,
-        observaciones: req.body.observaciones,
-        costo_repuestos: repuestosCalc,
-        mano_obra: manoObraCalc,
-        costo_total: totalCalc
-      });
-  
-      // ── NUEVO: actualizar estado del vehículo según estado del mantenimiento ──
-      const vehiculo = await db.Vehiculo.findByPk(req.body.id_vehiculo);
-      if (vehiculo) {
-        if (estadoMantenimiento === 'Pendiente' || estadoMantenimiento === 'En proceso') {
-          await vehiculo.update({ estado_actual: 'En mantenimiento' });
-        } else if (estadoMantenimiento === 'Realizado') {
-          // Si se carga directo como Realizado, actualizar km y mantener/liberar estado
-          if (kmServicio > vehiculo.km_actual) {
-            await vehiculo.update({ km_actual: kmServicio });
-          }
-          // Solo liberar si actualmente estaba En mantenimiento (no tocar si está En uso)
-          if (vehiculo.estado_actual === 'En mantenimiento') {
-            await vehiculo.update({ estado_actual: 'Disponible' });
-          }
-        }
-      }
-  
-      // repuestos — igual que antes
-      if (req.body.id_repuesto) {
-        let repuestosIds = req.body.id_repuesto;
-        let cantidades = req.body.cantidad;
-        let costos = req.body.costo_unitario;
-
-        if (!Array.isArray(repuestosIds)) repuestosIds = [repuestosIds];
-        if (!Array.isArray(cantidades)) cantidades = [cantidades];
-        if (!Array.isArray(costos)) costos = [costos];
-
-        for (let i = 0; i < repuestosIds.length; i++) {
-          if (repuestosIds[i]) {
-            try {
-              await db.DetalleMantenimiento.create({
-                id_mantenimiento: nuevoMantenimiento.id_mantenimiento,
-                id_repuesto: repuestosIds[i],
-                cantidad: cantidades[i] || 1,
-                costo_unitario: costos[i] || 0
-              });
-
-              const repuestoInventario = await db.Repuesto.findByPk(repuestosIds[i]);
-              if (repuestoInventario) {
-                await repuestoInventario.update({ stock: repuestoInventario.stock - (cantidades[i] || 1) });
-              }
-            } catch (errDetalle) {
-              console.log("No se pudo guardar el detalle/descontar stock:", errDetalle.message);
-            }
-          }
-        }
-      }
-
-      res.redirect("/Mantenimientos");
-    } catch (error) {
-      console.error("Error Crítico al guardar mantenimiento:", error);
-      res.send(`
-        <div style="font-family:sans-serif; padding:40px; text-align:center;">
-          <h2 style="color:#dc2626;">Error al guardar la orden de mantenimiento</h2>
-          <p style="background:#fef2f2; padding:15px; border:1px solid #fecaca; border-radius:8px; display:inline-block;">${error.message}</p>
-          <br><br>
-          <button onclick="history.back()" style="padding:10px 20px; cursor:pointer;">Volver e intentar nuevamente</button>
-        </div>
-      `);
+  try {
+    let idUsuario = 1;
+    if (req.session && req.session.usuarioLogueado) {
+      idUsuario = req.session.usuarioLogueado.id_usuario || req.session.usuarioLogueado.id || 1;
     }
-  },
+
+    const repuestosCalc = parseFloat(req.body.costo_repuestos) || 0;
+    const manoObraCalc = parseFloat(req.body.mano_obra) || 0;
+    const totalCalc = parseFloat(req.body.costo_total) || 0;
+    const proxKm = req.body.proximo_servicio_km ? parseInt(req.body.proximo_servicio_km) : null;
+    const kmServicio = parseInt(req.body.km_servicio) || 0;
+    const estadoMantenimiento = req.body.estado;
+
+    const nuevoMantenimiento = await db.Mantenimiento.create({
+      id_vehiculo: req.body.id_vehiculo,
+      id_usuario: idUsuario,
+      fecha_inicio: req.body.fecha_inicio,
+      tipo_servicio: req.body.tipo_servicio,
+      estado: estadoMantenimiento,
+      km_servicio: kmServicio,
+      proximo_km: proxKm,
+      descripcion: req.body.descripcion,
+      observaciones: req.body.observaciones,
+      costo_repuestos: repuestosCalc,
+      mano_obra: manoObraCalc,
+      costo_total: totalCalc
+    });
+
+    // ── actualizar estado del vehículo según estado del mantenimiento ──
+    const vehiculo = await db.Vehiculo.findByPk(req.body.id_vehiculo);
+    if (vehiculo) {
+      if (estadoMantenimiento === 'Pendiente' || estadoMantenimiento === 'En proceso') {
+        await vehiculo.update({ estado_actual: 'En mantenimiento' });
+      } else if (estadoMantenimiento === 'Realizado') {
+        // Si se carga directo como Realizado, actualizar km y mantener/liberar estado
+        if (kmServicio > vehiculo.km_actual) {
+          await vehiculo.update({ km_actual: kmServicio });
+        }
+        // Solo liberar si actualmente estaba En mantenimiento (no tocar si está En uso)
+        if (vehiculo.estado_actual === 'En mantenimiento') {
+          await vehiculo.update({ estado_actual: 'Disponible' });
+        }
+
+        // Recalcular alertas de mantenimiento (fuera del if de km, siempre que se cierre como Realizado)
+        await alertaService.generarAlertasMantenimiento();
+      }
+    }
+
+    // repuestos — igual que antes
+    if (req.body.id_repuesto) {
+      let repuestosIds = req.body.id_repuesto;
+      let cantidades = req.body.cantidad;
+      let costos = req.body.costo_unitario;
+
+      if (!Array.isArray(repuestosIds)) repuestosIds = [repuestosIds];
+      if (!Array.isArray(cantidades)) cantidades = [cantidades];
+      if (!Array.isArray(costos)) costos = [costos];
+
+      for (let i = 0; i < repuestosIds.length; i++) {
+        if (repuestosIds[i]) {
+          try {
+            await db.DetalleMantenimiento.create({
+              id_mantenimiento: nuevoMantenimiento.id_mantenimiento,
+              id_repuesto: repuestosIds[i],
+              cantidad: cantidades[i] || 1,
+              costo_unitario: costos[i] || 0
+            });
+
+            const repuestoInventario = await db.Repuesto.findByPk(repuestosIds[i]);
+            if (repuestoInventario) {
+              await repuestoInventario.update({ stock: repuestoInventario.stock - (cantidades[i] || 1) });
+            }
+          } catch (errDetalle) {
+            console.log("No se pudo guardar el detalle/descontar stock:", errDetalle.message);
+          }
+        }
+      }
+    }
+
+    res.redirect("/Mantenimientos");
+  } catch (error) {
+    console.error("Error Crítico al guardar mantenimiento:", error);
+    res.send(`
+      <div style="font-family:sans-serif; padding:40px; text-align:center;">
+        <h2 style="color:#dc2626;">Error al guardar la orden de mantenimiento</h2>
+        <p style="background:#fef2f2; padding:15px; border:1px solid #fecaca; border-radius:8px; display:inline-block;">${error.message}</p>
+        <br><br>
+        <button onclick="history.back()" style="padding:10px 20px; cursor:pointer;">Volver e intentar nuevamente</button>
+      </div>
+    `);
+  }
+},
 
   // ================= OTROS METODOS DEL CONTROLADOR =================
   getVehicleById: async (req, res) => {
@@ -384,6 +388,8 @@ const vehicleController = {
       }
 
       await vehicleService.actualizarKm(id_vehiculo, Number(km_nuevo), observaciones);
+      await vehicleService.actualizarKm(id_vehiculo, Number(km_nuevo), observaciones);
+      await alertaService.generarAlertasMantenimiento(); // <-- agregar
       res.redirect("/Vehicles");
     } catch (error) { res.send("Error al actualizar el kilometraje"); }
   },
