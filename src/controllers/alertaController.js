@@ -90,6 +90,27 @@ const alertaController = {
       res.send("Error");
     }
   },
+
+  // ============================================================
+  // EXPORTACIÓN JSON: TODAS las alertas para Excel/Imprimir
+  // ============================================================
+  exportarJSON: async (req, res) => {
+    try {
+      await Promise.all([
+        alertaService.generarAlertasLicencias(),
+        alertaService.generarAlertasVehiculos(),
+        alertaService.generarAlertasMantenimiento(),
+      ]);
+      const resultado = await alertaService.getAll({
+        limite: 100000,
+        pagina: 1,
+      });
+      res.json(resultado.alertas || []);
+    } catch (error) {
+      console.log("Error exportarJSON alertas:", error);
+      res.json([]);
+    }
+  },
 };
 
 module.exports = alertaController;

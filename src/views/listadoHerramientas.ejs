@@ -6,6 +6,9 @@
   <title>Inventario de Herramientas - Gestión Industrial</title>
   <link rel="stylesheet" href="/css/ListadoVehiculos.css" />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="/js/exportar-imprimir.js"></script>
+  <script src="/js/reportes-config.js"></script>
   <style>
     /* ── FIX: Aseguramos el layout fijo y scroll independiente ── */
     .app-wrapper {
@@ -105,6 +108,10 @@
 
         <div class="vehicle-list-panel__top">
           <h2 class="vehicle-list-panel__title">Inventario de Herramientas</h2>
+          <div style="display:flex; gap:6px; flex-wrap:wrap;">
+            <button id="btn-exportar" style="background-color:#0f172a; color:white; border:none; border-radius:6px; padding:6px 12px; font-size:12px; font-weight:700; cursor:pointer;">Exportar Excel</button>
+            <button id="btn-imprimir" style="background-color:#f1f5f9; color:#334155; border:1px solid #cbd5e1; border-radius:6px; padding:6px 12px; font-size:12px; font-weight:700; cursor:pointer;">Imprimir Listado</button>
+          </div>
         </div>
 
         <div class="vehicle-list-panel__search-bar">
@@ -181,9 +188,9 @@
           <div class="vehicle-profile__content" style="width: 100%;">
             
             <div style="position: absolute; top: 24px; right: 24px; display: flex; gap: 8px; flex-wrap: wrap;">
-              <button onclick="window.print()" style="background-color: #f1f5f9; color: #334155; border: 1px solid #cbd5e1; padding: 6px 12px; font-size: 12px; font-weight: 600; border-radius: 6px; cursor: pointer; display: flex; align-items: center; transition: 0.2s;">
+              <button onclick="imprimirFichaHerramienta()" style="background-color: #f1f5f9; color: #334155; border: 1px solid #cbd5e1; padding: 6px 12px; font-size: 12px; font-weight: 600; border-radius: 6px; cursor: pointer; display: flex; align-items: center; transition: 0.2s;">
                 <svg viewBox="0 0 20 20" fill="currentColor" style="width: 14px; height: 14px; margin-right: 5px;"><path fill-rule="evenodd" d="M5 4v3H4a2 2 0 00-2 2v3a2 2 0 002 2h1v2a2 2 0 002 2h6a2 2 0 002-2v-2h1a2 2 0 002-2V9a2 2 0 00-2-2h-1V4a2 2 0 00-2-2H7a2 2 0 00-2 2zm8 0H7v3h6V4zm0 8H7v4h6v-4z" clip-rule="evenodd"/></svg>
-                Imprimir
+                Imprimir Ficha
               </button>
 
               <a href="/Tools/Editar/<%= herramientaSeleccionada.id_herramienta %>" style="background-color: #eff6ff; color: #2563eb; border: 1px solid #bfdbfe; padding: 6px 12px; font-size: 12px; font-weight: 600; border-radius: 6px; cursor: pointer; text-decoration: none; display: flex; align-items: center; transition: 0.2s;">
@@ -442,6 +449,42 @@
         });
       });
     }
+  </script>
+
+  <script>
+    // ── IMPRIMIR FICHA INDIVIDUAL DE LA HERRAMIENTA (botón en el detalle) ──
+    function imprimirFichaHerramienta() {
+      const ficha = document.querySelector('.vehicle-detail .vehicle-profile');
+      if (!ficha) { alert('No hay ficha de herramienta para imprimir.'); return; }
+      const titulo = ficha.querySelector('h2, h3')?.textContent || 'Herramienta';
+      Reportes.imprimirElemento(ficha, 'Ficha de Herramienta - ' + titulo);
+    }
+    // ── EXPORTAR / IMPRIMIR (datos completos) ──
+    (function(){
+      async function obtenerTodos(){
+        const resp = await fetch('/Tools/api/todos');
+        if(!resp.ok) throw new Error('error');
+        return await resp.json();
+      }
+      const btnExp = document.getElementById('btn-exportar');
+      const btnImp = document.getElementById('btn-imprimir');
+      if(btnExp){
+        btnExp.addEventListener('click', async function(){
+          const o = this.textContent; this.textContent = 'Exportando...';
+          try{ const datos = await obtenerTodos();
+            Reportes.exportarAExcel(datos, ReportesColumnas.herramientas, { nombreArchivo:'Inventario_Herramientas.xlsx', nombreHoja:'Herramientas' });
+          }catch(e){ alert('No se pudieron obtener los datos.'); } finally{ this.textContent = o; }
+        });
+      }
+      if(btnImp){
+        btnImp.addEventListener('click', async function(){
+          const o = this.textContent; this.textContent = 'Cargando...';
+          try{ const datos = await obtenerTodos();
+            Reportes.imprimirReporte({ titulo:'Inventario de Herramientas', subtitulo:'Listado completo de herramientas', columnas:ReportesColumnas.herramientas, datos:datos });
+          }catch(e){ alert('No se pudieron obtener los datos.'); } finally{ this.textContent = o; }
+        });
+      }
+    })();
   </script>
 
 </body>

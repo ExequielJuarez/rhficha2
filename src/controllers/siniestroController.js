@@ -223,6 +223,25 @@ const siniestroController = {
       console.error(error);
       res.redirect("/Siniestros");
     }
+  },
+
+  // ============================================================
+  // EXPORTACIÓN JSON: TODOS los siniestros para Excel/Imprimir
+  // ============================================================
+  exportarJSON: async (req, res) => {
+    try {
+      const siniestros = await db.Siniestro.findAll({
+        include: [
+          { model: db.Vehiculo, as: "Vehiculo", required: false },
+          { model: db.Chofer, as: "Chofer", required: false },
+        ],
+        order: [["fecha_siniestro", "DESC"]],
+      });
+      res.json(siniestros);
+    } catch (error) {
+      console.log("Error exportarJSON siniestros:", error);
+      res.json([]);
+    }
   }
 };
 

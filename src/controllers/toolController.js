@@ -281,6 +281,35 @@ const toolController = {
       res.send("Error al eliminar operario");
     }
   },
+
+  // ============================================================
+  // EXPORTACIÓN JSON: TODAS las herramientas para Excel/Imprimir
+  // ============================================================
+  exportarJSON: async (req, res) => {
+    try {
+      const herramientas = await toolService.getAll();
+      res.json(herramientas);
+    } catch (error) {
+      console.log("Error exportarJSON herramientas:", error);
+      res.json([]);
+    }
+  },
+
+  // ============================================================
+  // EXPORTACIÓN JSON: TODOS los préstamos para Excel/Imprimir
+  // ============================================================
+  prestamosJSON: async (req, res) => {
+    try {
+      const prestamos = await db.Prestamo.findAll({
+        include: [{ association: "herramienta" }],
+        order: [["fecha_salida", "DESC"]],
+      });
+      res.json(prestamos);
+    } catch (error) {
+      console.log("Error prestamosJSON:", error);
+      res.json([]);
+    }
+  },
 };
 
 module.exports = toolController;

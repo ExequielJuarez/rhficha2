@@ -165,4 +165,14 @@ router.post("/Siniestros/:id/Estado", authMiddleware, siniestroController.Cambia
 router.post("/Siniestros/:id/resolver", authMiddleware, siniestroController.CambiarEstado);
 router.post("/Siniestros/Eliminar/:id", authMiddleware, siniestroController.Eliminar);
 
+// ================= RUTAS API: EXPORTACIÓN JSON =================
+router.get("/Vehicles/api/todos", authMiddleware, vehicleController.exportarJSON);
+router.get("/Mantenimientos/api/todos", authMiddleware, vehicleController.mantenimientosJSON);
+router.get("/Choferes/api/todos", authMiddleware, choferController.getTodosJSON);
+router.get("/Tools/api/todos", authMiddleware, toolController.exportarJSON);
+router.get("/Tools/api/prestamos", authMiddleware, toolController.prestamosJSON);
+router.get("/Siniestros/api/todos", authMiddleware, siniestroController.exportarJSON);
+router.get("/Alertas/api/todos", authMiddleware, alertaController.exportarJSON);
+router.get("/Usuarios/api/todos", authMiddleware, userController.exportarJSON);
+
 module.exports = router;

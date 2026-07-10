@@ -466,6 +466,54 @@ const vehicleController = {
       res.redirect("/Vehicles");
     } catch (error) { res.send("Error al actualizar el kilometraje"); }
   },
+
+  // ============================================================
+  // EXPORTACIÓN JSON: TODOS los vehículos para Excel/Imprimir
+  // ============================================================
+  exportarJSON: async (req, res) => {
+    try {
+      const vehiculos = await db.Vehiculo.findAll({
+        include: [{ association: "TipoVehiculo" }],
+      });
+
+      // Adjuntamos el chofer de cada asignación activa, si la asociación existe
+      const resultado = [];
+      for (const v of vehiculos) {
+        const obj = v.toJSON();
+        // Buscamos asignación activa con su chofer
+        try {
+          const asignacion = await db.AsignacionVehiculo.findOne({
+            where: { id_vehiculo: v.id_vehiculo, estado: "Activo" },
+            include: [{ model: db.Chofer }],
+          });
+          if (asignacion) {
+            obj.asignacionActiva = asignacion.toJSON();
+          }
+        } catch (e) {
+          // Si la asociación falla, seguimos sin chofer
+        }
+        resultado.push(obj);
+      }
+
+      res.json(resultado);
+    } catch (error) {
+      console.log("Error exportarJSON vehículos:", error);
+      res.json([]);
+    }
+  },
+
+  // ============================================================
+  // EXPORTACIÓN JSON: TODOS los mantenimientos para Excel/Imprimir
+  // ============================================================
+  mantenimientosJSON: async (req, res) => {
+    try {
+      const mantenimientos = await vehicleService.getAllMantenimientos();
+      res.json(mantenimientos);
+    } catch (error) {
+      console.log("Error mantenimientosJSON:", error);
+      res.json([]);
+    }
+  },
 };
 
 module.exports = vehicleController;

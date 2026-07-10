@@ -6,6 +6,9 @@
     <title>Usuarios - Gestión de Flota</title>
     <link rel="stylesheet" href="/css/ListadoVehiculos.css">
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="/js/exportar-imprimir.js"></script>
+    <script src="/js/reportes-config.js"></script>
     <style>
         .filtro-container { background: var(--color-surface); padding: 20px; border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); margin-bottom: 24px; display: flex; gap: 15px; align-items: flex-end; flex-wrap: wrap; border: 1px solid var(--color-border);}
         .filtro-group { display: flex; flex-direction: column; gap: 6px; flex: 1; min-width: 200px; }
@@ -50,7 +53,11 @@
                     <h2 class="page-title">Usuarios del Sistema</h2>
                     <p class="page-subtitle">Listado y gestión de accesos para el personal.</p>
                 </div>
-                <a href="/Usuarios/Carga" class="btn-add">+ Nuevo Usuario</a>
+                <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                    <button id="btn-exportar" style="background-color:#0f172a; color:white; border:none; border-radius:8px; padding:10px 16px; font-size:13px; font-weight:700; cursor:pointer;">Exportar Excel</button>
+                    <button id="btn-imprimir" style="background-color:#f1f5f9; color:#334155; border:1px solid #cbd5e1; border-radius:8px; padding:10px 16px; font-size:13px; font-weight:700; cursor:pointer;">Imprimir</button>
+                    <a href="/Usuarios/Carga" class="btn-add">+ Nuevo Usuario</a>
+                </div>
             </div>
 
             <div class="filtro-container">
@@ -154,6 +161,35 @@
 
         filtroBusqueda.addEventListener('input', filtrarUsuarios);
         filtroRol.addEventListener('change', filtrarUsuarios);
+    </script>
+
+    <script>
+      // ── EXPORTAR / IMPRIMIR (datos completos) ──
+      (function(){
+        const btnExp = document.getElementById('btn-exportar');
+        const btnImp = document.getElementById('btn-imprimir');
+        async function obtenerTodos(){
+          const resp = await fetch('/Usuarios/api/todos');
+          if(!resp.ok) throw new Error('error');
+          return await resp.json();
+        }
+        if(btnExp){
+          btnExp.addEventListener('click', async function(){
+            const o = this.textContent; this.textContent = 'Exportando...';
+            try{ const datos = await obtenerTodos();
+              Reportes.exportarAExcel(datos, ReportesColumnas.usuarios, { nombreArchivo:'Usuarios_Sistema.xlsx', nombreHoja:'Usuarios' });
+            }catch(e){ alert('No se pudieron obtener los datos.'); } finally{ this.textContent = o; }
+          });
+        }
+        if(btnImp){
+          btnImp.addEventListener('click', async function(){
+            const o = this.textContent; this.textContent = 'Cargando...';
+            try{ const datos = await obtenerTodos();
+              Reportes.imprimirReporte({ titulo:'Usuarios del Sistema', subtitulo:'Listado de accesos del personal', columnas:ReportesColumnas.usuarios, datos:datos });
+            }catch(e){ alert('No se pudieron obtener los datos.'); } finally{ this.textContent = o; }
+          });
+        }
+      })();
     </script>
 </body>
 </html>

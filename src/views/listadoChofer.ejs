@@ -6,6 +6,9 @@
   <title>Plantilla de Choferes - Gestión de Flota</title>
   <link rel="stylesheet" href="/css/ListadoVehiculos.css">
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="/js/exportar-imprimir.js"></script>
+  <script src="/js/reportes-config.js"></script>
   <style>
     @media print {
       #sidebar, .app-header, .vehicle-list-panel, .topbar { display: none !important; }
@@ -91,9 +94,13 @@
       <section class="vehicle-list-panel" id="vehicle-list-panel">
         <div class="vehicle-list-panel__top" style="display: flex; justify-content: space-between; align-items: center;">
           <h2 class="vehicle-list-panel__title">Plantilla de Choferes</h2>
-          <a href="/Choferes/Carga" style="background-color: #2563eb; color: white; border-radius: 6px; padding: 6px 12px; font-size: 12px; font-weight: 700; text-decoration: none; display: flex; align-items: center; transition: 0.2s;">
-            + Nuevo
-          </a>
+          <div style="display:flex; gap:6px; flex-wrap:wrap;">
+            <button id="btn-exportar" style="background-color:#0f172a; color:white; border:none; border-radius:6px; padding:6px 12px; font-size:12px; font-weight:700; cursor:pointer;">Exportar Excel</button>
+            <button id="btn-imprimir" style="background-color:#f1f5f9; color:#334155; border:1px solid #cbd5e1; border-radius:6px; padding:6px 12px; font-size:12px; font-weight:700; cursor:pointer;">Imprimir Listado</button>
+            <a href="/Choferes/Carga" style="background-color: #2563eb; color: white; border-radius: 6px; padding: 6px 12px; font-size: 12px; font-weight: 700; text-decoration: none; display: flex; align-items: center; transition: 0.2s;">
+              + Nuevo
+            </a>
+          </div>
         </div>
 
         <div class="vehicle-list-panel__search-bar" style="flex-direction: column; align-items: stretch; gap: 10px;">
@@ -385,7 +392,7 @@
             </div>
           </div>
           <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
-            <button onclick="window.print()" style="background-color:#f1f5f9;color:#334155;border:1px solid #cbd5e1;padding:8px 14px;font-size:12px;font-weight:700;border-radius:6px;">Imprimir</button>
+            <button onclick="imprimirFichaChofer()" style="background-color:#f1f5f9;color:#334155;border:1px solid #cbd5e1;padding:8px 14px;font-size:12px;font-weight:700;border-radius:6px;cursor:pointer;">Imprimir Ficha</button>
             <a href="/Choferes/${c.id_chofer}/editar" style="background-color:#eff6ff;color:#2563eb;border:1px solid #bfdbfe;padding:8px 14px;font-size:12px;font-weight:700;border-radius:6px;text-decoration:none;">Editar</a>
             ${estadoBtn}
           </div>
@@ -522,6 +529,59 @@
 
   /* ── RENDER INICIAL ── */
   renderLista(todosLosChoferes);
+</script>
+
+<script>
+  // ── IMPRIMIR FICHA INDIVIDUAL DEL CHOFER (botón en el detalle) ──
+  function imprimirFichaChofer() {
+    const ficha = document.querySelector('#detalle-container .vehicle-profile');
+    if (!ficha) { alert('No hay ficha de chofer para imprimir.'); return; }
+    const nombre = document.querySelector('#detalle-container h2')?.textContent || 'Chofer';
+    Reportes.imprimirElemento(ficha, 'Ficha de Chofer - ' + nombre);
+  }
+
+  // ── EXPORTAR / IMPRIMIR (datos completos, sin paginación) ──
+  (function(){
+    const btnExp = document.getElementById('btn-exportar');
+    const btnImp = document.getElementById('btn-imprimir');
+
+    async function obtenerTodos(){
+      const resp = await fetch('/Choferes/api/todos');
+      if(!resp.ok) throw new Error('error');
+      return await resp.json();
+    }
+
+    if(btnExp){
+      btnExp.addEventListener('click', async function(){
+        const original = this.textContent;
+        this.textContent = 'Exportando...';
+        try{
+          const datos = await obtenerTodos();
+          Reportes.exportarAExcel(datos, ReportesColumnas.choferes, {
+            nombreArchivo: 'Plantilla_Choferes.xlsx', nombreHoja: 'Choferes'
+          });
+        }catch(e){ alert('No se pudieron obtener los datos.'); }
+        finally{ this.textContent = original; }
+      });
+    }
+
+    if(btnImp){
+      btnImp.addEventListener('click', async function(){
+        const original = this.textContent;
+        this.textContent = 'Cargando...';
+        try{
+          const datos = await obtenerTodos();
+          Reportes.imprimirReporte({
+            titulo: 'Plantilla de Choferes',
+            subtitulo: 'Listado completo del personal de conducción',
+            columnas: ReportesColumnas.choferes,
+            datos: datos
+          });
+        }catch(e){ alert('No se pudieron obtener los datos.'); }
+        finally{ this.textContent = original; }
+      });
+    }
+  })();
 </script>
 
 </body>

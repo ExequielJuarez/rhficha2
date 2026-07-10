@@ -6,6 +6,9 @@
   <title>Gestión de Flota - Municipalidad</title>
   <link rel="stylesheet" href="/css/ListadoVehiculos.css" />
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="/js/exportar-imprimir.js"></script>
+  <script src="/js/reportes-config.js"></script>
   
   <style>
     /* Estilos para impresión */
@@ -93,6 +96,10 @@
       <section class="vehicle-list-panel" id="vehicle-list-panel">
         <div class="vehicle-list-panel__top">
           <h2 class="vehicle-list-panel__title">Listado de Vehículos</h2>
+          <div style="display:flex; gap:6px; flex-wrap:wrap;">
+            <button id="btn-export-csv" style="background-color: #0f172a; color: white; border: none; padding: 8px 14px; font-size: 12px; font-weight: 700; border-radius: 6px; transition: 0.2s; cursor: pointer;">Exportar Excel</button>
+            <button id="btn-imprimir-flota" style="background-color: #f1f5f9; color: #334155; border: 1px solid #cbd5e1; padding: 8px 14px; font-size: 12px; font-weight: 700; border-radius: 6px; display: flex; align-items: center; transition: 0.2s; cursor: pointer;">Imprimir Listado</button>
+          </div>
         </div>
 
         <div class="vehicle-list-panel__search-bar">
@@ -151,13 +158,6 @@
             </div>
 
             <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-              <button id="btn-export-csv" style="background-color: #0f172a; color: white; border: none; padding: 8px 14px; font-size: 12px; font-weight: 700; border-radius: 6px; transition: 0.2s;">
-                Exportar CSV
-              </button>
-              <button onclick="window.print()" style="background-color: #f1f5f9; color: #334155; border: 1px solid #cbd5e1; padding: 8px 14px; font-size: 12px; font-weight: 700; border-radius: 6px; display: flex; align-items: center; transition: 0.2s;">
-                <svg viewBox="0 0 20 20" fill="currentColor" style="width: 14px; height: 14px; margin-right: 5px;"><path fill-rule="evenodd" d="M5 4v3H4a2 2 0 00-2 2v3a2 2 0 002 2h1v2a2 2 0 002 2h6a2 2 0 002-2v-2h1a2 2 0 002-2V9a2 2 0 00-2-2h-1V4a2 2 0 00-2-2H7a2 2 0 00-2 2zm8 0H7v3h6V4zm0 8H7v4h6v-4z" clip-rule="evenodd"/></svg>
-                Imprimir
-              </button>
               <a href="/Vehicles/Editar/<%= vehiculoSeleccionado.id_vehiculo %>" style="background-color: #eff6ff; color: #2563eb; border: 1px solid #bfdbfe; padding: 8px 14px; font-size: 12px; font-weight: 700; border-radius: 6px; text-decoration: none; display: flex; align-items: center; transition: 0.2s;">
                 Editar
               </a>
@@ -412,16 +412,41 @@
 
     const btnExport = document.getElementById('btn-export-csv');
     if (btnExport) {
-        btnExport.addEventListener('click', function() {
-            let csvContent = "data:text/csv;charset=utf-8,Patente,Marca,Modelo\n";
-            toolCards.forEach(card => csvContent += `${card.dataset.patente},${card.dataset.marca},${card.dataset.modelo}\n`);
-            const encodedUri = encodeURI(csvContent);
-            const link = document.createElement("a");
-            link.setAttribute("href", encodedUri);
-            link.setAttribute("download", "Flota_Vehiculos.csv");
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
+        btnExport.addEventListener('click', async function() {
+            this.textContent = 'Exportando...';
+            try {
+                const resp = await fetch('/Vehicles/api/todos');
+                const datos = await resp.json();
+                Reportes.exportarAExcel(datos, ReportesColumnas.vehiculos, {
+                    nombreArchivo: 'Flota_Vehiculos.xlsx',
+                    nombreHoja: 'Vehículos'
+                });
+            } catch (e) {
+                alert('No se pudieron obtener los datos.');
+            } finally {
+                this.textContent = 'Exportar Excel';
+            }
+        });
+    }
+
+    const btnImprimir = document.getElementById('btn-imprimir-flota');
+    if (btnImprimir) {
+        btnImprimir.addEventListener('click', async function() {
+            this.textContent = 'Cargando...';
+            try {
+                const resp = await fetch('/Vehicles/api/todos');
+                const datos = await resp.json();
+                Reportes.imprimirReporte({
+                    titulo: 'Listado de Vehículos',
+                    subtitulo: 'Documentación completa de la flota',
+                    columnas: ReportesColumnas.vehiculos,
+                    datos: datos
+                });
+            } catch (e) {
+                alert('No se pudieron obtener los datos.');
+            } finally {
+                this.textContent = 'Imprimir Listado';
+            }
         });
     }
 

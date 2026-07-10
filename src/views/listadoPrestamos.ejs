@@ -8,6 +8,8 @@
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
   
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <script src="/js/exportar-imprimir.js"></script>
+  <script src="/js/reportes-config.js"></script>
 
   <style>
     .filtro-container { background: var(--color-surface); padding: 20px; border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); margin-bottom: 24px; display: flex; gap: 15px; align-items: flex-end; flex-wrap: wrap; border: 1px solid var(--color-border);}
@@ -117,10 +119,13 @@
           <h2 class="page-title">Historial General de Préstamos</h2>
           <p class="page-subtitle">Monitoreo de movimientos de herramientas del pañol a los diferentes sectores.</p>
         </div>
-        <button id="btn-exportar" style="background-color: #0f172a; color: white; border: none; padding: 10px 16px; font-size: 13px; font-weight: 700; border-radius: 8px; cursor: pointer; transition: 0.2s; display: flex; align-items: center; gap: 8px;">
-          <svg viewBox="0 0 20 20" fill="currentColor" style="width: 16px; height: 16px;"><path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
-          Exportar a Excel
-        </button>
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+          <button id="btn-exportar" style="background-color: #0f172a; color: white; border: none; padding: 10px 16px; font-size: 13px; font-weight: 700; border-radius: 8px; cursor: pointer; transition: 0.2s; display: flex; align-items: center; gap: 8px;">
+            <svg viewBox="0 0 20 20" fill="currentColor" style="width: 16px; height: 16px;"><path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
+            Exportar a Excel
+          </button>
+          <button id="btn-imprimir" style="background-color:#f1f5f9; color:#334155; border:1px solid #cbd5e1; padding:10px 16px; font-size:13px; font-weight:700; border-radius:8px; cursor:pointer; display:flex; align-items:center; gap:8px;">Imprimir</button>
+        </div>
       </div>
 
       <div class="filtro-container">
@@ -288,34 +293,38 @@
             });
         }
 
-        // ── Exportación a Excel con la librería SheetJS ──
+        // ── Exportación a Excel COMPLETA (todos los registros) ──
         const btnExportar = document.getElementById('btn-exportar');
         if (btnExportar) {
-            btnExportar.addEventListener('click', () => {
-                if (typeof XLSX === 'undefined') { alert("Cargando componentes..."); return; }
-                
-                let datosExcel = [['Código', 'Herramienta', 'Operario/Responsable', 'Sector Destino', 'Fecha Salida', 'Devolución Estimada/Real', 'Estado']];
+            btnExportar.addEventListener('click', async function() {
+                const o = this.innerHTML; this.textContent = 'Exportando...';
+                try {
+                    const resp = await fetch('/Tools/api/prestamos');
+                    const datos = await resp.json();
+                    Reportes.exportarAExcel(datos, ReportesColumnas.prestamos, {
+                        nombreArchivo: 'Historial_Prestamos.xlsx', nombreHoja: 'Préstamos'
+                    });
+                } catch(e) { alert('No se pudieron obtener los datos.'); }
+                finally { this.innerHTML = o; }
+            });
+        }
 
-                filas.forEach(fila => {
-                    if(fila.style.display !== 'none') {
-                        const codigo = fila.querySelector('.celda-codigo') ? fila.querySelector('.celda-codigo').innerText.trim() : '';
-                        const nombreH = fila.querySelector('.celda-nombre') ? fila.querySelector('.celda-nombre').innerText.trim() : '';
-                        const operario = fila.querySelector('td[data-label="Operario"]').innerText.trim();
-                        const destino = fila.querySelector('td[data-label="Destino"]').innerText.trim();
-                        const salida = fila.querySelector('td[data-label="Fecha Salida"]').innerText.trim();
-                        const devolucion = fila.querySelector('td[data-label="Devolución"]').innerText.trim();
-                        const estadoPrestamo = fila.querySelector('td[data-label="Estado"]').innerText.trim();
-
-                        datosExcel.push([codigo, nombreH, operario, destino, salida, devolucion, estadoPrestamo]);
-                    }
-                });
-
-                if(datosExcel.length === 1) { alert("No hay datos para exportar con los filtros actuales."); return; }
-
-                const ws = XLSX.utils.aoa_to_sheet(datosExcel);
-                const wb = XLSX.utils.book_new();
-                XLSX.utils.book_append_sheet(wb, ws, "Prestamos");
-                XLSX.writeFile(wb, 'Historial_Prestamos.xlsx');
+        // ── Imprimir COMPLETO ──
+        const btnImp = document.getElementById('btn-imprimir');
+        if (btnImp) {
+            btnImp.addEventListener('click', async function() {
+                const o = this.textContent; this.textContent = 'Cargando...';
+                try {
+                    const resp = await fetch('/Tools/api/prestamos');
+                    const datos = await resp.json();
+                    Reportes.imprimirReporte({
+                        titulo: 'Historial de Préstamos',
+                        subtitulo: 'Movimientos de herramientas del pañol',
+                        columnas: ReportesColumnas.prestamos,
+                        datos: datos
+                    });
+                } catch(e) { alert('No se pudieron obtener los datos.'); }
+                finally { this.textContent = o; }
             });
         }
     });

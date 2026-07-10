@@ -452,6 +452,23 @@ const userController = {
       res.send("Error al listar roles");
     }
   },
+
+  // ============================================================
+  // EXPORTACIÓN JSON: TODOS los usuarios para Excel/Imprimir
+  // (NUNCA incluye la contraseña)
+  // ============================================================
+  exportarJSON: async (req, res) => {
+    try {
+      const usuarios = await db.Usuario.findAll({
+        include: [{ association: "rol" }],
+        attributes: { exclude: ["contrasena"] },
+      });
+      res.json(usuarios);
+    } catch (error) {
+      console.log("Error exportarJSON usuarios:", error);
+      res.json([]);
+    }
+  },
 };
 
 module.exports = userController;
