@@ -170,7 +170,12 @@
                 </a>
               <% } %>
 
-              <%# ── BOTONES VER DOCUMENTOS (AGREGADO) ── %>
+              
+
+              
+            </div>
+
+            <%# ── BOTONES VER DOCUMENTOS (AGREGADO) ── %>
               <% if (vehiculoSeleccionado.foto_cedula) { %>
                 <button onclick="abrirFotoVehiculo('/img/vehiculos/<%= vehiculoSeleccionado.foto_cedula %>')" style="background-color:#f1f5f9;color:#2563eb;border:1px solid #cbd5e1;padding:8px 14px;font-size:12px;font-weight:700;border-radius:6px;cursor:pointer;">
                    Ver Cédula
@@ -183,11 +188,13 @@
               <% } %>
               <% if (vehiculoSeleccionado.foto_rto) { %>
                 <button onclick="abrirFotoVehiculo('/img/vehiculos/<%= vehiculoSeleccionado.foto_rto %>')" style="background-color:#f1f5f9;color:#2563eb;border:1px solid #cbd5e1;padding:8px 14px;font-size:12px;font-weight:700;border-radius:6px;cursor:pointer;">
-                  Ver RTO
+                  Ver Seguro
                 </button>
               <% } %>
-            </div>
+            
           </div>
+          
+          
 
           <div class="vehicle-profile__specs" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px;">
             <dl class="vehicle-profile__spec-group">

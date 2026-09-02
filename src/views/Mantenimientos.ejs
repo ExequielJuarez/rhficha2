@@ -292,6 +292,22 @@
                                             </div>
                                         </div>
                                     </section>
+
+                                    <% if (m.estado === 'En proceso' || m.estado === 'Pendiente') { %>
+                                    <section class="data-card">
+                                        <header class="data-card__header">
+                                            <svg class="data-card__icon" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
+                                            <h3 class="data-card__title">Finalizar Orden</h3>
+                                        </header>
+                                        <form action="/Mantenimientos/<%= m.id_mantenimiento %>/estado" method="POST" style="padding: 16px; display: flex; flex-direction: column; gap: 10px;">
+                                            <input type="hidden" name="estado" value="Realizado">
+
+                                            <button type="submit" style="background-color: #16a34a; color: white; border: none; padding: 10px; font-size: 13px; font-weight: 700; border-radius: 6px; cursor: pointer; transition: 0.2s;">
+                                                 Marcar como Realizado
+                                            </button>
+                                        </form>
+                                    </section>
+                                    <% } %>
                                 </aside>
                             </div>
                         </div>
