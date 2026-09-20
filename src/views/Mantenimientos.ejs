@@ -60,11 +60,11 @@
         #detail-back-btn:hover { background-color: #e2e8f0; color: #0f172a; }
         #detail-back-btn svg { width: 16px; height: 16px; }
 
-        @media (min-width: 900px) {
+        @media screen and (min-width: 900px) {
           #detail-back-btn { display: none !important; }
         }
 
-        @media (max-width: 900px) {
+        @media screen and (max-width: 900px) {
           /* Deshacemos el fijado en celulares */
           .app-wrapper { height: auto; overflow: visible; }
           .main-content { height: auto; overflow: visible; flex-direction: column !important; }
@@ -82,11 +82,178 @@
           .vehicle-detail--visible { display: block !important; }
         }
 
+        /* ══════════════════════════════════════════════════════════
+           NUEVO: Historial / Ficha de mantenimientos por vehículo
+           ══════════════════════════════════════════════════════════ */
+        .informe-section {
+            background-color: var(--color-surface, #fff);
+            border: 1px solid var(--color-border, #cbd5e1);
+            border-radius: var(--radius-lg, 12px);
+            margin-top: 24px;
+            overflow: hidden;
+            box-shadow: var(--shadow-sm, 0 1px 2px rgb(0 0 0 / 0.05));
+        }
+        .informe-section__header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 10px;
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--color-border-light, #e2e8f0);
+            background: #f8fafc;
+        }
+        .informe-section__title { font-size: 15px; font-weight: 700; color: var(--color-text-primary, #0f172a); }
+        .informe-section__body { padding: 20px; }
+        .informe-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+        .btn-informe {
+            background-color: var(--color-primary, #0f172a);
+            color: #fff;
+            border: none;
+            padding: 8px 14px;
+            font-size: 12px;
+            font-weight: 700;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: 0.2s;
+        }
+        .btn-informe:hover { opacity: 0.9; }
+        .btn-informe--secondary {
+            background-color: #f1f5f9;
+            color: var(--color-text-secondary, #334155);
+            border: 1px solid var(--color-border, #cbd5e1);
+        }
+        .informe-empty { padding: 8px 4px; text-align: center; color: var(--color-text-muted, #64748b); font-size: 13px; }
+
+        .ficha-anio { margin-bottom: 24px; border: 1px solid var(--color-border, #cbd5e1); border-radius: 6px; overflow: hidden; }
+        .ficha-anio:last-child { margin-bottom: 0; }
+        .ficha-anio__header {
+            background-color: var(--color-primary, #0f172a);
+            color: #fff;
+            padding: 8px 14px;
+            font-size: 13px;
+            font-weight: 700;
+            letter-spacing: 0.02em;
+        }
+        .ficha-tabla { width: 100%; border-collapse: collapse; }
+        .ficha-tabla th, .ficha-tabla td {
+            border: 1px solid var(--color-border, #cbd5e1);
+            padding: 8px 10px;
+            font-size: 12px;
+            text-align: left;
+            vertical-align: top;
+        }
+        .ficha-tabla th {
+            background: #f1f5f9;
+            font-weight: 700;
+            color: var(--color-text-secondary, #334155);
+            text-transform: uppercase;
+            font-size: 10px;
+            letter-spacing: 0.04em;
+        }
+        .ficha-tabla tbody tr:nth-child(even) { background: #f8fafc; }
+
+        /* ══════════════════════════════════════════════════════════
+           IMPRESIÓN DEL REMITO — arregla el recorte por los overflow:hidden
+           del layout fijo, y oculta controles de UI que no van en el papel
+           ══════════════════════════════════════════════════════════ */
         @media print {
-            #sidebar, .app-header, .vehicle-list-panel, .topbar, #detail-back-btn, #btn-exportar { display: none !important; }
-            .app-wrapper { margin: 0 !important; padding: 0 !important; }
-            .vehicle-detail { width: 100% !important; padding: 0 !important; background: #fff !important; }
-            .vehicle-profile { box-shadow: none !important; border: 1px solid #000 !important; }
+            #sidebar,
+            .sidebar,
+            .app-header,
+            .vehicle-list-panel,
+            .topbar,
+            #detail-back-btn,
+            #btn-exportar,
+            #empty-state,
+            nav[aria-label="Navegación móvil"],
+            .no-print {
+                display: none !important;
+            }
+
+            html, body {
+                height: auto !important;
+                overflow: visible !important;
+            }
+
+            .app-wrapper {
+                height: auto !important;
+                overflow: visible !important;
+                margin: 0 !important;
+                padding: 0 !important;
+            }
+
+            .main-content {
+                display: block !important;
+                height: auto !important;
+                overflow: visible !important;
+            }
+
+            .vehicle-detail {
+                display: block !important;
+                width: 100% !important;
+                height: auto !important;
+                overflow: visible !important;
+                padding: 0 !important;
+                background: #fff !important;
+                position: static !important;
+            }
+
+            /* Solo se imprime la orden que está activa/visible en pantalla */
+            .detail-maint-content { display: none !important; }
+            .detail-maint-content.active {
+                display: flex !important;
+                flex-direction: column !important;
+                gap: 20px !important;
+            }
+
+            .vehicle-profile {
+                box-shadow: none !important;
+                border: 1px solid #000 !important;
+                page-break-inside: avoid;
+            }
+
+            .detail-columns {
+                display: block !important;
+            }
+            .detail-main-column,
+            .detail-side-column {
+                width: 100% !important;
+                margin-bottom: 16px;
+            }
+
+            .data-card,
+            .alerts-card,
+            .info-card,
+            .cost-box {
+                box-shadow: none !important;
+                border: 1px solid #cbd5e1 !important;
+                page-break-inside: avoid;
+            }
+
+            /* El informe/ficha del vehículo NO sale en el remito normal */
+            .informe-section { display: none !important; }
+
+            /* ── Modo "Imprimir informe": se activa con la clase en <body> ── */
+            body.modo-impresion-informe .vehicle-profile,
+            body.modo-impresion-informe .detail-columns {
+                display: none !important;
+            }
+            body.modo-impresion-informe .informe-section {
+                display: block !important;
+                margin-top: 0 !important;
+                border: 1px solid #000 !important;
+                box-shadow: none !important;
+            }
+            body.modo-impresion-informe .ficha-anio {
+                page-break-inside: avoid;
+                border: 1px solid #000 !important;
+            }
+            body.modo-impresion-informe .ficha-anio__header {
+                background: #000 !important;
+                -webkit-print-color-adjust: exact;
+                print-color-adjust: exact;
+            }
         }
     </style>
 </head>
@@ -202,7 +369,7 @@
                 </div>
 
                 <div style="position: absolute; top: 24px; right: 24px; display: flex; gap: 8px; z-index: 10;">
-                    <button class="boton-secundario" id="btn-exportar" style="background-color: #0f172a; color: white; border: none; padding: 8px 14px; font-size: 12px; font-weight: 700; border-radius: 6px; cursor: pointer; transition: 0.2s;">
+                    <button class="boton-secundario no-print" id="btn-exportar" style="background-color: #0f172a; color: white; border: none; padding: 8px 14px; font-size: 12px; font-weight: 700; border-radius: 6px; cursor: pointer; transition: 0.2s;">
                         Exportar Filtro a Excel
                     </button>
                 </div>
@@ -220,7 +387,7 @@
                                         </h2>
                                         <p style="margin: 4px 0 0; color: #64748b; font-size: 13px;">Fecha de ingreso: <%= new Date(m.fecha_inicio).toLocaleDateString('es-AR') %></p>
                                     </div>
-                                    <button onclick="window.print()" style="background-color: #f1f5f9; color: #334155; border: 1px solid #cbd5e1; padding: 8px 14px; font-size: 12px; font-weight: 700; border-radius: 6px; display: flex; align-items: center; transition: 0.2s;">
+                                    <button onclick="window.print()" class="no-print" style="background-color: #f1f5f9; color: #334155; border: 1px solid #cbd5e1; padding: 8px 14px; font-size: 12px; font-weight: 700; border-radius: 6px; display: flex; align-items: center; transition: 0.2s;">
                                         <svg viewBox="0 0 20 20" fill="currentColor" style="width: 14px; height: 14px; margin-right: 5px;"><path fill-rule="evenodd" d="M5 4v3H4a2 2 0 00-2 2v3a2 2 0 002 2h1v2a2 2 0 002 2h6a2 2 0 002-2v-2h1a2 2 0 002-2V9a2 2 0 00-2-2h-1V4a2 2 0 00-2-2H7a2 2 0 00-2 2zm8 0H7v3h6V4zm0 8H7v4h6v-4z" clip-rule="evenodd"/></svg>
                                         Imprimir Remito
                                     </button>
@@ -294,7 +461,7 @@
                                     </section>
 
                                     <% if (m.estado === 'En proceso' || m.estado === 'Pendiente') { %>
-                                    <section class="data-card">
+                                    <section class="data-card no-print">
                                         <header class="data-card__header">
                                             <svg class="data-card__icon" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
                                             <h3 class="data-card__title">Finalizar Orden</h3>
@@ -310,6 +477,32 @@
                                     <% } %>
                                 </aside>
                             </div>
+
+                            <!-- ══════════════════════════════════════════════
+                                 NUEVO: Historial / Ficha de mantenimientos del vehículo
+                                 Va abajo de todo, dentro de cada orden seleccionada
+                                 ══════════════════════════════════════════════ -->
+                            <section class="informe-section">
+                                <div class="informe-section__header">
+                                    <span class="informe-section__title">Historial de Mantenimientos del Vehículo</span>
+                                    <div class="informe-actions no-print">
+                                        <button type="button"
+                                                class="btn-informe btn-generar-informe"
+                                                data-patente="<%= m.vehiculo?.patente %>"
+                                                data-target="informe-resultado-<%= index %>">
+                                            Generar informe últimos 3 años
+                                        </button>
+                                        <button type="button" class="btn-informe btn-informe--secondary btn-imprimir-informe" style="display: none;">
+                                            Imprimir informe
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="informe-section__body">
+                                    <div class="informe-resultado" id="informe-resultado-<%= index %>">
+                                        <p class="informe-empty">Tocá "Generar informe últimos 3 años" para ver el historial de este vehículo.</p>
+                                    </div>
+                                </div>
+                            </section>
                         </div>
                     <% }) %>
                 <% } %>
@@ -317,6 +510,19 @@
             </section>
         </main>
     </div>
+
+    <!-- Datos de mantenimientos embebidos para armar el informe sin pegarle al servidor de nuevo -->
+    <script>
+      window.__mantenimientosData = <%- JSON.stringify((mantenimientos || []).map(m => ({
+            patente: m.vehiculo ? m.vehiculo.patente : null,
+            fecha: m.fecha_inicio,
+            tipo_servicio: m.tipo_servicio,
+            descripcion: m.descripcion,
+            observaciones: m.observaciones,
+            km_servicio: m.km_servicio,
+            estado: m.estado
+      }))).replace(/</g, '\u003c') %>;
+    </script>
 
     <script src="/js/sidebar.js"></script>
     <script>
@@ -457,6 +663,87 @@
             XLSX.writeFile(wb, 'Reporte_Mantenimientos.xlsx');
         });
     }
+
+    // ── NUEVO: Historial / Ficha de mantenimientos por vehículo (últimos 3 años) ──
+    function escapeHtml(texto) {
+        if (texto === null || texto === undefined) return '';
+        return String(texto)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;');
+    }
+
+    function generarInformeVehiculo(patente, contenedor) {
+        if (!contenedor || !Array.isArray(window.__mantenimientosData)) return;
+
+        const hoy = new Date();
+        const limite = new Date(hoy.getFullYear() - 3, hoy.getMonth(), hoy.getDate());
+
+        const registros = window.__mantenimientosData.filter(m => {
+            if (!m.patente || m.patente !== patente) return false;
+            const f = new Date(m.fecha);
+            return !isNaN(f) && f >= limite;
+        });
+
+        if (registros.length === 0) {
+            contenedor.innerHTML = '<p class="informe-empty">No se encontraron mantenimientos en los últimos 3 años para este vehículo.</p>';
+            return;
+        }
+
+        const porAnio = {};
+        registros.forEach(m => {
+            const anio = new Date(m.fecha).getFullYear();
+            if (!porAnio[anio]) porAnio[anio] = [];
+            porAnio[anio].push(m);
+        });
+
+        const anios = Object.keys(porAnio).sort((a, b) => b - a);
+
+        let html = '';
+        anios.forEach(anio => {
+            const filas = porAnio[anio].slice().sort((a, b) => new Date(b.fecha) - new Date(a.fecha));
+            html += '<div class="ficha-anio">';
+            html += '<div class="ficha-anio__header">Ficha de Mantenimientos — Año ' + anio + '</div>';
+            html += '<table class="ficha-tabla"><thead><tr>' +
+                        '<th>Fecha</th><th>Repuesto / Servicio</th><th>Descripción</th><th>Km</th><th>Estado</th>' +
+                    '</tr></thead><tbody>';
+            filas.forEach(m => {
+                const fechaFmt = new Date(m.fecha).toLocaleDateString('es-AR');
+                html += '<tr>' +
+                    '<td>' + escapeHtml(fechaFmt) + '</td>' +
+                    '<td>' + escapeHtml(m.tipo_servicio || '-') + '</td>' +
+                    '<td>' + escapeHtml(m.descripcion || m.observaciones || '-') + '</td>' +
+                    '<td>' + escapeHtml((m.km_servicio || 0) + ' km') + '</td>' +
+                    '<td>' + escapeHtml(m.estado || '-') + '</td>' +
+                    '</tr>';
+            });
+            html += '</tbody></table></div>';
+        });
+
+        contenedor.innerHTML = html;
+    }
+
+    document.querySelectorAll('.btn-generar-informe').forEach(btn => {
+        btn.addEventListener('click', function () {
+            const patente = this.dataset.patente;
+            const contenedor = document.getElementById(this.dataset.target);
+            generarInformeVehiculo(patente, contenedor);
+
+            const btnImprimir = this.parentElement.querySelector('.btn-imprimir-informe');
+            if (btnImprimir) btnImprimir.style.display = 'inline-flex';
+        });
+    });
+
+    document.querySelectorAll('.btn-imprimir-informe').forEach(btn => {
+        btn.addEventListener('click', function () {
+            document.body.classList.add('modo-impresion-informe');
+            window.print();
+        });
+    });
+
+    window.addEventListener('afterprint', function () {
+        document.body.classList.remove('modo-impresion-informe');
+    });
     </script>
 </body>
 </html>
