@@ -212,7 +212,25 @@ img { display: block; }
   flex-shrink: 0;
 }
 
-.vehicle-list-panel__title { font-size: 16px; font-weight: 800; color: var(--color-text-primary); }
+.vehicle-list-panel__title { font-size: 16px; font-weight: 800; color: var(--color-text-primary); margin-bottom: 12px; }
+
+.vehicle-list-panel__export-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  background-color: #0f172a;
+  color: #fff;
+  border: none;
+  padding: 10px 14px;
+  font-size: 12px;
+  font-weight: 700;
+  border-radius: var(--radius-md);
+  transition: 0.2s;
+}
+.vehicle-list-panel__export-btn:hover { background-color: var(--color-primary-hover); }
+.vehicle-list-panel__export-btn svg { width: 14px; height: 14px; }
 
 .vehicle-list-panel__search-bar {
   display: flex; align-items: center; gap: 8px; padding: 12px 20px;
