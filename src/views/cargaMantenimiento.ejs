@@ -181,7 +181,7 @@
     });
 
     const fechaInput = document.getElementById('fecha_inicio');
-    if (!fechaInput.value) fechaInput.value = new Date().toISOString().split('T')[0];
+    if (!fechaInput.value) fechaInput.value = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().split('T')[0];
 
     const selectVehiculo = document.getElementById('id_vehiculo');
     const kmServicioInput = document.getElementById('km_servicio');

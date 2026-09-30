@@ -1,5 +1,9 @@
 const assignmentService = require("../data/assignmentService");
-const db = require("../model/database/models"); // Agregado para poder consultar la BD directamente
+const auditoriaService = require("../data/auditoriaService");
+const alertaService = require("../data/alertaService");
+const { esFechaValida } = require("../utils/fechas");
+
+const { ErrorNegocio } = require("../utils/errores");
 
 const assignmentController = {
   showForm: async (req, res) => {
@@ -16,7 +20,8 @@ const assignmentController = {
       });
     } catch (error) {
       console.log(error);
-      res.send("Error al cargar el formulario de asignación");
+      req.flash("error", "Error al cargar el formulario de asignación.");
+      res.redirect("/Vehicles");
     }
   },
 
@@ -25,57 +30,65 @@ const assignmentController = {
       const { id_vehiculo, id_chofer, fecha_desde, fecha_hasta } = req.body;
 
       if (!id_vehiculo || !id_chofer || !fecha_desde || !fecha_hasta) {
-        return res.redirect(
-          "/Asignaciones?error=Completá todos los campos obligatorios",
-        );
+        return res.redirect("/asignaciones?error=" + encodeURIComponent("Completá todos los campos obligatorios"));
       }
-
+      if (!esFechaValida(fecha_desde) || !esFechaValida(fecha_hasta)) {
+        return res.redirect("/asignaciones?error=" + encodeURIComponent("Las fechas ingresadas no son válidas"));
+      }
       if (new Date(fecha_hasta) < new Date(fecha_desde)) {
-        return res.redirect(
-          "/Asignaciones?error=La fecha de fin debe ser posterior a la de inicio",
-        );
+        return res.redirect("/asignaciones?error=" + encodeURIComponent("La fecha de fin debe ser posterior a la de inicio"));
+      }
+      if (req.body.km_salida === undefined || req.body.km_salida === "") {
+        return res.redirect("/asignaciones?error=" + encodeURIComponent("Ingresá el kilometraje de salida"));
       }
 
-      // --- LÓGICA SENIOR: Validación de Kilometraje ---
-      // 1. Buscamos el vehículo en la base de datos para saber su KM real
-      const vehiculoDB = await db.Vehiculo.findByPk(id_vehiculo);
+      const { asignacion, vehiculo, chofer } = await assignmentService.create(req.body);
 
-      if (vehiculoDB) {
-        // 2. Tomamos el KM que viene del formulario.
-        // NOTA: Asumo que el input en tu EJS se llama "km_salida". Si se llama distinto,
-        // cambialo en el req.body correspondientemente.
-        const kmIngresado = Number(
-          req.body.km_salida || req.body.km_actual || 0,
-        );
+      await auditoriaService.desdeRequest(
+        req,
+        "asignacion_vehiculo",
+        asignacion.id_asignacion,
+        "CREAR",
+        null,
+        {
+          id_vehiculo: vehiculo.id_vehiculo,
+          patente: vehiculo.patente,
+          id_chofer: chofer.id_chofer,
+          chofer: `${chofer.nombre} ${chofer.apellido}`,
+          fecha_salida: fecha_desde,
+          fecha_estimada_devolucion: fecha_hasta,
+          destino: req.body.destino || null,
+        },
+        `Asignación del vehículo ${vehiculo.patente} a ${chofer.nombre} ${chofer.apellido}`,
+      );
 
-        // 3. Comparamos
-        if (kmIngresado < vehiculoDB.km_actual) {
-          // Si el número es menor, abortamos el guardado y mandamos el error a la vista
-          return res.redirect(
-            `/Asignaciones?error=Error: El kilometraje de salida (${kmIngresado} km) no puede ser menor al kilometraje actual del vehículo (${vehiculoDB.km_actual} km).`,
-          );
-        }
-      }
-      // ------------------------------------------------
-
-      await assignmentService.create(req.body);
-      res.redirect("/Asignaciones?success=Asignación registrada correctamente");
+      alertaService.generarAlertasMantenimiento();
+      res.redirect("/asignaciones?success=" + encodeURIComponent("Asignación registrada correctamente"));
     } catch (error) {
-      console.log(error);
-      // Si el error viene del service, mostrar el mensaje directamente
-      const mensaje = error.message || "Error al guardar la asignación";
-      res.redirect(`/Asignaciones?error=${encodeURIComponent(mensaje)}`);
+      const mensaje = error instanceof ErrorNegocio ? error.message : "Error al guardar la asignación";
+      if (!(error instanceof ErrorNegocio)) console.log(error);
+      res.redirect("/asignaciones?error=" + encodeURIComponent(mensaje));
     }
   },
 
   finalize: async (req, res) => {
-    console.log("ID recibido:", req.params.id); // agregá esto para debuggear
     try {
-      await assignmentService.finalize(req.params.id);
-      res.redirect("/Asignaciones?success=Asignación finalizada correctamente");
+      const asignacion = await assignmentService.finalize(req.params.id);
+      await auditoriaService.desdeRequest(
+        req,
+        "asignacion_vehiculo",
+        asignacion.id_asignacion,
+        "EDITAR",
+        { estado: "Activo" },
+        { estado: "Finalizado" },
+        `Finalización de la asignación ID: ${asignacion.id_asignacion} (vehículo ID: ${asignacion.id_vehiculo})`,
+      );
+      alertaService.generarAlertasMantenimiento();
+      res.redirect("/asignaciones?success=" + encodeURIComponent("Asignación finalizada correctamente"));
     } catch (error) {
-      console.log(error);
-      res.redirect("/Asignaciones?error=Error al finalizar la asignación");
+      const mensaje = error instanceof ErrorNegocio ? error.message : "Error al finalizar la asignación";
+      if (!(error instanceof ErrorNegocio)) console.log(error);
+      res.redirect("/asignaciones?error=" + encodeURIComponent(mensaje));
     }
   },
 };

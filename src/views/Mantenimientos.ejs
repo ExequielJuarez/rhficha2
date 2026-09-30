@@ -332,7 +332,7 @@
                                     <span class="vehicle-card__model" style="font-size: 12px; margin: 0; font-weight: 600; color: #2563eb;"><%= m.tipo_servicio %></span>
                                 </div>
                                 <div style="display: flex; justify-content: space-between; align-items: center;">
-                                    <span style="font-size: 11px; color: #64748b;"><%= new Date(m.fecha_inicio).toLocaleDateString('es-AR') %></span>
+                                    <span style="font-size: 11px; color: #64748b;"><%= fmtFecha(m.fecha_inicio) %></span>
                                     <span style="font-size: 12px; font-weight: 800; color: #0f172a; font-family: var(--font-mono);">$<%= m.costo_total %></span>
                                 </div>
                             </li>
@@ -385,7 +385,7 @@
                                             Orden: <%= m.tipo_servicio %>
                                             <span class="badge <%= getEstadoMaint(m.estado) %>" style="font-size: 11px;"><%= m.estado %></span>
                                         </h2>
-                                        <p style="margin: 4px 0 0; color: #64748b; font-size: 13px;">Fecha de ingreso: <%= new Date(m.fecha_inicio).toLocaleDateString('es-AR') %></p>
+                                        <p style="margin: 4px 0 0; color: #64748b; font-size: 13px;">Fecha de ingreso: <%= fmtFecha(m.fecha_inicio) %></p>
                                     </div>
                                     <button onclick="window.print()" class="no-print" style="background-color: #f1f5f9; color: #334155; border: 1px solid #cbd5e1; padding: 8px 14px; font-size: 12px; font-weight: 700; border-radius: 6px; display: flex; align-items: center; transition: 0.2s;">
                                         <svg viewBox="0 0 20 20" fill="currentColor" style="width: 14px; height: 14px; margin-right: 5px;"><path fill-rule="evenodd" d="M5 4v3H4a2 2 0 00-2 2v3a2 2 0 002 2h1v2a2 2 0 002 2h6a2 2 0 002-2v-2h1a2 2 0 002-2V9a2 2 0 00-2-2h-1V4a2 2 0 00-2-2H7a2 2 0 00-2 2zm8 0H7v3h6V4zm0 8H7v4h6v-4z" clip-rule="evenodd"/></svg>
@@ -513,7 +513,7 @@
 
     <!-- Datos de mantenimientos embebidos para armar el informe sin pegarle al servidor de nuevo -->
     <script>
-      window.__mantenimientosData = <%- JSON.stringify((mantenimientos || []).map(m => ({
+      window.__mantenimientosData = <%- safeJson((mantenimientos || []).map(m => ({
             patente: m.vehiculo ? m.vehiculo.patente : null,
             fecha: m.fecha_inicio,
             tipo_servicio: m.tipo_servicio,
@@ -708,7 +708,8 @@
                         '<th>Fecha</th><th>Repuesto / Servicio</th><th>Descripción</th><th>Km</th><th>Estado</th>' +
                     '</tr></thead><tbody>';
             filas.forEach(m => {
-                const fechaFmt = new Date(m.fecha).toLocaleDateString('es-AR');
+                const pf = String(m.fecha || '').split('-');
+                const fechaFmt = pf.length === 3 ? Number(pf[2]) + '/' + Number(pf[1]) + '/' + pf[0] : '-';
                 html += '<tr>' +
                     '<td>' + escapeHtml(fechaFmt) + '</td>' +
                     '<td>' + escapeHtml(m.tipo_servicio || '-') + '</td>' +

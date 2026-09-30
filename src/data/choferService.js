@@ -39,10 +39,12 @@ const choferService = {
         includeLicencias.where = { categoria: filtros.categoriaLicencia };
       }
 
+      // Sólo la asignación activa (la que el listado muestra como "vehículo asignado")
       const includeAsignaciones = {
         model: db.AsignacionVehiculo,
         as: "asignaciones",
         required: false,
+        where: { estado: "Activo" },
         include: [
           {
             model: db.Vehiculo,
@@ -59,6 +61,11 @@ const choferService = {
       const { count, rows } = await db.Chofer.findAndCountAll({
         where,
         include: [includeLicencias, includeAsignaciones],
+        order: [
+          ["apellido", "ASC"],
+          ["nombre", "ASC"],
+          [{ model: db.LicenciaChofer, as: "licencias" }, "fecha_vencimiento", "DESC"],
+        ],
         limit: limite,
         offset: offset,
         distinct: true,
@@ -92,6 +99,7 @@ const choferService = {
             as: "licencias",
           },
         ],
+        order: [[{ model: db.LicenciaChofer, as: "licencias" }, "fecha_vencimiento", "DESC"]],
       });
       return chofer;
     } catch (error) {
@@ -101,52 +109,71 @@ const choferService = {
   },
 
   create: async function (req) {
+    const transaction = await db.sequelize.transaction();
     try {
       const body = req.body;
       const estado = body["activo-inactivo"];
 
       const fotoDocumento = req.files?.foto_documento?.[0]?.filename || null;
-      const fotoLicencia  = req.files?.foto_licencia?.[0]?.filename  || null;
+      const fotoLicencia = req.files?.foto_licencia?.[0]?.filename || null;
+      const imagen = req.files?.imagen?.[0]?.filename || null;
 
-      let newChofer = await db.Chofer.create({
-        nombre: body.nombre,
-        apellido: body.apellido,
-        dni: body.dni,
-        telefono: body.telefono,
-        direccion: body.direccion,
-        estado: estado,
-        email: body.email || null,
-        fechaNacimiento: body.fechaNacimiento || null,
-        fechaIngreso: body.fechaIngreso || null,
-        turno: body.Turno || null,
-        foto_documento: fotoDocumento,
-      });
+      const newChofer = await db.Chofer.create(
+        {
+          nombre: body.nombre.trim(),
+          apellido: body.apellido.trim(),
+          dni: body.dni.trim(),
+          telefono: body.telefono.trim(),
+          direccion: body.direccion.trim(),
+          estado: estado,
+          email: body.email || null,
+          fechaNacimiento: body.fechaNacimiento || null,
+          fechaIngreso: body.fechaIngreso || null,
+          turno: body.Turno || null,
+          motivoBaja: estado === "Inactivo" ? body.motivoBaja || null : null,
+          foto_documento: fotoDocumento,
+          imagen,
+        },
+        { transaction },
+      );
 
-      await db.LicenciaChofer.create({
-        id_chofer: newChofer.id_chofer,
-        numero: body.numero_licencia,
-        categoria: body.categoria,
-        fecha_emision: body.fecha_emision,
-        fecha_vencimiento: body.fecha_vencimiento,
-        imagen: fotoLicencia,
-      });
+      await db.LicenciaChofer.create(
+        {
+          id_chofer: newChofer.id_chofer,
+          numero: body.numero_licencia,
+          categoria: body.categoria,
+          fecha_emision: body.fecha_emision,
+          fecha_vencimiento: body.fecha_vencimiento,
+          imagen: fotoLicencia,
+        },
+        { transaction },
+      );
 
+      await transaction.commit();
       return newChofer;
     } catch (error) {
+      await transaction.rollback();
       console.log(error);
       throw error;
     }
   },
 
   update: async function (id, data) {
-    try {
-      await db.Chofer.update(data, {
-        where: { id_chofer: id },
-      });
-      return true;
-    } catch (error) {
-      console.log(error);
-      return false;
+    const [filas] = await db.Chofer.update(data, { where: { id_chofer: id } });
+    return filas > 0;
+  },
+
+  // Guarda (o crea) la licencia principal del chofer: la de vencimiento más tardío
+  guardarLicencia: async function (chofer, datosLicencia) {
+    const licencias = chofer.licencias || [];
+    const actual = licencias.length
+      ? licencias.reduce((a, b) => (String(a.fecha_vencimiento) >= String(b.fecha_vencimiento) ? a : b))
+      : null;
+
+    if (actual) {
+      await db.LicenciaChofer.update(datosLicencia, { where: { id_licencia: actual.id_licencia } });
+    } else {
+      await db.LicenciaChofer.create({ ...datosLicencia, id_chofer: chofer.id_chofer });
     }
   },
 };

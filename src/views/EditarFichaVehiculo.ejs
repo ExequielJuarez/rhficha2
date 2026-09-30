@@ -179,6 +179,9 @@
                 <option value="Disponible"       <%= vehiculo.estado_actual === 'Disponible'       ? 'selected' : '' %>>Disponible</option>
                 <option value="En uso"           <%= vehiculo.estado_actual === 'En uso'           ? 'selected' : '' %>>En uso</option>
                 <option value="En mantenimiento" <%= vehiculo.estado_actual === 'En mantenimiento' ? 'selected' : '' %>>En mantenimiento</option>
+                <% if (vehiculo.estado_actual === 'En siniestro') { %>
+                <option value="En siniestro"     selected>En siniestro</option>
+                <% } %>
                 <option value="Baja"             <%= vehiculo.estado_actual === 'Baja'             ? 'selected' : '' %>>Baja</option>
               </select>
               <span class="field-error" id="err-estado"></span>
@@ -194,9 +197,13 @@
           <div class="form-group">
             <label>Distrito</label>
             <select name="distrito">
-              <option value="Centro" <%= vehiculo.distrito === 'Centro' ? 'selected' : '' %>>Centro</option>
-              <option value="Norte"  <%= vehiculo.distrito === 'Norte'  ? 'selected' : '' %>>Norte</option>
-              <option value="Sur"    <%= vehiculo.distrito === 'Sur'    ? 'selected' : '' %>>Sur</option>
+              <option value="">Sin distrito</option>
+              <% (typeof distritos !== 'undefined' ? distritos : []).forEach(d => { %>
+              <option value="<%= d.nombre %>" <%= vehiculo.distrito === d.nombre ? 'selected' : '' %>><%= d.nombre %></option>
+              <% }) %>
+              <% if (vehiculo.distrito && !(typeof distritos !== 'undefined' ? distritos : []).some(d => d.nombre === vehiculo.distrito)) { %>
+              <option value="<%= vehiculo.distrito %>" selected><%= vehiculo.distrito %></option>
+              <% } %>
             </select>
           </div>
       
@@ -212,13 +219,13 @@
             <div class="form-group">
               <label>Fecha de Alta <span class="field-locked"></span></label>
               <input name="fecha_alta" type="date"
-                value="<%= vehiculo.fecha_alta ? new Date(vehiculo.fecha_alta).toISOString().split('T')[0] : '' %>"
+                value="<%= vehiculo.fecha_alta || '' %>"
                 readonly class="readonly-field" id="fecha_alta">
             </div>
             <div class="form-group">
               <label>Fecha de Baja <span style="font-size:12px;color:#16a34a;font-weight:400;">(Editable)</span></label>
               <input name="fecha_baja" type="date"
-                value="<%= vehiculo.fecha_baja ? new Date(vehiculo.fecha_baja).toISOString().split('T')[0] : '' %>"
+                value="<%= vehiculo.fecha_baja || '' %>"
                 id="fecha_baja">
               <span class="field-error" id="err-fecha-baja"></span>
             </div>

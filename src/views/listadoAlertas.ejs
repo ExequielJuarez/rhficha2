@@ -189,7 +189,7 @@
 
                             <% alertas.forEach(alerta => { %>
                                 <%
-                                const fechaISO = alerta.createdAt ? new Date(alerta.createdAt).toISOString().split('T')[0] : '';
+                                const fechaISO = alerta.createdAt ? aISO(alerta.createdAt) : '';
                                 const textoBusqueda = ((alerta.mensaje || '') + ' ' + (alerta.entidad_nombre || '')).toLowerCase();
                                 %>
                                 <tr class="data-table__row alerta-row"
@@ -283,8 +283,8 @@
           }
         });
 
-        const statsVehiculos = <%- JSON.stringify(estadisticas.vehiculos) %>;
-        const statsChoferes = <%- JSON.stringify(estadisticas.choferes) %>;
+        const statsVehiculos = <%- safeJson(estadisticas.vehiculos) %>;
+        const statsChoferes = <%- safeJson(estadisticas.choferes) %>;
 
         // Gráficos con tipografía corporativa
         Chart.defaults.font.family = "'DM Sans', sans-serif";

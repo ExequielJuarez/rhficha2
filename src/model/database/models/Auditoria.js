@@ -51,5 +51,12 @@ module.exports = (sequelize, dataTypes) => {
   };
 
   const Auditoria = sequelize.define(alias, cols, config);
+
+  Auditoria.associate = function (models) {
+    Auditoria.belongsTo(models.Usuario, {
+      as: "usuario",
+      foreignKey: "id_usuario",
+    });
+  };
   return Auditoria;
 };

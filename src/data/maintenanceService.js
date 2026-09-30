@@ -1,0 +1,218 @@
+const db = require("../model/database/models");
+const { Op } = require("sequelize");
+const { hoyISO, esFechaValida } = require("../utils/fechas");
+const { ErrorNegocio } = require("../utils/errores");
+
+const ESTADOS_MANTENIMIENTO = ["Pendiente", "En proceso", "Realizado"];
+const ESTADOS_ABIERTOS = ["Pendiente", "En proceso"];
+
+const aLista = (valor) => (valor === undefined ? [] : Array.isArray(valor) ? valor : [valor]);
+
+const redondear = (n) => Math.round(n * 100) / 100;
+
+// Cantidad de órdenes abiertas (pendientes o en proceso) de un vehículo
+const ordenesAbiertas = (id_vehiculo, transaction, excluirId = null) => {
+  const where = { id_vehiculo, estado: { [Op.in]: ESTADOS_ABIERTOS } };
+  if (excluirId) where.id_mantenimiento = { [Op.ne]: excluirId };
+  return db.Mantenimiento.count({ where, transaction });
+};
+
+const maintenanceService = {
+  ESTADOS_MANTENIMIENTO,
+
+  // Alta de una orden. Los importes se calculan SIEMPRE en el servidor a partir del detalle.
+  crear: async function (body, id_usuario) {
+    const transaction = await db.sequelize.transaction();
+    try {
+      const estado = body.estado;
+      if (!ESTADOS_MANTENIMIENTO.includes(estado)) throw new ErrorNegocio("El estado de la orden no es válido.");
+
+      const tipo = String(body.tipo_servicio || "").trim();
+      if (!tipo) throw new ErrorNegocio("Indicá el tipo de servicio.");
+      if (tipo.length > 100) throw new ErrorNegocio("El tipo de servicio no puede superar los 100 caracteres.");
+      const descripcion = String(body.descripcion || "").trim();
+      if (!descripcion) throw new ErrorNegocio("Describí las tareas realizadas.");
+
+      if (!body.fecha_inicio || !esFechaValida(body.fecha_inicio)) throw new ErrorNegocio("La fecha de inicio no es válida.");
+      if (estado === "Realizado" && body.fecha_inicio > hoyISO()) {
+        throw new ErrorNegocio("Una orden con fecha futura no puede cargarse como Realizada.");
+      }
+
+      if (!/^\d+$/.test(String(body.km_servicio ?? ""))) throw new ErrorNegocio("El kilometraje del servicio debe ser un número entero mayor o igual a 0.");
+      const kmServicio = Number(body.km_servicio);
+      let proximoKm = null;
+      if (body.proximo_servicio_km !== undefined && body.proximo_servicio_km !== "") {
+        if (!/^\d+$/.test(String(body.proximo_servicio_km))) throw new ErrorNegocio("El próximo servicio debe ser un número entero.");
+        proximoKm = Number(body.proximo_servicio_km);
+        if (proximoKm <= kmServicio) throw new ErrorNegocio("El próximo servicio (km) debe ser mayor al km del servicio actual.");
+      }
+
+      const manoObra = body.mano_obra === undefined || body.mano_obra === "" ? 0 : Number(body.mano_obra);
+      if (!Number.isFinite(manoObra) || manoObra < 0) throw new ErrorNegocio("La mano de obra no puede ser negativa.");
+
+      const vehiculo = await db.Vehiculo.findByPk(body.id_vehiculo, { transaction, lock: transaction.LOCK.UPDATE });
+      if (!vehiculo) throw new ErrorNegocio("Seleccioná un vehículo válido.");
+      if (vehiculo.estado_actual === "Baja") throw new ErrorNegocio("El vehículo está dado de baja.");
+      if (vehiculo.estado_actual === "En siniestro") throw new ErrorNegocio("El vehículo está en siniestro: resolvelo antes de cargar un mantenimiento.");
+      if (kmServicio < vehiculo.km_actual) {
+        throw new ErrorNegocio(`El km del servicio (${kmServicio}) no puede ser menor al actual del vehículo (${vehiculo.km_actual}).`);
+      }
+
+      const abierta = ESTADOS_ABIERTOS.includes(estado);
+      if (abierta && vehiculo.estado_actual === "En uso") {
+        throw new ErrorNegocio("El vehículo está en uso (asignado a un chofer): finalizá la asignación antes de enviarlo a mantenimiento.");
+      }
+
+      // ── Detalle de repuestos ──
+      const ids = aLista(body.id_repuesto);
+      const cantidades = aLista(body.cantidad);
+      const costos = aLista(body.costo_unitario);
+      const lineas = [];
+      const acumulado = new Map(); // total pedido por repuesto (mismo repuesto en varias filas)
+
+      for (let i = 0; i < ids.length; i++) {
+        if (!ids[i]) continue;
+        const cantidad = Number(cantidades[i] === undefined || cantidades[i] === "" ? 1 : cantidades[i]);
+        const costo = Number(costos[i] === undefined || costos[i] === "" ? 0 : costos[i]);
+        if (!Number.isInteger(cantidad) || cantidad < 1) throw new ErrorNegocio("La cantidad de cada repuesto debe ser un entero mayor a 0.");
+        if (!Number.isFinite(costo) || costo < 0) throw new ErrorNegocio("El costo unitario no puede ser negativo.");
+        lineas.push({ id_repuesto: Number(ids[i]), cantidad, costo });
+        acumulado.set(Number(ids[i]), (acumulado.get(Number(ids[i])) || 0) + cantidad);
+      }
+
+      const repuestos = new Map();
+      for (const [idRepuesto, pedido] of acumulado) {
+        const repuesto = await db.Repuesto.findByPk(idRepuesto, { transaction, lock: transaction.LOCK.UPDATE });
+        if (!repuesto) throw new ErrorNegocio("Uno de los repuestos seleccionados no existe.");
+        if (repuesto.stock < pedido) {
+          throw new ErrorNegocio(`Stock insuficiente de "${repuesto.nombre}": pedís ${pedido} y hay ${repuesto.stock}.`);
+        }
+        repuestos.set(idRepuesto, repuesto);
+      }
+
+      const costoRepuestos = redondear(lineas.reduce((t, l) => t + l.cantidad * l.costo, 0));
+      const costoTotal = redondear(costoRepuestos + manoObra);
+
+      const mantenimiento = await db.Mantenimiento.create(
+        {
+          id_vehiculo: vehiculo.id_vehiculo,
+          id_usuario,
+          fecha_inicio: body.fecha_inicio,
+          fecha_fin: estado === "Realizado" ? hoyISO() : null,
+          tipo_servicio: tipo,
+          estado,
+          km_servicio: kmServicio,
+          proximo_km: proximoKm,
+          descripcion,
+          observaciones: String(body.observaciones || "").trim() || null,
+          costo_repuestos: costoRepuestos,
+          mano_obra: redondear(manoObra),
+          costo_total: costoTotal,
+        },
+        { transaction },
+      );
+
+      for (const l of lineas) {
+        await db.DetalleMantenimiento.create(
+          {
+            id_mantenimiento: mantenimiento.id_mantenimiento,
+            id_repuesto: l.id_repuesto,
+            cantidad: l.cantidad,
+            costo_unitario: l.costo,
+          },
+          { transaction },
+        );
+      }
+      for (const [idRepuesto, pedido] of acumulado) {
+        const repuesto = repuestos.get(idRepuesto);
+        await repuesto.update({ stock: repuesto.stock - pedido }, { transaction });
+      }
+
+      // ── Estado y kilometraje del vehículo ──
+      const cambios = {};
+      if (abierta) {
+        cambios.estado_actual = "En mantenimiento";
+      } else {
+        if (kmServicio > vehiculo.km_actual) {
+          cambios.km_actual = kmServicio;
+          await db.HistorialKm.create(
+            {
+              id_vehiculo: vehiculo.id_vehiculo,
+              km_anterior: vehiculo.km_actual,
+              km_nuevo: kmServicio,
+              fecha: hoyISO(),
+              observaciones: `Actualizado por el mantenimiento #${mantenimiento.id_mantenimiento}`,
+            },
+            { transaction },
+          );
+        }
+        if (vehiculo.estado_actual === "En mantenimiento" && (await ordenesAbiertas(vehiculo.id_vehiculo, transaction)) === 0) {
+          cambios.estado_actual = "Disponible";
+        }
+      }
+      if (Object.keys(cambios).length) await vehiculo.update(cambios, { transaction });
+
+      await transaction.commit();
+      return { mantenimiento, lineas };
+    } catch (error) {
+      await transaction.rollback();
+      throw error;
+    }
+  },
+
+  // Cambio de estado de una orden existente
+  cambiarEstado: async function (id, nuevoEstado, kmServicio) {
+    const transaction = await db.sequelize.transaction();
+    try {
+      if (!ESTADOS_MANTENIMIENTO.includes(nuevoEstado)) throw new ErrorNegocio("El estado de la orden no es válido.");
+
+      const mantenimiento = await db.Mantenimiento.findByPk(id, { transaction, lock: transaction.LOCK.UPDATE });
+      if (!mantenimiento) throw new ErrorNegocio("La orden de mantenimiento no existe.");
+
+      const anterior = mantenimiento.estado;
+      if (anterior === nuevoEstado) throw new ErrorNegocio(`La orden ya está en estado "${nuevoEstado}".`);
+      if (anterior === "Realizado") throw new ErrorNegocio("Una orden Realizada no puede volver a abrirse.");
+      if (anterior === "En proceso" && nuevoEstado === "Pendiente") throw new ErrorNegocio("Una orden en proceso no puede volver a Pendiente.");
+
+      const vehiculo = await db.Vehiculo.findByPk(mantenimiento.id_vehiculo, { transaction, lock: transaction.LOCK.UPDATE });
+      const cambiosOrden = { estado: nuevoEstado };
+      const cambiosVehiculo = {};
+
+      if (nuevoEstado === "Realizado") {
+        cambiosOrden.fecha_fin = hoyISO();
+        const km = kmServicio !== undefined && kmServicio !== "" ? Number(kmServicio) : mantenimiento.km_servicio;
+        if (vehiculo) {
+          if (Number.isInteger(km) && km > vehiculo.km_actual) {
+            cambiosVehiculo.km_actual = km;
+            await db.HistorialKm.create(
+              {
+                id_vehiculo: vehiculo.id_vehiculo,
+                km_anterior: vehiculo.km_actual,
+                km_nuevo: km,
+                fecha: hoyISO(),
+                observaciones: `Actualizado por el mantenimiento #${mantenimiento.id_mantenimiento}`,
+              },
+              { transaction },
+            );
+          }
+          if (vehiculo.estado_actual === "En mantenimiento" && (await ordenesAbiertas(vehiculo.id_vehiculo, transaction, mantenimiento.id_mantenimiento)) === 0) {
+            cambiosVehiculo.estado_actual = "Disponible";
+          }
+        }
+      } else if (vehiculo && vehiculo.estado_actual === "Disponible") {
+        cambiosVehiculo.estado_actual = "En mantenimiento";
+      }
+
+      await mantenimiento.update(cambiosOrden, { transaction });
+      if (vehiculo && Object.keys(cambiosVehiculo).length) await vehiculo.update(cambiosVehiculo, { transaction });
+
+      await transaction.commit();
+      return { mantenimiento, anterior };
+    } catch (error) {
+      await transaction.rollback();
+      throw error;
+    }
+  },
+};
+
+module.exports = maintenanceService;

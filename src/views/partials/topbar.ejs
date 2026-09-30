@@ -314,7 +314,17 @@
   </div>
 </header>
 
+<script>window.CSRF_TOKEN = "<%= typeof csrfToken !== 'undefined' ? csrfToken : '' %>";</script>
+<script src="/js/csrf.js"></script>
+<script src="/js/flash.js"></script>
+<% if (typeof flash !== 'undefined' && flash) { %>
+<script>document.addEventListener('DOMContentLoaded', function () { mostrarAviso(<%- JSON.stringify(flash.tipo === 'error' ? 'error' : 'ok') %>, <%- JSON.stringify(String(flash.mensaje)).replace(/</g, '\\u003c') %>); });</script>
+<% } %>
 <script>
+function escaparHtml(t) {
+    return String(t == null ? '' : t).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
 async function actualizarBadgeNotif() {
     try {
         const res = await fetch('/Alertas/recientes');
@@ -338,6 +348,9 @@ const TIPO_LABEL = {
     licencia_proxima:         'Licencia próxima',
     mantenimiento_pendiente:  'Mant. pendiente',
     mantenimiento_finalizado: 'Mant. finalizado',
+    mantenimiento_proximo:    'Service próximo',
+    mantenimiento_vencido:    'Service vencido',
+    vehiculo_en_mantenimiento: 'En mantenimiento',
     documentacion_vencida:    'Doc. vencida',
     vehiculo_fuera_servicio:  'Fuera de servicio',
     herramienta_devuelta:     'Herramienta devuelta',
@@ -366,8 +379,8 @@ async function cargarNotificaciones() {
             <div class="notif-item notif-item--noleida" data-id="${a.id_alerta}">
                 <div class="notif-item__dot"></div>
                 <div class="notif-item__body">
-                    <span class="notif-item__tipo">${TIPO_LABEL[a.tipo] || a.tipo}</span>
-                    <p class="notif-item__msg">${a.mensaje}</p>
+                    <span class="notif-item__tipo">${escaparHtml(TIPO_LABEL[a.tipo] || a.tipo)}</span>
+                    <p class="notif-item__msg">${escaparHtml(a.mensaje)}</p>
                     <span class="notif-item__fecha">${new Date(a.createdAt).toLocaleDateString('es-AR')}</span>
                 </div>
                 <button class="notif-item__marcar" data-id="${a.id_alerta}" title="Marcar como leída">

@@ -26,6 +26,9 @@
 <body>
     <div class="box_datos">
         <h1 class="inicio_titulo">Iniciar Sesión</h1>
+        <% if (typeof error !== 'undefined' && error) { %>
+            <p role="alert" style="background:#fef2f2;border:1px solid #fecaca;color:#991b1b;padding:10px 12px;border-radius:8px;font-size:14px;font-weight:600;margin:0 0 14px 0;text-align:center;"><%= error %></p>
+        <% } %>
         <form action="/InicioSesion" method="post">
             <label class="usuario" for="Usuario">Usuario</label>
             <input id="Usuario" name="Usuario" class="input_usuario" type="text" placeholder="Ingresa tu usuario" required>
@@ -36,5 +39,7 @@
             <input class="submit" type="submit" value="Ingresar">
          </form>
     </div>
+    <script>window.CSRF_TOKEN = "<%= typeof csrfToken !== 'undefined' ? csrfToken : '' %>";</script>
+    <script src="/js/csrf.js"></script>
 </body>
 </html>

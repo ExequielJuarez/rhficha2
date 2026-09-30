@@ -7,11 +7,7 @@ const alertaController = {
     try {
       // Recalculamos las alertas automáticas antes de mostrar el panel,
       // así no dependemos de que se haya disparado desde otra acción
-      await Promise.all([
-        alertaService.generarAlertasLicencias(),
-        alertaService.generarAlertasVehiculos(),
-        alertaService.generarAlertasMantenimiento(),
-      ]);
+      await alertaService.generarTodas();
 
       // Traemos todo sin paginar: el filtrado ahora es 100% client-side, como en Mantenimientos
       const filtros = { ...req.query, limite: 100000, pagina: 1 };
@@ -45,7 +41,8 @@ const alertaController = {
       });
     } catch (error) {
       console.log(error);
-      res.send("Error cargando el panel de Alertas");
+      req.flash("error", "Error cargando el panel de Alertas.");
+      res.redirect("/Vehicles");
     }
   },
 
@@ -83,11 +80,15 @@ const alertaController = {
   detalleAlerta: async (req, res) => {
     try {
       const alerta = await db.Alerta.findByPk(req.params.id);
-      if (!alerta) return res.send("Alerta no encontrada");
+      if (!alerta) {
+        req.flash("error", "La alerta no existe.");
+        return res.redirect("/Alertas");
+      }
       res.render("DetalleAlerta", { alerta });
     } catch (error) {
       console.log(error);
-      res.send("Error");
+      req.flash("error", "Error al cargar la alerta.");
+      res.redirect("/Alertas");
     }
   },
 };

@@ -232,7 +232,7 @@
                 </div>
                 <div class="vehicle-profile__spec-row">
                   <dt class="vehicle-profile__spec-label">Fecha de Ingreso</dt>
-                  <dd class="vehicle-profile__spec-value"><%= herramientaSeleccionada.fecha_alta ? new Date(herramientaSeleccionada.fecha_alta).toLocaleDateString('es-AR') : '—' %></dd>
+                  <dd class="vehicle-profile__spec-value"><%= herramientaSeleccionada.fecha_alta ? fmtFecha(herramientaSeleccionada.fecha_alta) : '—' %></dd>
                 </div>
                 <div class="vehicle-profile__spec-row">
                   <dt class="vehicle-profile__spec-label">Responsable Actual</dt>

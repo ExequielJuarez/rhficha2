@@ -220,7 +220,7 @@
         });
 
         document.addEventListener("DOMContentLoaded", function() {
-            const stats = <%- JSON.stringify(estadisticas) %>;
+            const stats = <%- safeJson(estadisticas) %>;
 
             // Tipografía corporativa para todos los gráficos
             Chart.defaults.font.family = "'DM Sans', sans-serif";

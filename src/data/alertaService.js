@@ -1,5 +1,61 @@
 const db = require("../model/database/models");
 const { Op } = require("sequelize");
+const { diasHasta } = require("../utils/fechas");
+
+const recortar = (texto, max) => String(texto == null ? "" : texto).slice(0, max);
+
+// Las generaciones se ejecutan de a una (evita alertas duplicadas si dos pedidos coinciden)
+let cola = Promise.resolve();
+const serializar = (tarea) => {
+  const corrida = cola.then(tarea, tarea);
+  cola = corrida.catch(() => {});
+  return corrida;
+};
+
+/**
+ * Sincroniza un grupo de alertas automáticas con la realidad:
+ *  - crea las que faltan,
+ *  - actualiza mensaje/prioridad de las existentes (sin reabrir las ya leídas salvo que cambie el tipo o la prioridad),
+ *  - elimina las que ya no corresponden (documento renovado, service hecho, préstamo devuelto...).
+ * `deseadas`: [{ clave, tipo, prioridad, mensaje, entidad_tipo, entidad_id, entidad_nombre }]
+ * `existentes`: alertas actuales del grupo; `claveDe(alerta)` devuelve su clave.
+ */
+const sincronizarGrupo = async (deseadas, existentes, claveDe) => {
+  const porClave = new Map();
+  const sobrantes = [];
+  for (const alerta of existentes) {
+    const clave = claveDe(alerta);
+    if (clave && !porClave.has(clave)) porClave.set(clave, alerta);
+    else sobrantes.push(alerta);
+  }
+
+  const vigentes = new Set();
+  for (const d of deseadas) {
+    vigentes.add(d.clave);
+    const actual = porClave.get(d.clave);
+    const datos = {
+      tipo: d.tipo,
+      prioridad: d.prioridad,
+      mensaje: recortar(d.mensaje, 255),
+      entidad_tipo: d.entidad_tipo,
+      entidad_id: d.entidad_id,
+      entidad_nombre: recortar(d.entidad_nombre, 100),
+    };
+    if (!actual) {
+      await db.Alerta.create({ ...datos, generada_automaticamente: true });
+    } else {
+      const cambioImportante = actual.tipo !== d.tipo || actual.prioridad !== d.prioridad;
+      const cambios = { ...datos };
+      if (cambioImportante) cambios.leida = false;
+      await actual.update(cambios);
+    }
+  }
+
+  for (const [clave, alerta] of porClave) {
+    if (!vigentes.has(clave)) await alerta.destroy();
+  }
+  for (const alerta of sobrantes) await alerta.destroy();
+};
 
 const alertaService = {
   getAll: async function (filtros = {}) {
@@ -105,7 +161,7 @@ const alertaService = {
       vehiculos.forEach((v) => {
         if (v.estado_actual === "Disponible") statsVehiculos.disponible++;
         else if (v.estado_actual === "En uso") statsVehiculos.uso++;
-        else if (v.estado_actual === "En mantenimiento") statsVehiculos.mantenimiento++;
+        else if (v.estado_actual === "En mantenimiento" || v.estado_actual === "En siniestro") statsVehiculos.mantenimiento++;
         else if (v.estado_actual === "Baja") statsVehiculos.baja++;
       });
 
@@ -142,246 +198,239 @@ const alertaService = {
     }
   },
 
-  generarAlertasLicencias: async function () {
-    try {
-      const hoy = new Date();
-      hoy.setHours(0, 0, 0, 0);
-      const en30dias = new Date(hoy);
-      en30dias.setDate(hoy.getDate() + 30);
-
-      const licencias = await db.LicenciaChofer.findAll({
-        include: [{ model: db.Chofer, as: "Chofer" }],
-        where: { fecha_vencimiento: { [Op.lte]: en30dias } },
-      });
-
-      for (const lic of licencias) {
-        const venc = new Date(lic.fecha_vencimiento);
-        const diffDias = Math.ceil((venc - hoy) / (1000 * 60 * 60 * 24));
-        const nombre = `${lic.Chofer.nombre} ${lic.Chofer.apellido}`;
-        const vencida = diffDias < 0;
-        const tipoActual = vencida ? 'licencia_vencida' : 'licencia_proxima';
-
-        // 👈 CORREGIDO: ya no filtramos por leida, y matcheamos por categoría
-        // (licencia_%) para no duplicar cuando pasa de "proxima" a "vencida"
-        const existe = await db.Alerta.findOne({
-            where: {
-                tipo:       { [Op.like]: 'licencia_%' },
-                entidad_id: lic.id_chofer,
-            }
-        });
-        if (existe){
-          // Actualizar en lugar de saltear (incluye el tipo, por si cruzó de proxima a vencida)
-          await existe.update({
-              tipo:      tipoActual,
-              mensaje:   vencida
-                  ? `Licencia de ${nombre} vencida hace ${Math.abs(diffDias)} días`
-                  : `Licencia de ${nombre} vence en ${diffDias} días`,
-              prioridad: vencida ? 'alta' : 'media',
-              leida:     false, // vuelve a marcarse como pendiente si cambió la situación
-          });
-      } else {
-          await db.Alerta.create({
-              tipo:                     tipoActual,
-              prioridad:                vencida ? 'alta' : 'media',
-              mensaje:                  vencida
-                  ? `Licencia de ${nombre} vencida hace ${Math.abs(diffDias)} días`
-                  : `Licencia de ${nombre} vence en ${diffDias} días`,
-              entidad_tipo:             'Chofer',
-              entidad_id:               lic.id_chofer,
-              entidad_nombre:           nombre,
-              generada_automaticamente: true,
-          });
-      }
-      }
-    } catch (error) {
-      console.log("Error generando alertas de licencias:", error);
-    }
-  },
-
-  generarAlertasVehiculos: async function () {
-    try {
-      const hoy = new Date();
-      hoy.setHours(0, 0, 0, 0);
-      const en30dias = new Date(hoy);
-      en30dias.setDate(hoy.getDate() + 30);
-
-      const vehiculos = await db.Vehiculo.findAll({
-        where: {
-          estado_actual: { [Op.ne]: "Baja" },
-          [Op.or]: [
-            { rto_vencimiento: { [Op.lte]: en30dias, [Op.ne]: null } },
-            { seguro_vencimiento: { [Op.lte]: en30dias, [Op.ne]: null } },
-          ],
-        },
-      });
-
-      for (const v of vehiculos) {
-        if (v.rto_vencimiento) {
-          const vencRto = new Date(v.rto_vencimiento);
-          const diffRto = Math.ceil((vencRto - hoy) / (1000 * 60 * 60 * 24));
-          if (diffRto <= 30) {
-            const vencida = diffRto < 0;
-            const msg = vencida ? `RTO/VTV vencida hace ${Math.abs(diffRto)} días` : `RTO/VTV vence en ${diffRto} días`;
-
-            // 👈 CORREGIDO: sin leida:false
-            const existeRto = await db.Alerta.findOne({
-                where: {
-                    tipo:       'documentacion_vencida',
-                    entidad_id: v.id_vehiculo,
-                    mensaje:    { [Op.like]: '%RTO%' }  // distingue RTO de seguro
-                }
-            });
-
-            if (!existeRto) {
-                await db.Alerta.create({
-                    tipo:                     'documentacion_vencida',
-                    prioridad:                vencida ? 'alta' : 'media',
-                    mensaje:                  msg,
-                    entidad_tipo:             'Vehiculo',
-                    entidad_id:               v.id_vehiculo,
-                    entidad_nombre:           `${v.marca} ${v.modelo} (${v.patente})`,
-                    generada_automaticamente: true,
-                });
-            } else {
-                // Actualizar mensaje y prioridad si cambió, y reabrir si ya estaba leída
-                await existeRto.update({ mensaje: msg, prioridad: vencida ? 'alta' : 'media', leida: false });
-            }
-          }
-        }
-
-        if (v.seguro_vencimiento) {
-          const vencSeguro = new Date(v.seguro_vencimiento);
-          const diffSeguro = Math.ceil((vencSeguro - hoy) / (1000 * 60 * 60 * 24));
-          if (diffSeguro <= 30) {
-            const vencida = diffSeguro < 0;
-            const msg = vencida ? `Póliza de seguro vencida hace ${Math.abs(diffSeguro)} días` : `Póliza de seguro vence en ${diffSeguro} días`;
-
-            // 👈 CORREGIDO: sin leida:false
-            const existeSeguro = await db.Alerta.findOne({
-                where: {
-                    tipo:       'documentacion_vencida',
-                    entidad_id: v.id_vehiculo,
-                    mensaje:    { [Op.like]: '%seguro%' }
-                }
-            });
-            if (!existeSeguro) {
-              await db.Alerta.create({
-                  tipo:                     'documentacion_vencida',
-                  prioridad:                vencida ? 'alta' : 'media',
-                  mensaje:                  msg,
-                  entidad_tipo:             'Vehiculo',
-                  entidad_id:               v.id_vehiculo,
-                  entidad_nombre:           `${v.marca} ${v.modelo} (${v.patente})`,
-                  generada_automaticamente: true,
-              });
-          } else {
-              await existeSeguro.update({ mensaje: msg, prioridad: vencida ? 'alta' : 'media', leida: false });
-          }
-          }
-        }
-      }
-
-      // Escáner silencioso de Siniestros Activos para la tabla de alertas
-      if (db.Siniestro) {
-        const siniestrosActivos = await db.Siniestro.findAll({
-          where: { estado: { [Op.in]: ['EN PROCESO', 'En Proceso', 'En proceso'] } },
-          include: [{ model: db.Vehiculo, as: 'Vehiculo' }]
+  generarAlertasLicencias: function () {
+    return serializar(async () => {
+      try {
+        const limite = 30;
+        // Una sola licencia por chofer: la que vence más tarde (la vigente)
+        const choferes = await db.Chofer.findAll({
+          where: { estado: { [Op.ne]: "Inactivo" } },
+          include: [{ model: db.LicenciaChofer, as: "licencias", required: true }],
         });
 
-        for (const s of siniestrosActivos) {
-          const msg = `Siniestro en proceso no resuelto: ${s.ubicacion}`;
-          const patente = s.Vehiculo ? `(${s.Vehiculo.patente})` : '';
+        const deseadas = [];
+        for (const chofer of choferes) {
+          const vigente = chofer.licencias.reduce((a, b) =>
+            String(a.fecha_vencimiento) >= String(b.fecha_vencimiento) ? a : b,
+          );
+          const dias = diasHasta(vigente.fecha_vencimiento);
+          if (dias === null || dias > limite) continue;
 
-          // 👈 CORREGIDO: sin leida:false
-          const existeSiniestro = await db.Alerta.findOne({
-            where: { tipo: "siniestro_activo", entidad_id: s.id_siniestro }
+          const nombre = `${chofer.nombre} ${chofer.apellido}`;
+          const vencida = dias < 0;
+          deseadas.push({
+            clave: String(chofer.id_chofer),
+            tipo: vencida ? "licencia_vencida" : "licencia_proxima",
+            prioridad: vencida ? "alta" : "media",
+            mensaje: vencida
+              ? `Licencia de ${nombre} vencida hace ${Math.abs(dias)} días`
+              : dias === 0
+                ? `Licencia de ${nombre} vence hoy`
+                : `Licencia de ${nombre} vence en ${dias} días`,
+            entidad_tipo: "Chofer",
+            entidad_id: chofer.id_chofer,
+            entidad_nombre: nombre,
           });
-
-          if (!existeSiniestro) {
-            await db.Alerta.create({
-              tipo: "siniestro_activo",
-              prioridad: "alta",
-              mensaje: msg,
-              entidad_tipo: "Siniestro",
-              entidad_id: s.id_siniestro,
-              entidad_nombre: `Choque ${patente} - ${s.chofer_involucrado}`,
-              generada_automaticamente: true,
-            });
-          }
         }
+
+        const existentes = await db.Alerta.findAll({
+          where: { tipo: { [Op.in]: ["licencia_vencida", "licencia_proxima"] }, entidad_tipo: "Chofer" },
+        });
+        await sincronizarGrupo(deseadas, existentes, (a) => String(a.entidad_id));
+      } catch (error) {
+        console.log("Error generando alertas de licencias:", error);
       }
-
-    } catch (error) {
-      console.log("Error generando alertas de vehículos y siniestros:", error);
-    }
-  },
-
-  generarAlertasMantenimiento: async function () {
-  try {
-    const UMBRAL_MEDIA = 5000; // "falta poco"
-    const UMBRAL_ALTA = 2000;  // "falta muy poco"
-
-    const vehiculos = await db.Vehiculo.findAll({
-      where: { estado_actual: { [Op.ne]: "Baja" } },
     });
+  },
 
-    for (const v of vehiculos) {
-      // Buscamos el último mantenimiento que tenga definido un próximo service
-      const ultimoMant = await db.Mantenimiento.findOne({
-        where: {
-          id_vehiculo: v.id_vehiculo,
-          proximo_km: { [Op.ne]: null },
-        },
-        order: [["fecha_inicio", "DESC"]],
-      });
+  generarAlertasVehiculos: function () {
+    return serializar(async () => {
+      try {
+        const limite = 30;
+        const vehiculos = await db.Vehiculo.findAll({ where: { estado_actual: { [Op.ne]: "Baja" } } });
 
-      if (!ultimoMant || !ultimoMant.proximo_km) continue;
+        const deseadas = [];
+        const documentos = [
+          { campo: "rto_vencimiento", etiqueta: "RTO/VTV", sub: "RTO" },
+          { campo: "seguro_vencimiento", etiqueta: "Póliza de seguro", sub: "SEGURO" },
+        ];
 
-      const kmRestantes = ultimoMant.proximo_km - v.km_actual;
-      const nombreVehiculo = `${v.marca} ${v.modelo} (${v.patente})`;
+        for (const v of vehiculos) {
+          for (const doc of documentos) {
+            if (!v[doc.campo]) continue;
+            const dias = diasHasta(v[doc.campo]);
+            if (dias === null || dias > limite) continue;
+            const vencida = dias < 0;
+            deseadas.push({
+              clave: `${v.id_vehiculo}|${doc.sub}`,
+              tipo: "documentacion_vencida",
+              prioridad: vencida ? "alta" : "media",
+              mensaje: vencida
+                ? `${doc.etiqueta} vencida hace ${Math.abs(dias)} días`
+                : dias === 0
+                  ? `${doc.etiqueta} vence hoy`
+                  : `${doc.etiqueta} vence en ${dias} días`,
+              entidad_tipo: "Vehiculo",
+              entidad_id: v.id_vehiculo,
+              entidad_nombre: `${v.marca} ${v.modelo} (${v.patente})`,
+            });
+          }
+        }
 
-      let tipo, prioridad, mensaje;
-
-      if (kmRestantes <= 0) {
-        tipo = "mantenimiento_vencido";
-        prioridad = "alta";
-        mensaje = `Service recomendado superado hace ${Math.abs(kmRestantes)} km (recomendado a los ${ultimoMant.proximo_km} km)`;
-      } else if (kmRestantes <= UMBRAL_ALTA) {
-        tipo = "mantenimiento_proximo";
-        prioridad = "alta";
-        mensaje = `Faltan solo ${kmRestantes} km para el service recomendado (${ultimoMant.proximo_km} km)`;
-      } else if (kmRestantes <= UMBRAL_MEDIA) {
-        tipo = "mantenimiento_proximo";
-        prioridad = "media";
-        mensaje = `Faltan ${kmRestantes} km para el service recomendado (${ultimoMant.proximo_km} km)`;
-      } else {
-        continue; // todavía falta mucho, no corresponde alerta
-      }
-
-      // 👈 CORREGIDO: sin leida:false, y matcheamos por categoría (mantenimiento_%)
-      // para no duplicar cuando pasa de "proximo" a "vencido"
-      const existente = await db.Alerta.findOne({
-        where: { tipo: { [Op.like]: 'mantenimiento_%' }, entidad_id: v.id_vehiculo },
-      });
-
-      if (existente) {
-        await existente.update({ tipo, mensaje, prioridad, leida: false });
-      } else {
-        await db.Alerta.create({
-          tipo,
-          prioridad,
-          mensaje,
-          entidad_tipo: "Vehiculo",
-          entidad_id: v.id_vehiculo,
-          entidad_nombre: nombreVehiculo,
-          generada_automaticamente: true,
+        const existentes = await db.Alerta.findAll({
+          where: { tipo: "documentacion_vencida", entidad_tipo: "Vehiculo" },
         });
+        const claveDe = (a) => {
+          const mensaje = String(a.mensaje).toLowerCase();
+          if (mensaje.includes("rto")) return `${a.entidad_id}|RTO`;
+          if (mensaje.includes("seguro") || mensaje.includes("póliza")) return `${a.entidad_id}|SEGURO`;
+          return null;
+        };
+        await sincronizarGrupo(deseadas, existentes, claveDe);
+
+        await alertaService._sincronizarSiniestros();
+      } catch (error) {
+        console.log("Error generando alertas de vehículos:", error);
       }
+    });
+  },
+
+  // Alerta "siniestro_activo": una por siniestro en proceso; al resolverse se marca como leída
+  _sincronizarSiniestros: async function () {
+    if (!db.Siniestro) return;
+    const abiertos = await db.Siniestro.findAll({
+      where: { estado: "EN PROCESO" },
+      include: [{ model: db.Vehiculo, as: "Vehiculo" }],
+    });
+    const idsAbiertos = new Set(abiertos.map((s) => s.id_siniestro));
+
+    const existentes = await db.Alerta.findAll({ where: { tipo: "siniestro_activo", entidad_tipo: "Siniestro" } });
+    const conAlerta = new Set(existentes.map((a) => a.entidad_id));
+
+    for (const s of abiertos) {
+      if (conAlerta.has(s.id_siniestro)) continue;
+      const patente = s.Vehiculo ? `(${s.Vehiculo.patente})` : "";
+      await db.Alerta.create({
+        tipo: "siniestro_activo",
+        prioridad: "alta",
+        mensaje: recortar(`Siniestro en proceso no resuelto: ${s.ubicacion}`, 255),
+        entidad_tipo: "Siniestro",
+        entidad_id: s.id_siniestro,
+        entidad_nombre: recortar(`Siniestro ${patente}${s.chofer_involucrado ? " - " + s.chofer_involucrado : ""}`.trim(), 100),
+        generada_automaticamente: true,
+      });
     }
-  } catch (error) {
-    console.log("Error generando alertas de mantenimiento:", error);
-  }
-},
+
+    for (const a of existentes) {
+      if (!idsAbiertos.has(a.entidad_id) && !a.leida) await a.update({ leida: true });
+    }
+  },
+
+  generarAlertasMantenimiento: function () {
+    return serializar(async () => {
+      try {
+        const UMBRAL_MEDIA = 5000; // "falta poco"
+        const UMBRAL_ALTA = 2000; // "falta muy poco"
+
+        const vehiculos = await db.Vehiculo.findAll({ where: { estado_actual: { [Op.ne]: "Baja" } } });
+        const deseadas = [];
+
+        for (const v of vehiculos) {
+          // Último service realizado: de él sale el próximo km recomendado
+          const ultimoMant = await db.Mantenimiento.findOne({
+            where: { id_vehiculo: v.id_vehiculo, estado: "Realizado" },
+            order: [
+              ["fecha_inicio", "DESC"],
+              ["id_mantenimiento", "DESC"],
+            ],
+          });
+          if (!ultimoMant || !ultimoMant.proximo_km) continue;
+
+          const kmRestantes = ultimoMant.proximo_km - v.km_actual;
+          let tipo, prioridad, mensaje;
+
+          if (kmRestantes <= 0) {
+            tipo = "mantenimiento_vencido";
+            prioridad = "alta";
+            mensaje = `Service recomendado superado hace ${Math.abs(kmRestantes)} km (recomendado a los ${ultimoMant.proximo_km} km)`;
+          } else if (kmRestantes <= UMBRAL_ALTA) {
+            tipo = "mantenimiento_proximo";
+            prioridad = "alta";
+            mensaje = `Faltan solo ${kmRestantes} km para el service recomendado (${ultimoMant.proximo_km} km)`;
+          } else if (kmRestantes <= UMBRAL_MEDIA) {
+            tipo = "mantenimiento_proximo";
+            prioridad = "media";
+            mensaje = `Faltan ${kmRestantes} km para el service recomendado (${ultimoMant.proximo_km} km)`;
+          } else {
+            continue;
+          }
+
+          deseadas.push({
+            clave: String(v.id_vehiculo),
+            tipo,
+            prioridad,
+            mensaje,
+            entidad_tipo: "Vehiculo",
+            entidad_id: v.id_vehiculo,
+            entidad_nombre: `${v.marca} ${v.modelo} (${v.patente})`,
+          });
+        }
+
+        const existentes = await db.Alerta.findAll({
+          where: { tipo: { [Op.in]: ["mantenimiento_proximo", "mantenimiento_vencido"] }, entidad_tipo: "Vehiculo" },
+        });
+        await sincronizarGrupo(deseadas, existentes, (a) => String(a.entidad_id));
+      } catch (error) {
+        console.log("Error generando alertas de mantenimiento:", error);
+      }
+    });
+  },
+
+  generarAlertasPrestamos: function () {
+    return serializar(async () => {
+      try {
+        const prestamos = await db.Prestamo.findAll({
+          where: { estado_prestamo: "Activo", fecha_devolucion_estimada: { [Op.ne]: null } },
+          include: [{ association: "herramienta" }],
+        });
+
+        const porHerramienta = new Map();
+        for (const p of prestamos) {
+          const dias = diasHasta(p.fecha_devolucion_estimada);
+          if (dias === null || dias >= 0 || !p.herramienta) continue;
+          const actual = porHerramienta.get(p.id_herramienta);
+          if (!actual || dias < actual.dias) porHerramienta.set(p.id_herramienta, { p, dias });
+        }
+
+        const deseadas = [];
+        for (const [idHerramienta, { p, dias }] of porHerramienta) {
+          deseadas.push({
+            clave: String(idHerramienta),
+            tipo: "prestamo_vencido",
+            prioridad: "alta",
+            mensaje: `Préstamo vencido hace ${Math.abs(dias)} días: ${p.herramienta.nombre} (${p.nombre_operario})`,
+            entidad_tipo: "Herramienta",
+            entidad_id: idHerramienta,
+            entidad_nombre: `${p.herramienta.nombre} (${p.herramienta.codigo_activo})`,
+          });
+        }
+
+        const existentes = await db.Alerta.findAll({
+          where: { tipo: "prestamo_vencido", entidad_tipo: "Herramienta" },
+        });
+        await sincronizarGrupo(deseadas, existentes, (a) => String(a.entidad_id));
+      } catch (error) {
+        console.log("Error generando alertas de préstamos:", error);
+      }
+    });
+  },
+
+  generarTodas: async function () {
+    await alertaService.generarAlertasLicencias();
+    await alertaService.generarAlertasVehiculos();
+    await alertaService.generarAlertasMantenimiento();
+    await alertaService.generarAlertasPrestamos();
+  },
 };
 
 module.exports = alertaService;

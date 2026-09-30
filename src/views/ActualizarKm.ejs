@@ -220,7 +220,7 @@
 
     /* ── Validación y Envío ── */
     const fechaInput = document.getElementById('fecha_actualizacion');
-    const hoy = new Date().toISOString().split('T')[0];
+    const hoy = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().split('T')[0];
     fechaInput.max = hoy;
     if (!fechaInput.value) fechaInput.value = hoy;
 
@@ -246,7 +246,7 @@
     if (vehicleSelect.value) vehicleSelect.dispatchEvent(new Event('change'));
 
     /* ── Lógica del Gráfico Histórico con Chart.js ── */
-    const historialTodos = <%- JSON.stringify(historial.map(h => ({
+    const historialTodos = <%- safeJson(historial.map(h => ({
       id_vehiculo: h.id_vehiculo,
       fecha: h.fecha,
       km_nuevo: h.km_nuevo
@@ -268,7 +268,7 @@
         kmChartInstance = new Chart(document.getElementById('kmChart'), {
           type: 'line',
           data: {
-            labels: datos.map(h => new Date(h.fecha).toLocaleDateString('es-AR', { day:'2-digit', month:'2-digit', year:'2-digit' })),
+            labels: datos.map(h => { const pf = String(h.fecha).split('-'); return pf[2] + '/' + pf[1] + '/' + pf[0].slice(2); }),
             datasets: [{
               label: 'Kilometraje',
               data: datos.map(h => h.km_nuevo),

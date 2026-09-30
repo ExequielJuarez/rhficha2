@@ -318,7 +318,7 @@
         fechaDesde.addEventListener('change', calcDuracion);
         fechaHasta.addEventListener('change', calcDuracion);
 
-        const hoy = new Date().toISOString().split('T')[0];
+        const hoy = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().split('T')[0];
         fechaDesde.min   = hoy;
         fechaDesde.value = hoy;
         fechaHasta.min   = hoy;

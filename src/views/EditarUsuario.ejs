@@ -85,6 +85,10 @@
                         </div>
                     </div>
                     <div class="form-group" style="max-width: 300px;">
+                        <label for="contrasena">Nueva Contraseña (opcional)</label>
+                        <input type="password" id="contrasena" name="contrasena" minlength="8" placeholder="Dejar vacío para no cambiarla" autocomplete="new-password">
+                    </div>
+                    <div class="form-group" style="max-width: 300px;">
                         <label for="id_rol">Rol del Usuario</label>
                         <select id="id_rol" name="id_rol" required>
                             <% roles.forEach(rol => { %>

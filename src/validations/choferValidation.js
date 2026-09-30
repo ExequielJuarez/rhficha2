@@ -2,6 +2,33 @@ const db = require('../model/database/models');
 const { body } = require('express-validator');
 const { Op } = require('sequelize');
 
+const CATEGORIAS = ['A', 'B', 'B1', 'B2', 'C', 'D', 'E', 'G'];
+const ESTADOS_CHOFER = ['Activo', 'Inactivo', 'Licencia Vacaciones/Medica'];
+const TURNOS = ['Mañana', 'Tarde', 'Tarde/Noche', 'Noche'];
+
+const hoyISO = () => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+
+// Normaliza el email sin alterar puntos ni alias (normalizeEmail de Gmail cambia la dirección real)
+const limpiarEmail = (v) => String(v || '').trim().toLowerCase();
+
+// Reglas comunes a alta y edición
+const reglaEstado = () => body('activo-inactivo')
+    .notEmpty().withMessage('El estado es obligatorio')
+    .isIn(ESTADOS_CHOFER).withMessage('Estado inválido');
+
+const reglaTurno = () => body('Turno')
+    .optional({ checkFalsy: true })
+    .isIn(TURNOS).withMessage('Turno inválido');
+
+const reglaMotivoBaja = () => body('motivoBaja')
+    .if(body('activo-inactivo').equals('Inactivo'))
+    .trim()
+    .notEmpty().withMessage('El motivo de baja es obligatorio al desactivar un chofer')
+    .isLength({ max: 500 }).withMessage('El motivo no puede superar los 500 caracteres');
+
 // ─────────────────────────────────────────────
 // VALIDACIÓN DE CREACIÓN
 // ─────────────────────────────────────────────
@@ -58,8 +85,8 @@ const choferVAlidation = () => [
 
     body('email')
         .optional({ checkFalsy: true })
-        .isEmail().withMessage('El email ingresado no es válido')
-        .normalizeEmail(),
+        .customSanitizer(limpiarEmail)
+        .isEmail().withMessage('El email ingresado no es válido'),
 
     body('fechaIngreso')
         .notEmpty().withMessage('La fecha de ingreso es obligatoria').bail()
@@ -72,17 +99,27 @@ const choferVAlidation = () => [
             return true;
         }),
 
-    body('activo-inactivo')
-        .notEmpty().withMessage('El estado es obligatorio')
-        .isIn(['Activo', 'Inactivo']).withMessage('Estado inválido'),
+    reglaEstado(),
+
+    reglaTurno(),
 
     body('numero_licencia')
+        .trim()
         .notEmpty().withMessage('El número de licencia es obligatorio')
-        .isLength({ min: 8, max: 16 }).withMessage('Número de licencia inválido'),
+        .isLength({ min: 8, max: 16 }).withMessage('Número de licencia inválido')
+        .custom(async (value, { req }) => {
+            const where = { numero: value };
+            if (req.params && req.params.id) {
+                where.id_chofer = { [Op.ne]: req.params.id };
+            }
+            const existente = await db.LicenciaChofer.findOne({ where });
+            if (existente) throw new Error('Ese número de licencia ya pertenece a otro chofer');
+            return true;
+        }),
 
     body('categoria')
         .notEmpty().withMessage('La categoría de licencia es obligatoria')
-        .isIn(['A', 'B1', 'B2', 'C', 'D', 'E', 'G']).withMessage('Categoría inválida'),
+        .isIn(CATEGORIAS).withMessage('Categoría inválida'),
 
     body('fecha_emision')
         .notEmpty().withMessage('La fecha de emisión es obligatoria').bail()
@@ -95,10 +132,7 @@ const choferVAlidation = () => [
             return true;
         }),
         
-    body('motivoBaja')
-        .if(body('activo-inactivo').equals('Inactivo'))
-        .notEmpty().withMessage('El motivo de baja es obligatorio al desactivar un chofer')
-        .isLength({ max: 500 }).withMessage('El motivo no puede superar los 500 caracteres'),
+    reglaMotivoBaja(),
 
     body('fecha_vencimiento')
         .notEmpty().withMessage('La fecha de vencimiento es obligatoria').bail()
@@ -181,8 +215,8 @@ const choferEditValidation = () => [
 
     body('email')
         .optional({ checkFalsy: true })
-        .isEmail().withMessage('El email ingresado no es válido')
-        .normalizeEmail(),
+        .customSanitizer(limpiarEmail)
+        .isEmail().withMessage('El email ingresado no es válido'),
 
     body('fechaIngreso')
         .notEmpty().withMessage('La fecha de ingreso es obligatoria').bail()
@@ -195,17 +229,27 @@ const choferEditValidation = () => [
             return true;
         }),
 
-    body('activo-inactivo')
-        .notEmpty().withMessage('El estado es obligatorio')
-        .isIn(['Activo', 'Inactivo']).withMessage('Estado inválido'),
+    reglaEstado(),
+
+    reglaTurno(),
+
+    reglaMotivoBaja(),
 
     body('numero_licencia')
+        .trim()
         .notEmpty().withMessage('El número de licencia es obligatorio')
-        .isLength({ min: 8, max: 16 }).withMessage('Número de licencia inválido'),
+        .isLength({ min: 8, max: 16 }).withMessage('Número de licencia inválido')
+        .custom(async (value, { req }) => {
+            const existente = await db.LicenciaChofer.findOne({
+                where: { numero: value, id_chofer: { [Op.ne]: req.params.id } }
+            });
+            if (existente) throw new Error('Ese número de licencia ya pertenece a otro chofer');
+            return true;
+        }),
 
     body('categoria')
         .notEmpty().withMessage('La categoría de licencia es obligatoria')
-        .isIn(['A', 'B1', 'B2', 'C', 'D', 'E', 'G']).withMessage('Categoría inválida'),
+        .isIn(CATEGORIAS).withMessage('Categoría inválida'),
 
     body('fecha_emision')
         .notEmpty().withMessage('La fecha de emisión es obligatoria').bail()
@@ -221,14 +265,16 @@ const choferEditValidation = () => [
     body('fecha_vencimiento')
         .notEmpty().withMessage('La fecha de vencimiento es obligatoria').bail()
         .isDate().withMessage('Fecha de vencimiento inválida').bail()
-        .custom((value, { req }) => {
-            const hoy = new Date();
-            hoy.setHours(0, 0, 0, 0);
-            const vencimiento = new Date(value);
-            if (vencimiento < hoy) throw new Error('La licencia está vencida');
-            if (req.body.fecha_emision) {
-                const emision = new Date(req.body.fecha_emision);
-                if (vencimiento <= emision) throw new Error('El vencimiento debe ser posterior a la fecha de emisión');
+        .custom(async (value, { req }) => {
+            if (req.body.fecha_emision && new Date(value) <= new Date(req.body.fecha_emision)) {
+                throw new Error('El vencimiento debe ser posterior a la fecha de emisión');
+            }
+            // Una licencia ya vencida se puede seguir editando (datos personales, baja, etc.),
+            // pero no se puede cargar una fecha de vencimiento pasada distinta de la registrada.
+            if (value < hoyISO()) {
+                const lic = await db.LicenciaChofer.findOne({ where: { id_chofer: req.params.id }, order: [['fecha_vencimiento', 'DESC']] });
+                const actual = lic ? String(lic.fecha_vencimiento).slice(0, 10) : null;
+                if (actual !== value) throw new Error('La nueva fecha de vencimiento no puede estar en el pasado');
             }
             return true;
         }),

@@ -121,9 +121,9 @@
                                         // Estilos según tus acciones reales
                                         let badgeColor = 'badge--info';
                                         let accionStr = registro.accion || '';
-                                        if(accionStr === 'ALTA' || accionStr === 'INICIO') badgeColor = 'badge--success';
-                                        if(accionStr === 'BAJA') badgeColor = 'badge--danger';
-                                        if(accionStr === 'MODIFICACION') badgeColor = 'badge--warning';
+                                        if(accionStr === 'CREAR' || accionStr === 'LOGIN') badgeColor = 'badge--success';
+                                        if(accionStr === 'ELIMINAR') badgeColor = 'badge--danger';
+                                        if(accionStr.indexOf('EDITAR') === 0) badgeColor = 'badge--warning';
                                     %>
                                     <tr class="data-table__row fila-registro">
                                         <td class="data-table__td" style="white-space: nowrap;">

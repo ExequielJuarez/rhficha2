@@ -167,6 +167,7 @@
               <select class="<%= errors?.categoria ? 'input-error' : '' %>" name="categoria">
                 <option value="">Seleccione categoría</option>
                 <option value="A"  <%= old?.categoria === 'A'  ? 'selected' : '' %>>A - Motocicletas</option>
+                <option value="B"  <%= old?.categoria === 'B'  ? 'selected' : '' %>>B - Autos</option>
                 <option value="B1" <%= old?.categoria === 'B1' ? 'selected' : '' %>>B1 - Autos y camionetas</option>
                 <option value="B2" <%= old?.categoria === 'B2' ? 'selected' : '' %>>B2 - Vehículos utilitarios</option>
                 <option value="C"  <%= old?.categoria === 'C'  ? 'selected' : '' %>>C - Camiones sin acoplado</option>
@@ -240,7 +241,7 @@
 document.getElementById('foto_documento').addEventListener('change', function(e) {
   const p = document.getElementById('preview-documento');
   if (e.target.files.length > 0) {
-    p.innerHTML = `Archivo seleccionado: <strong>${e.target.files[0].name}</strong>`;
+    p.innerHTML = `Archivo seleccionado: <strong>${e.target.files[0].name.replace(/[<>&"']/g, '')}</strong>`;
     p.style.color = 'var(--color-blue)';
   } else {
     p.innerHTML = 'Sin imagen seleccionada';
@@ -251,7 +252,7 @@ document.getElementById('foto_documento').addEventListener('change', function(e)
 document.getElementById('foto_licencia').addEventListener('change', function(e) {
   const p = document.getElementById('preview-licencia');
   if (e.target.files.length > 0) {
-    p.innerHTML = `Archivo seleccionado: <strong>${e.target.files[0].name}</strong>`;
+    p.innerHTML = `Archivo seleccionado: <strong>${e.target.files[0].name.replace(/[<>&"']/g, '')}</strong>`;
     p.style.color = 'var(--color-blue)';
   } else {
     p.innerHTML = 'Sin imagen seleccionada';
@@ -281,7 +282,7 @@ document.getElementById('foto_licencia').addEventListener('change', function(e) 
     
     fileInput.addEventListener('change', function(e) {
       if(e.target.files.length > 0) {
-        preview.innerHTML = `Archivo seleccionado: <strong>${e.target.files[0].name}</strong>`;
+        preview.innerHTML = `Archivo seleccionado: <strong>${e.target.files[0].name.replace(/[<>&"']/g, '')}</strong>`;
         preview.style.color = 'var(--color-blue)';
       } else {
         preview.innerHTML = 'Sin imagen seleccionada';

@@ -102,7 +102,7 @@
         if (e.includes('disponible')) return 'badge--success';
         if (e.includes('uso')) return 'badge--info';
         if (e.includes('mantenimiento') || e.includes('reparación')) return 'badge--warning';
-        if (e.includes('baja')) return 'badge--danger';
+        if (e.includes('siniestro') || e.includes('baja')) return 'badge--danger';
         return 'badge--success';
       };
     %>
@@ -144,12 +144,12 @@
               data-motor="<%= vehiculo.num_motor %>"
               data-transmision="<%= vehiculo.transmision || 'Manual' %>"
               data-distrito="<%= vehiculo.distrito || 'Centro' %>"
-              data-fecha-alta="<%= vehiculo.fecha_alta ? new Date(vehiculo.fecha_alta).toLocaleDateString('es-AR') : '' %>"
+              data-fecha-alta="<%= vehiculo.fecha_alta ? fmtFecha(vehiculo.fecha_alta) : '' %>"
               data-cedula-numero="<%= vehiculo.cedula_numero || '' %>"
               data-cedula-titular="<%= vehiculo.cedula_titular || '' %>"
               data-seguro-compania="<%= vehiculo.seguro_compania || '' %>"
-              data-seguro-vencimiento="<%= vehiculo.seguro_vencimiento ? new Date(vehiculo.seguro_vencimiento).toLocaleDateString('es-AR') : '' %>"
-              data-rto-vencimiento="<%= vehiculo.rto_vencimiento ? new Date(vehiculo.rto_vencimiento).toLocaleDateString('es-AR') : '' %>"
+              data-seguro-vencimiento="<%= vehiculo.seguro_vencimiento ? fmtFecha(vehiculo.seguro_vencimiento) : '' %>"
+              data-rto-vencimiento="<%= vehiculo.rto_vencimiento ? fmtFecha(vehiculo.rto_vencimiento) : '' %>"
               style="padding: 12px 16px;">
               <a href="/Vehicles/<%= vehiculo.id_vehiculo %>" class="vehicle-card__link">
                 <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 4px;">
@@ -276,7 +276,7 @@
               </div>
               <div class="vehicle-profile__spec-row">
                 <dt class="vehicle-profile__spec-label">Fecha de Alta</dt>
-                <dd class="vehicle-profile__spec-value"><%= vehiculoSeleccionado.fecha_alta ? new Date(vehiculoSeleccionado.fecha_alta).toLocaleDateString('es-AR') : '—' %></dd>
+                <dd class="vehicle-profile__spec-value"><%= vehiculoSeleccionado.fecha_alta ? fmtFecha(vehiculoSeleccionado.fecha_alta) : '—' %></dd>
               </div>
               <div class="vehicle-profile__spec-row">
                 <dt class="vehicle-profile__spec-label">Chofer Asignado</dt>
@@ -308,11 +308,11 @@
               </div>
               <div>
                 <dt class="vehicle-profile__spec-label">Venc. Seguro</dt>
-                <dd class="vehicle-profile__spec-value"><%= vehiculoSeleccionado.seguro_vencimiento ? new Date(vehiculoSeleccionado.seguro_vencimiento).toLocaleDateString('es-AR') : '—' %></dd>
+                <dd class="vehicle-profile__spec-value"><%= vehiculoSeleccionado.seguro_vencimiento ? fmtFecha(vehiculoSeleccionado.seguro_vencimiento) : '—' %></dd>
               </div>
               <div>
                 <dt class="vehicle-profile__spec-label">Venc. RTO</dt>
-                <dd class="vehicle-profile__spec-value"><%= vehiculoSeleccionado.rto_vencimiento ? new Date(vehiculoSeleccionado.rto_vencimiento).toLocaleDateString('es-AR') : '—' %></dd>
+                <dd class="vehicle-profile__spec-value"><%= vehiculoSeleccionado.rto_vencimiento ? fmtFecha(vehiculoSeleccionado.rto_vencimiento) : '—' %></dd>
               </div>
             </div>
           </div>
@@ -361,7 +361,7 @@
                     <% if (typeof siniestrosVehiculo !== 'undefined' && siniestrosVehiculo && siniestrosVehiculo.length > 0) { %>
                       <% siniestrosVehiculo.slice(0,3).forEach(s => { %>
                       <tr class="data-table__row">
-                        <td class="data-table__td" data-label="Fecha"><%= s.fecha_siniestro ? new Date(s.fecha_siniestro).toLocaleDateString('es-AR') : '—' %></td>
+                        <td class="data-table__td" data-label="Fecha"><%= s.fecha_siniestro ? fmtFecha(s.fecha_siniestro) : '—' %></td>
                         <td class="data-table__td" data-label="Ubicación"><%= s.ubicacion || '—' %></td>
                         <td class="data-table__td" data-label="Estado"><span class="badge <%= s.estado === 'RESUELTO' ? 'badge--success' : 'badge--warning' %>"><%= s.estado %></span></td>
                       </tr>
@@ -384,27 +384,25 @@
               <ul class="alert-list">
                 <% if (vehiculoSeleccionado.rto_vencimiento) { %>
                   <% 
-                    let rtoDate = new Date(vehiculoSeleccionado.rto_vencimiento);
-                    let diffRto = Math.ceil((rtoDate - new Date()) / (1000 * 60 * 60 * 24));
+                    let diffRto = diasHasta(vehiculoSeleccionado.rto_vencimiento);
                   %>
                   <li class="alert-item <%= diffRto < 0 ? 'alert-item--danger' : (diffRto <= 30 ? 'alert-item--warning' : '') %>">
                     <div class="alert-item__icon"><svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/></svg></div>
                     <div style="flex:1;">
                       <span class="alert-item__label">RTO / VTV</span>
-                      <span class="alert-item__desc"><%= diffRto < 0 ? 'Vencida hace ' + Math.abs(diffRto) + ' días' : (diffRto <= 30 ? 'Vence en ' + diffRto + ' días' : 'Vence el ' + rtoDate.toLocaleDateString('es-AR')) %></span>
+                      <span class="alert-item__desc"><%= diffRto < 0 ? 'Vencida hace ' + Math.abs(diffRto) + ' días' : (diffRto <= 30 ? 'Vence en ' + diffRto + ' días' : 'Vence el ' + fmtFecha(vehiculoSeleccionado.rto_vencimiento)) %></span>
                     </div>
                   </li>
                 <% } %>
                 <% if (vehiculoSeleccionado.seguro_vencimiento) { %>
                   <% 
-                    let segDate = new Date(vehiculoSeleccionado.seguro_vencimiento);
-                    let diffSeg = Math.ceil((segDate - new Date()) / (1000 * 60 * 60 * 24));
+                    let diffSeg = diasHasta(vehiculoSeleccionado.seguro_vencimiento);
                   %>
                   <li class="alert-item <%= diffSeg < 0 ? 'alert-item--danger' : (diffSeg <= 30 ? 'alert-item--warning' : '') %>">
                     <div class="alert-item__icon"><svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/></svg></div>
                     <div style="flex:1;">
                       <span class="alert-item__label">Seguro</span>
-                      <span class="alert-item__desc"><%= diffSeg < 0 ? 'Vencido hace ' + Math.abs(diffSeg) + ' días' : (diffSeg <= 30 ? 'Vence en ' + diffSeg + ' días' : 'Vence el ' + segDate.toLocaleDateString('es-AR')) %></span>
+                      <span class="alert-item__desc"><%= diffSeg < 0 ? 'Vencido hace ' + Math.abs(diffSeg) + ' días' : (diffSeg <= 30 ? 'Vence en ' + diffSeg + ' días' : 'Vence el ' + fmtFecha(vehiculoSeleccionado.seguro_vencimiento)) %></span>
                     </div>
                   </li>
                 <% } %>

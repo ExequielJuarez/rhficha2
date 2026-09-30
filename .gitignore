@@ -1,2 +1,7 @@
 node_modules/
 pnpm-lock.yaml
+.env
+# Archivos subidos por los usuarios (los de ejemplo sin timestamp sí se versionan)
+public/img/licencias/chofer-*
+public/img/vehiculos/vehiculo-*
+public/img/siniestros/siniestro-*

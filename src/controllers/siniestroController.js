@@ -1,32 +1,45 @@
-const path = require("path");
 const fs = require("fs");
+const path = require("path");
 const db = require("../model/database/models");
 const { Op } = require("sequelize");
+const auditoriaService = require("../data/auditoriaService");
+const alertaService = require("../data/alertaService");
+const assignmentService = require("../data/assignmentService");
+const { ErrorNegocio } = require("../utils/errores");
+const { escapeHtml } = require("../utils/html");
+const { hoyISO, esFechaValida } = require("../utils/fechas");
 
-const registrarAuditoria = async (id_usuario, tabla, id_registro, accion, descripcion) => {
-  try {
-    const now = new Date();
-    now.setHours(now.getHours() - 3);
-    await db.Auditoria.create({
-      id_usuario: id_usuario || 1,
-      tabla_afectada: tabla,
-      id_registro_afectado: id_registro,
-      accion: accion,
-      fecha: now.toISOString().split("T")[0],
-      hora: now.toISOString().split("T")[1].split(".")[0],
-      descripcion: descripcion,
-    });
-  } catch (error) {
-    console.error("Error auditoria:", error);
-  }
+const DIR_SINIESTROS = path.join(__dirname, "../../public/img/siniestros");
+const ESTADOS = ["EN PROCESO", "RESUELTO", "CERRADO"];
+
+const borrarArchivos = (nombres) => {
+  (nombres || []).forEach((n) => {
+    if (n && /^siniestro-\d+/.test(n)) fs.unlink(path.join(DIR_SINIESTROS, n), () => {});
+  });
+};
+
+const nombresSubidos = (req) => (req.files || []).map((f) => f.filename);
+
+// Cuando ya no quedan siniestros abiertos el vehículo vuelve a operar
+const liberarVehiculoSiCorresponde = async (id_vehiculo, transaction) => {
+  const vehiculo = await db.Vehiculo.findByPk(id_vehiculo, { transaction });
+  if (!vehiculo || vehiculo.estado_actual !== "En siniestro") return;
+
+  const abiertos = await db.Siniestro.count({ where: { id_vehiculo, estado: "EN PROCESO" }, transaction });
+  if (abiertos > 0) return;
+
+  const ordenesAbiertas = await db.Mantenimiento.count({
+    where: { id_vehiculo, estado: { [Op.in]: ["Pendiente", "En proceso"] } },
+    transaction,
+  });
+  await vehiculo.update({ estado_actual: ordenesAbiertas > 0 ? "En mantenimiento" : "Disponible" }, { transaction });
 };
 
 const siniestroController = {
   ListarSiniestros: async (req, res) => {
     try {
-      let { patente, fechaDesde, fechaHasta } = req.query;
-      let whereClause = {};
-      let vehiculoWhere = {};
+      const { patente, fechaDesde, fechaHasta } = req.query;
+      const whereClause = {};
 
       if (fechaDesde && fechaHasta) {
         whereClause.fecha_siniestro = { [Op.between]: [fechaDesde, fechaHasta] };
@@ -36,34 +49,32 @@ const siniestroController = {
         whereClause.fecha_siniestro = { [Op.lte]: fechaHasta };
       }
 
-      if (patente && patente !== "" && patente !== "Todas las Patentes") {
-         vehiculoWhere.patente = { [Op.like]: `%${patente}%` };
-      }
+      const filtraPatente = patente && patente !== "" && patente !== "Todas las Patentes";
 
       const siniestros = await db.Siniestro.findAll({
         where: whereClause,
         include: [
           {
             model: db.Vehiculo,
-            as: 'Vehiculo',
-            where: Object.keys(vehiculoWhere).length > 0 ? vehiculoWhere : undefined,
-            required: false
+            as: "Vehiculo",
+            where: filtraPatente ? { patente: { [Op.like]: `%${patente}%` } } : undefined,
+            required: !!filtraPatente,
           },
-          {
-            model: db.Chofer,
-            as: 'Chofer',
-            required: false
-          }
+          { model: db.Chofer, as: "Chofer", required: false },
         ],
-        order: [['fecha_siniestro', 'DESC']]
+        order: [
+          ["fecha_siniestro", "DESC"],
+          ["id_siniestro", "DESC"],
+        ],
       });
 
-      const vehiculos = await db.Vehiculo.findAll({ order: [['patente', 'ASC']] });
+      const vehiculos = await db.Vehiculo.findAll({ order: [["patente", "ASC"]] });
 
       res.render("ListadoSiniestros", { siniestros, vehiculos, filtros: req.query });
     } catch (error) {
       console.error(error);
-      res.send("Error al cargar modulo de siniestros");
+      req.flash("error", "Error al cargar el módulo de siniestros.");
+      res.redirect("/Vehicles");
     }
   },
 
@@ -71,159 +82,202 @@ const siniestroController = {
     try {
       const siniestro = await db.Siniestro.findByPk(req.params.id, {
         include: [
-          { model: db.Vehiculo, as: 'Vehiculo' },
-          { model: db.Chofer, as: 'Chofer', required: false }
-        ]
+          { model: db.Vehiculo, as: "Vehiculo" },
+          { model: db.Chofer, as: "Chofer", required: false },
+        ],
       });
-  
-      if (!siniestro) return res.redirect('/Siniestros');
-  
+
+      if (!siniestro) {
+        req.flash("error", "El siniestro no existe.");
+        return res.redirect("/Siniestros");
+      }
+
       res.render("DetalleSiniestro", { siniestro });
     } catch (error) {
       console.error(error);
-      res.redirect('/Siniestros');
+      res.redirect("/Siniestros");
     }
   },
 
   CargaSiniestro: async (req, res) => {
     try {
-      const vehiculos = await db.Vehiculo.findAll({ order: [['patente', 'ASC']] });
-      const choferes = await db.Chofer.findAll({ where: { estado: 'Activo' } });
+      const vehiculos = await db.Vehiculo.findAll({
+        where: { estado_actual: { [Op.ne]: "Baja" } },
+        order: [["patente", "ASC"]],
+      });
+      const choferes = await db.Chofer.findAll({ where: { estado: "Activo" }, order: [["apellido", "ASC"], ["nombre", "ASC"]] });
 
       res.render("CargaSiniestro", { vehiculos, choferes });
     } catch (error) {
       console.error(error);
-      res.send("Error al cargar el formulario");
+      req.flash("error", "Error al cargar el formulario.");
+      res.redirect("/Siniestros");
     }
   },
 
   ProcesoCarga: async (req, res) => {
+    const subidos = nombresSubidos(req);
+    let transaction = null;
     try {
-      const { 
-        id_vehiculo, 
+      const {
+        id_vehiculo,
         id_chofer,
-        fecha_siniestro, 
-        ubicacion, 
+        fecha_siniestro,
+        ubicacion,
         descripcion,
         danos_vehiculo,
         tercero_vehiculo,
         tercero_seguro,
         tercero_conductor,
-        tercero_contacto
+        tercero_contacto,
       } = req.body;
-  
-      let archivosNombres = [];
-      if (req.files && req.files.length > 0) {
-        archivosNombres = req.files.map(file => file.filename);
+
+      const ubicacionLimpia = String(ubicacion || "").trim();
+      if (!id_vehiculo) throw new ErrorNegocio("Seleccioná el vehículo involucrado.");
+      if (!fecha_siniestro || !esFechaValida(fecha_siniestro)) throw new ErrorNegocio("La fecha del siniestro no es válida.");
+      if (fecha_siniestro > hoyISO()) throw new ErrorNegocio("La fecha del siniestro no puede ser futura.");
+      if (!ubicacionLimpia) throw new ErrorNegocio("Indicá la ubicación del siniestro.");
+
+      const vehiculoPrevio = await db.Vehiculo.findByPk(id_vehiculo);
+      if (!vehiculoPrevio) throw new ErrorNegocio("El vehículo seleccionado no existe.");
+      if (vehiculoPrevio.estado_actual === "Baja") throw new ErrorNegocio("El vehículo está dado de baja.");
+
+      let chofer = null;
+      if (id_chofer) {
+        chofer = await db.Chofer.findByPk(id_chofer);
+        if (!chofer) throw new ErrorNegocio("El chofer seleccionado no existe.");
       }
-  
-      const nuevoSiniestro = await db.Siniestro.create({
-        id_vehiculo,
-        id_chofer: id_chofer || null,
-        fecha_siniestro,
-        ubicacion,
-        relato: descripcion,
-        danos_vehiculo: danos_vehiculo || null,
-        tercero_vehiculo: tercero_vehiculo || null,
-        tercero_seguro: tercero_seguro || null,
-        tercero_conductor: tercero_conductor || null,
-        tercero_contacto: tercero_contacto || null,
-        estado: 'EN PROCESO',
-        archivos_adjuntos: archivosNombres.join(",")
-      });
 
-  
-        await db.Vehiculo.update(
-          { estado_actual: 'En siniestro' },
-          { where: { id_vehiculo } }
-        );
+      // Si el vehículo estaba asignado, la asignación termina (ya no está en la calle)
+      await assignmentService.finalizarActivasDeVehiculo(vehiculoPrevio.id_vehiculo, "Cierre automático por siniestro");
 
-        if (id_chofer) {
-          await db.Chofer.update(
-            { estado: 'En siniestro' },
-            { where: { id_chofer } }
-          );
-        }
+      transaction = await db.sequelize.transaction();
+      const vehiculo = await db.Vehiculo.findByPk(id_vehiculo, { transaction, lock: transaction.LOCK.UPDATE });
 
-        // Lógica de tu compañero: crear alerta automática
-        const vehiculo = await db.Vehiculo.findByPk(id_vehiculo);
-        const patente = vehiculo ? `(${vehiculo.patente})` : '';
+      const nuevoSiniestro = await db.Siniestro.create(
+        {
+          id_vehiculo: vehiculo.id_vehiculo,
+          id_chofer: chofer ? chofer.id_chofer : null,
+          chofer_involucrado: chofer ? `${chofer.nombre} ${chofer.apellido}` : null,
+          fecha_siniestro,
+          ubicacion: ubicacionLimpia,
+          relato: String(descripcion || "").trim() || null,
+          danos_vehiculo: String(danos_vehiculo || "").trim() || null,
+          tercero_vehiculo: String(tercero_vehiculo || "").trim() || null,
+          tercero_seguro: String(tercero_seguro || "").trim() || null,
+          tercero_conductor: String(tercero_conductor || "").trim() || null,
+          tercero_contacto: String(tercero_contacto || "").trim() || null,
+          estado: "EN PROCESO",
+          archivos_adjuntos: subidos.join(","),
+        },
+        { transaction },
+      );
+      await vehiculo.update({ estado_actual: "En siniestro" }, { transaction });
+      await transaction.commit();
 
-        await db.Alerta.create({
-          tipo:                     'siniestro_activo',
-          prioridad:                'alta',
-          mensaje:                  `Nuevo siniestro registrado en: ${ubicacion}`,
-          entidad_tipo:             'Siniestro',
-          entidad_id:               nuevoSiniestro.id_siniestro,
-          entidad_nombre:           `${patente} - ${chofer_involucrado}`,
-          generada_automaticamente: false
-        });
+      await auditoriaService.desdeRequest(
+        req,
+        "siniestro",
+        nuevoSiniestro.id_siniestro,
+        "CREAR",
+        null,
+        { id_vehiculo: vehiculo.id_vehiculo, patente: vehiculo.patente, ubicacion: ubicacionLimpia, fecha_siniestro, chofer: nuevoSiniestro.chofer_involucrado },
+        `Siniestro registrado en: ${ubicacionLimpia} (vehículo ${vehiculo.patente})`,
+      );
 
-        let userId = req.session?.usuarioLogueado?.id || 1;
-
-      await registrarAuditoria(userId, "siniestro", nuevoSiniestro.id_siniestro, "CREAR", `Siniestro registrado en: ${ubicacion}`);
-  
+      await alertaService.generarAlertasVehiculos();
+      req.flash("ok", "Siniestro registrado correctamente.");
       res.redirect("/Siniestros");
     } catch (error) {
-      console.error(error);
-      res.send("Error al guardar el siniestro: " + error.message);
+      if (transaction) await transaction.rollback().catch(() => {});
+      borrarArchivos(subidos);
+      if (!(error instanceof ErrorNegocio)) console.error(error);
+      const mensaje = error instanceof ErrorNegocio ? error.message : "Ocurrió un error al guardar el siniestro.";
+      res.status(400).send(
+        `<div style="font-family:sans-serif;padding:40px;text-align:center;"><h2 style="color:#dc2626;">No se pudo registrar el siniestro</h2><p style="background:#fef2f2;padding:15px;border:1px solid #fecaca;border-radius:8px;display:inline-block;">${escapeHtml(mensaje)}</p><br><br><button onclick="history.back()" style="padding:10px 20px;cursor:pointer;">Volver</button></div>`,
+      );
     }
   },
 
   CambiarEstado: async (req, res) => {
+    const transaction = await db.sequelize.transaction();
     try {
-      const estado = req.body.estado || 'RESUELTO';
-  
-      const siniestro = await db.Siniestro.findByPk(req.params.id);
-      if (!siniestro) return res.redirect('/Siniestros');
-  
-      await siniestro.update({ estado });
-  
-      // Tu lógica: liberar vehículo y chofer al resolver
-      if (estado === 'RESUELTO') {
-        const vehiculo = await db.Vehiculo.findByPk(siniestro.id_vehiculo);
-        if (vehiculo && vehiculo.estado_actual === 'En siniestro') {
-          await vehiculo.update({ estado_actual: 'Disponible' });
-        }
-  
-        if (siniestro.id_chofer) {
-          const chofer = await db.Chofer.findByPk(siniestro.id_chofer);
-          if (chofer && chofer.estado === 'En siniestro') {
-            await chofer.update({ estado: 'Activo' });
-          }
-        }
+      const estado = String(req.body.estado || "RESUELTO").trim().toUpperCase();
+      if (!ESTADOS.includes(estado)) throw new ErrorNegocio("El estado indicado no es válido.");
+
+      const siniestro = await db.Siniestro.findByPk(req.params.id, { transaction, lock: transaction.LOCK.UPDATE });
+      if (!siniestro) throw new ErrorNegocio("El siniestro no existe.");
+      const anterior = siniestro.estado;
+      if (anterior === estado) {
+        await transaction.rollback();
+        return res.redirect("/Siniestros");
       }
-  
-      // Lógica de tu compañero: marcar alerta como leída al cerrar
-      const estadoNormalizado = estado.toUpperCase();
-      if (estadoNormalizado === 'CERRADO' || estadoNormalizado === 'RESUELTO') {
-        await db.Alerta.update(
-          { leida: true },
-          { where: { tipo: 'siniestro_activo', entidad_id: req.params.id, leida: false } }
-        );
+
+      await siniestro.update({ estado }, { transaction });
+
+      if (estado === "EN PROCESO") {
+        // Reapertura: el vehículo vuelve a quedar fuera de servicio
+        const vehiculo = await db.Vehiculo.findByPk(siniestro.id_vehiculo, { transaction });
+        if (vehiculo && ["Disponible", "En mantenimiento"].includes(vehiculo.estado_actual)) {
+          await vehiculo.update({ estado_actual: "En siniestro" }, { transaction });
+        }
+      } else {
+        await liberarVehiculoSiCorresponde(siniestro.id_vehiculo, transaction);
       }
-  
-      let userId = req.session?.usuarioLogueado?.id || 1;
-      await registrarAuditoria(userId, "siniestro", req.params.id, "EDITAR_ESTADO", `Siniestro ID ${req.params.id} cambió a: ${estado}`);
-  
-      res.redirect('/Siniestros');
+
+      await transaction.commit();
+
+      await auditoriaService.desdeRequest(
+        req,
+        "siniestro",
+        siniestro.id_siniestro,
+        "EDITAR_ESTADO",
+        { estado: anterior },
+        { estado },
+        `Siniestro ID ${siniestro.id_siniestro} cambió de ${anterior} a: ${estado}`,
+      );
+
+      await alertaService.generarAlertasVehiculos();
+      req.flash("ok", `Siniestro actualizado: ${estado}.`);
     } catch (error) {
-      console.error(error);
-      res.redirect('/Siniestros');
+      await transaction.rollback().catch(() => {});
+      if (!(error instanceof ErrorNegocio)) console.error(error);
+      req.flash("error", error instanceof ErrorNegocio ? error.message : "No se pudo actualizar el siniestro.");
     }
+    res.redirect("/Siniestros");
   },
-  
+
   Eliminar: async (req, res) => {
+    const transaction = await db.sequelize.transaction();
     try {
-      await db.Siniestro.destroy({ where: { id_siniestro: req.params.id } });
-      let userId = req.session && req.session.usuarioLogueado ? req.session.usuarioLogueado.id : 1;
-      await registrarAuditoria(userId, "siniestro", req.params.id, "ELIMINAR", `Se eliminó el siniestro ID ${req.params.id}`);
-      res.redirect("/Siniestros");
+      const siniestro = await db.Siniestro.findByPk(req.params.id, { transaction, lock: transaction.LOCK.UPDATE });
+      if (!siniestro) throw new ErrorNegocio("El siniestro no existe.");
+
+      const snapshot = siniestro.toJSON();
+      await siniestro.destroy({ transaction });
+      await db.Alerta.destroy({ where: { tipo: "siniestro_activo", entidad_tipo: "Siniestro", entidad_id: snapshot.id_siniestro }, transaction });
+      await liberarVehiculoSiCorresponde(snapshot.id_vehiculo, transaction);
+      await transaction.commit();
+
+      borrarArchivos(String(snapshot.archivos_adjuntos || "").split(",").map((n) => n.trim()));
+
+      await auditoriaService.desdeRequest(
+        req,
+        "siniestro",
+        snapshot.id_siniestro,
+        "ELIMINAR",
+        snapshot,
+        null,
+        `Se eliminó el siniestro ID ${snapshot.id_siniestro} (${snapshot.ubicacion})`,
+      );
+      req.flash("ok", "Siniestro eliminado.");
     } catch (error) {
-      console.error(error);
-      res.redirect("/Siniestros");
+      await transaction.rollback().catch(() => {});
+      if (!(error instanceof ErrorNegocio)) console.error(error);
+      req.flash("error", error instanceof ErrorNegocio ? error.message : "No se pudo eliminar el siniestro.");
     }
-  }
+    res.redirect("/Siniestros");
+  },
 };
 
 module.exports = siniestroController;

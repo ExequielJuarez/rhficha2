@@ -132,6 +132,7 @@
                   <option value="">Seleccionar</option>
                   <option value="Activo"   <%= old?.['activo-inactivo'] === 'Activo'   ? 'selected' : '' %>>Activo</option>
                   <option value="Inactivo" <%= old?.['activo-inactivo'] === 'Inactivo' ? 'selected' : '' %>>Inactivo</option>
+                  <option value="Licencia Vacaciones/Medica" <%= old?.['activo-inactivo'] === 'Licencia Vacaciones/Medica' ? 'selected' : '' %>>Licencia Vacaciones/Medica</option>
               </select>
               <% if (errors?.['activo-inactivo']) { %>
                   <span class="error"><%= errors['activo-inactivo'].msg %></span>
@@ -160,6 +161,8 @@
                 <option value="">Seleccionar</option>
                 <option <%= old?.Turno === 'Mañana' ? 'selected' : '' %>>Mañana</option>
                 <option <%= old?.Turno === 'Tarde'  ? 'selected' : '' %>>Tarde</option>
+                <option <%= old?.Turno === 'Tarde/Noche'  ? 'selected' : '' %>>Tarde/Noche</option>
+                <option <%= old?.Turno === 'Noche'  ? 'selected' : '' %>>Noche</option>
               </select>
             </div>
           </div>
@@ -179,6 +182,7 @@
               <select class="input <%= errors?.categoria ? 'input-error' : '' %>" name="categoria">
                 <option value="">Seleccione categoría</option>
                 <option value="A"  <%= old?.categoria === 'A'  ? 'selected' : '' %>>A - Motocicletas</option>
+                <option value="B"  <%= old?.categoria === 'B'  ? 'selected' : '' %>>B - Autos</option>
                 <option value="B1" <%= old?.categoria === 'B1' ? 'selected' : '' %>>B1 - Autos y camionetas</option>
                 <option value="B2" <%= old?.categoria === 'B2' ? 'selected' : '' %>>B2 - Vehículos utilitarios</option>
                 <option value="C"  <%= old?.categoria === 'C'  ? 'selected' : '' %>>C - Camiones sin acoplado</option>

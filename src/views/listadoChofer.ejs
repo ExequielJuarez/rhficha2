@@ -68,7 +68,7 @@
     <%- include('./partials/topbar') %>
 
     <%
-      const getEstadoClass = (est) => est === 'Activo' ? 'badge--success' : 'badge--danger';
+      const getEstadoClass = (est) => est === 'Activo' ? 'badge--success' : (est === 'Inactivo' ? 'badge--danger' : 'badge--warning');
       
       const checkVencimiento = (fechaStr) => {
          if (!fechaStr) return { class: 'badge--danger', colorText: '#991b1b', text: 'Sin Licencia', diff: -999, format: '—' };
@@ -105,7 +105,9 @@
               <select name="categoriaLicencia" style="width: 100%; padding: 6px; font-size: 12px; border-radius: 4px; border: 1px solid #cbd5e1;">
                 <option value="">Todas las Categorías</option>
                 <option value="A">A - Motocicletas</option>
+                <option value="B">B - Autos</option>
                 <option value="B1">B1 - Autos y camionetas</option>
+                <option value="B2">B2 - Vehículos utilitarios</option>
                 <option value="C">C - Camiones sin acoplado</option>
                 <option value="D">D - Transporte pasajeros</option>
                 <option value="E">E - Camiones con acoplado</option>
@@ -115,6 +117,7 @@
                 <option value="">Cualquier Estado</option>
                 <option value="Activo">Activos</option>
                 <option value="Inactivo">Inactivos</option>
+                <option value="Licencia Vacaciones/Medica">De licencia</option>
               </select>
               <div style="display: flex; gap: 5px;">
                 <button type="submit" style="flex: 1; background: #0f172a; color: white; padding: 6px; font-size: 11px; border-radius: 4px; font-weight: 700;">Filtrar</button>
@@ -250,7 +253,7 @@
 
   /* ── DATOS DE CHOFERES EN MEMORIA ── */
   // Los datos iniciales vienen del servidor (primera carga)
-  let todosLosChoferes = <%- JSON.stringify(choferes.map(c => ({
+  let todosLosChoferes = <%- safeJson(choferes.map(c => ({
     id_chofer: c.id_chofer,
     nombre: c.nombre,
     apellido: c.apellido,
@@ -261,6 +264,8 @@
     turno: c.turno || '',
     estado: c.estado,
     foto_documento: c.foto_documento || null,
+    imagen: c.imagen || null,
+    motivoBaja: c.motivoBaja || '',
     licencia: c.licencias && c.licencias.length > 0 ? {
       numero: c.licencias[0].numero,
       categoria: c.licencias[0].categoria,
@@ -271,13 +276,17 @@
       patente: c.asignaciones[0].vehiculo ? c.asignaciones[0].vehiculo.patente : '',
       marca: c.asignaciones[0].vehiculo ? c.asignaciones[0].vehiculo.marca : '',
       modelo: c.asignaciones[0].vehiculo ? c.asignaciones[0].vehiculo.modelo : '',
-      fecha_asignacion: c.asignaciones[0].fecha_asignacion || ''
+      fecha_salida: c.asignaciones[0].fecha_salida || ''
     } : null
   }))) %>;
 
   /* ── HELPERS ── */
+  function esc(t) {
+    return String(t == null ? '' : t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+  }
+
   function getEstadoClass(est) {
-    return est === 'Activo' ? 'badge--success' : 'badge--danger';
+    return est === 'Activo' ? 'badge--success' : (est === 'Inactivo' ? 'badge--danger' : 'badge--warning');
   }
 
   function checkVencimiento(fechaStr) {
@@ -304,14 +313,14 @@
       return `
         <li class="vehicle-card chofer-item" data-id="${c.id_chofer}" style="padding:12px 16px; cursor:pointer;">
           <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px;">
-            <span class="vehicle-card__plate" style="font-size:14px;">${c.nombre} ${c.apellido}</span>
-            <span class="badge ${getEstadoClass(c.estado)}" style="font-size:10px;padding:2px 6px;">${c.estado}</span>
+            <span class="vehicle-card__plate" style="font-size:14px;">${esc(c.nombre)} ${esc(c.apellido)}</span>
+            <span class="badge ${getEstadoClass(c.estado)}" style="font-size:10px;padding:2px 6px;">${esc(c.estado)}</span>
           </div>
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
-            <span class="vehicle-card__model" style="font-size:12px;margin:0;">DNI: ${c.dni}</span>
+            <span class="vehicle-card__model" style="font-size:12px;margin:0;">DNI: ${esc(c.dni)}</span>
           </div>
           <div style="display:flex;align-items:center;gap:6px;">
-            <span class="badge ${v.cls}" style="font-size:9px;padding:2px 6px;">Lic. ${c.licencia?.categoria || 'N/A'}</span>
+            <span class="badge ${v.cls}" style="font-size:9px;padding:2px 6px;">Lic. ${esc(c.licencia?.categoria || 'N/A')}</span>
             <span style="font-size:11px;color:${v.colorText};font-weight:600;">Venc: ${v.format}</span>
           </div>
         </li>`;
@@ -338,9 +347,9 @@
     const emptyState = document.getElementById('empty-state');
     if (emptyState) emptyState.style.display = 'none';
 
-    const avatarHTML = 'chofer.jpg'
-      ? `<img src="/img/licencias/chofer.jpg" alt="Foto" style="width:60px;height:60px;border-radius:50%;object-fit:cover;border:2px solid #e2e8f0;">`
-      : `<div style="width:60px;height:60px;border-radius:50%;background:#e2e8f0;display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:800;color:#94a3b8;">${c.nombre.charAt(0)}${c.apellido.charAt(0)}</div>`;
+    const avatarHTML = true
+      ? `<img src="/img/licencias/${esc(c.imagen || 'chofer.jpg')}" alt="Foto" style="width:60px;height:60px;border-radius:50%;object-fit:cover;border:2px solid #e2e8f0;">`
+      : `<div style="width:60px;height:60px;border-radius:50%;background:#e2e8f0;display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:800;color:#94a3b8;">${esc(c.nombre.charAt(0))}${esc(c.apellido.charAt(0))}</div>`;
 
     const estadoBtn = c.estado === 'Activo'
       ? `<form method="POST" action="/Choferes/${c.id_chofer}/desactivar" style="margin:0;" onsubmit="return confirm('¿Desactivar a este chofer?');">
@@ -351,22 +360,22 @@
          </form>`;
 
     const fotoDNIBtn = c.foto_documento
-      ? `<button onclick="abrirFoto('/img/licencias/${c.foto_documento}')" style="margin-top:6px;background:#f1f5f9;border:1px solid #cbd5e1;border-radius:6px;padding:5px 10px;font-size:11px;font-weight:700;color:#2563eb;cursor:pointer;">📄 Ver foto DNI</button>`
+      ? `<button onclick="abrirFoto('/img/licencias/${esc(c.foto_documento)}')" style="margin-top:6px;background:#f1f5f9;border:1px solid #cbd5e1;border-radius:6px;padding:5px 10px;font-size:11px;font-weight:700;color:#2563eb;cursor:pointer;">📄 Ver foto DNI</button>`
       : `<span style="font-size:11px;color:#94a3b8;">Sin foto</span>`;
 
     const fotoLicBtn = c.licencia?.imagen
-      ? `<button onclick="abrirFoto('/img/licencias/${c.licencia.imagen}')" style="margin-top:6px;background:#f1f5f9;border:1px solid #cbd5e1;border-radius:6px;padding:5px 10px;font-size:11px;font-weight:700;color:#2563eb;cursor:pointer;">🪪 Ver foto Licencia</button>`
+      ? `<button onclick="abrirFoto('/img/licencias/${esc(c.licencia.imagen)}')" style="margin-top:6px;background:#f1f5f9;border:1px solid #cbd5e1;border-radius:6px;padding:5px 10px;font-size:11px;font-weight:700;color:#2563eb;cursor:pointer;">🪪 Ver foto Licencia</button>`
       : `<span style="font-size:11px;color:#94a3b8;">Sin foto</span>`;
 
     const asigHTML = c.asignacion
       ? `<div style="display:flex;align-items:center;gap:16px;">
            <div style="background:#f8fafc;border:1px solid #cbd5e1;border-radius:8px;padding:10px 16px;text-align:center;">
              <span style="display:block;font-size:11px;font-weight:700;color:#64748b;margin-bottom:4px;">PATENTE</span>
-             <span style="font-family:var(--font-mono);font-size:18px;font-weight:800;color:#0f172a;">${c.asignacion.patente}</span>
+             <span style="font-family:var(--font-mono);font-size:18px;font-weight:800;color:#0f172a;">${esc(c.asignacion.patente)}</span>
            </div>
            <div>
-             <span style="display:block;font-size:14px;font-weight:700;color:#0f172a;">${c.asignacion.marca} ${c.asignacion.modelo}</span>
-             <span style="display:block;font-size:12px;color:#64748b;">Asignado el: ${new Date(c.asignacion.fecha_asignacion).toLocaleDateString('es-AR')}</span>
+             <span style="display:block;font-size:14px;font-weight:700;color:#0f172a;">${esc(c.asignacion.marca)} ${esc(c.asignacion.modelo)}</span>
+             <span style="display:block;font-size:12px;color:#64748b;">Asignado el: ${c.asignacion.fecha_salida ? new Date(c.asignacion.fecha_salida).toLocaleDateString('es-AR') : '—'}</span>
            </div>
          </div>`
       : `<p style="color:#64748b;font-size:13px;">No tiene ningún vehículo asignado actualmente.</p>`;
@@ -380,8 +389,8 @@
           <div style="display:flex;align-items:center;gap:16px;">
             ${avatarHTML}
             <div>
-              <h2 style="margin:0;font-size:24px;font-weight:800;color:#0f172a;">${c.nombre} ${c.apellido}</h2>
-              <span class="badge ${getEstadoClass(c.estado)}" style="font-size:11px;margin-top:4px;">${c.estado}</span>
+              <h2 style="margin:0;font-size:24px;font-weight:800;color:#0f172a;">${esc(c.nombre)} ${esc(c.apellido)}</h2>
+              <span class="badge ${getEstadoClass(c.estado)}" style="font-size:11px;margin-top:4px;">${esc(c.estado)}</span>
             </div>
           </div>
           <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
@@ -395,32 +404,32 @@
           <dl class="vehicle-profile__spec-group">
             <div class="vehicle-profile__spec-row">
               <dt class="vehicle-profile__spec-label">Documento (DNI)</dt>
-              <dd class="vehicle-profile__spec-value" style="font-family:var(--font-mono);font-size:15px;">${c.dni}</dd>
+              <dd class="vehicle-profile__spec-value" style="font-family:var(--font-mono);font-size:15px;">${esc(c.dni)}</dd>
             </div>
             <div class="vehicle-profile__spec-row">
               <dt class="vehicle-profile__spec-label">Teléfono de Contacto</dt>
-              <dd class="vehicle-profile__spec-value">${c.telefono || 'No registrado'}</dd>
+              <dd class="vehicle-profile__spec-value">${esc(c.telefono || 'No registrado')}</dd>
             </div>
           </dl>
           <dl class="vehicle-profile__spec-group">
             <div class="vehicle-profile__spec-row">
               <dt class="vehicle-profile__spec-label">N° Licencia</dt>
-              <dd class="vehicle-profile__spec-value" style="font-family:var(--font-mono);">${c.licencia?.numero || '—'}</dd>
+              <dd class="vehicle-profile__spec-value" style="font-family:var(--font-mono);">${esc(c.licencia?.numero || '—')}</dd>
             </div>
             <div class="vehicle-profile__spec-row">
               <dt class="vehicle-profile__spec-label">Categoría(s)</dt>
-              <dd class="vehicle-profile__spec-value" style="font-weight:800;color:#2563eb;">${c.licencia?.categoria || '—'}</dd>
+              <dd class="vehicle-profile__spec-value" style="font-weight:800;color:#2563eb;">${esc(c.licencia?.categoria || '—')}</dd>
             </div>
           </dl>
         </div>
 
         <div style="display:flex;gap:10px;margin-top:16px;flex-wrap:wrap;">
           ${c.foto_documento
-            ? `<button onclick="abrirFoto('/img/licencias/${c.foto_documento}')" style="background:#f1f5f9;border:1px solid #cbd5e1;border-radius:6px;padding:7px 14px;font-size:12px;font-weight:700;color:#2563eb;cursor:pointer;">📄 Ver foto DNI</button>`
+            ? `<button onclick="abrirFoto('/img/licencias/${esc(c.foto_documento)}')" style="background:#f1f5f9;border:1px solid #cbd5e1;border-radius:6px;padding:7px 14px;font-size:12px;font-weight:700;color:#2563eb;cursor:pointer;">📄 Ver foto DNI</button>`
             : `<span style="font-size:11px;color:#94a3b8;padding:7px 0;">Sin foto de DNI</span>`
           }
           ${c.licencia?.imagen
-            ? `<button onclick="abrirFoto('/img/licencias/${c.licencia.imagen}')" style="background:#f1f5f9;border:1px solid #cbd5e1;border-radius:6px;padding:7px 14px;font-size:12px;font-weight:700;color:#2563eb;cursor:pointer;">🪪 Ver foto Licencia</button>`
+            ? `<button onclick="abrirFoto('/img/licencias/${esc(c.licencia.imagen)}')" style="background:#f1f5f9;border:1px solid #cbd5e1;border-radius:6px;padding:7px 14px;font-size:12px;font-weight:700;color:#2563eb;cursor:pointer;">🪪 Ver foto Licencia</button>`
             : `<span style="font-size:11px;color:#94a3b8;padding:7px 0;">Sin foto de Licencia</span>`
           }
         </div>
@@ -476,6 +485,8 @@
         turno: c.turno || '',
         estado: c.estado,
         foto_documento: c.foto_documento || null,
+        imagen: c.imagen || null,
+        motivoBaja: c.motivoBaja || '',
         licencia: c.licencias && c.licencias.length > 0 ? {
           numero: c.licencias[0].numero,
           categoria: c.licencias[0].categoria,
@@ -486,7 +497,7 @@
           patente: c.asignaciones[0].vehiculo?.patente || '',
           marca: c.asignaciones[0].vehiculo?.marca || '',
           modelo: c.asignaciones[0].vehiculo?.modelo || '',
-          fecha_asignacion: c.asignaciones[0].fecha_asignacion || ''
+          fecha_salida: c.asignaciones[0].fecha_salida || ''
         } : null
       }));
       renderLista(todosLosChoferes);

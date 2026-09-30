@@ -77,7 +77,7 @@
                         </div>
                         <div class="form-group">
                             <label for="contrasena">Contraseña Temporal <span class="req">*</span></label>
-                            <input type="password" id="contrasena" name="contrasena" required autocomplete="new-password">
+                            <input type="password" id="contrasena" name="contrasena" required minlength="8" placeholder="Mínimo 8 caracteres" autocomplete="new-password">
                         </div>
                     </div>
                     <div class="form-group" style="max-width: 300px;">
@@ -99,18 +99,18 @@
                     <div id="lista-permisos">
                         <p style="font-size: 13px; color: var(--color-text-muted); margin-bottom: 8px;">Seleccioná a qué secciones de la barra lateral tendrá acceso este usuario:</p>
                         <div class="permisos-grid">
-                            <label class="permiso-label"><input type="checkbox" name="vistas" value="Vehicles"> Vehículos / Flota</label>
-                            <label class="permiso-label"><input type="checkbox" name="vistas" value="Choferes"> Choferes</label>
-                            <label class="permiso-label"><input type="checkbox" name="vistas" value="Mantenimientos"> Mantenimientos</label>
-                            <label class="permiso-label"><input type="checkbox" name="vistas" value="Tools"> Herramientas</label>
-                            <label class="permiso-label"><input type="checkbox" name="vistas" value="Alertas"> Alertas</label>
-                            <label class="permiso-label"><input type="checkbox" name="vistas" value="Reportes"> Reportes BI</label>
-                            <label class="permiso-label"><input type="checkbox" name="vistas" value="Siniestros"> Siniestros</label>
+                            <label class="permiso-label"><input type="checkbox" name="vistas" value="Vehicles" <%= permisosUser.includes('Vehicles') ? 'checked' : '' %>> Vehículos / Flota</label>
+                            <label class="permiso-label"><input type="checkbox" name="vistas" value="Choferes" <%= permisosUser.includes('Choferes') ? 'checked' : '' %>> Choferes</label>
+                            <label class="permiso-label"><input type="checkbox" name="vistas" value="Mantenimientos" <%= permisosUser.includes('Mantenimientos') ? 'checked' : '' %>> Mantenimientos</label>
+                            <label class="permiso-label"><input type="checkbox" name="vistas" value="Tools" <%= permisosUser.includes('Tools') ? 'checked' : '' %>> Herramientas</label>
+                            <label class="permiso-label"><input type="checkbox" name="vistas" value="Alertas" <%= permisosUser.includes('Alertas') ? 'checked' : '' %>> Alertas</label>
+                            <label class="permiso-label"><input type="checkbox" name="vistas" value="Reportes" <%= permisosUser.includes('Reportes') ? 'checked' : '' %>> Reportes BI</label>
+                            <label class="permiso-label"><input type="checkbox" name="vistas" value="Siniestros" <%= permisosUser.includes('Siniestros') ? 'checked' : '' %>> Siniestros</label>
                             
                             <% if (typeof usuarioLogueado !== 'undefined' && usuarioLogueado.rol === 'Administrador') { %>
-                                <label class="permiso-label" style="border-color: #fecaca; background: #fef2f2; color: #991b1b;"><input type="checkbox" name="vistas" value="Usuarios"> Usuarios</label>
-                                <label class="permiso-label" style="border-color: #fecaca; background: #fef2f2; color: #991b1b;"><input type="checkbox" name="vistas" value="Roles"> Roles</label>
-                                <label class="permiso-label" style="border-color: #fecaca; background: #fef2f2; color: #991b1b;"><input type="checkbox" name="vistas" value="Auditoria"> Auditoría</label>
+                                <label class="permiso-label" style="border-color: #fecaca; background: #fef2f2; color: #991b1b;"><input type="checkbox" name="vistas" value="Usuarios" <%= permisosUser.includes('Usuarios') ? 'checked' : '' %>> Usuarios</label>
+                                <label class="permiso-label" style="border-color: #fecaca; background: #fef2f2; color: #991b1b;"><input type="checkbox" name="vistas" value="Roles" <%= permisosUser.includes('Roles') ? 'checked' : '' %>> Roles</label>
+                                <label class="permiso-label" style="border-color: #fecaca; background: #fef2f2; color: #991b1b;"><input type="checkbox" name="vistas" value="Auditoria" <%= permisosUser.includes('Auditoria') ? 'checked' : '' %>> Auditoría</label>
                             <% } %>
                         </div>
                     </div>

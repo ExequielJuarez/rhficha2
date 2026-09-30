@@ -94,8 +94,7 @@
               <% 
                 let fechaStr = '';
                 if(herramienta.fecha_alta) { 
-                  const d = new Date(herramienta.fecha_alta);
-                  fechaStr = d.toISOString().split('T')[0]; 
+                  fechaStr = aISO(herramienta.fecha_alta);
                 } 
               %>
               <input name="fecha_alta" type="date" value="<%= fechaStr %>">

@@ -51,6 +51,9 @@ module.exports = (sequelize, DataTypes) => {
         unique: true, // Bloqueo de duplicados
       },
 
+      combustible: {
+        type: DataTypes.STRING(30),
+      },
       transmision: {
         type: DataTypes.ENUM("Manual", "Automática"),
       },
@@ -92,6 +95,7 @@ module.exports = (sequelize, DataTypes) => {
           "Disponible",
           "En uso",
           "En mantenimiento",
+          "En siniestro",
           "Baja",
         ),
         allowNull: false,

@@ -1,25 +1,35 @@
 const db = require("../model/database/models");
 const { Op } = require("sequelize");
+const { esFechaValida } = require("../utils/fechas");
 
 const reporteController = {
     vistaReportes: async (req, res) => {
         try {
             // 1. Capturamos los filtros de fecha
-            const fechaDesde = req.query.fechaDesde || '';
-            const fechaHasta = req.query.fechaHasta || '';
+            let fechaDesde = req.query.fechaDesde || '';
+            let fechaHasta = req.query.fechaHasta || '';
+            if (fechaDesde && !esFechaValida(fechaDesde)) fechaDesde = '';
+            if (fechaHasta && !esFechaValida(fechaHasta)) fechaHasta = '';
+            if (fechaDesde && fechaHasta && fechaDesde > fechaHasta) {
+                [fechaDesde, fechaHasta] = [fechaHasta, fechaDesde];
+            }
+
+            // fecha_salida es DATETIME: el rango debe cubrir el día completo de "hasta"
+            const desdeDT = new Date(`${fechaDesde}T00:00:00`);
+            const hastaDT = new Date(`${fechaHasta}T23:59:59.999`);
 
             let filtroMantenimiento = {};
             let filtroAsignacion = {};
 
             if (fechaDesde && fechaHasta) {
                 filtroMantenimiento.fecha_inicio = { [Op.between]: [fechaDesde, fechaHasta] };
-                filtroAsignacion.fecha_salida = { [Op.between]: [fechaDesde, fechaHasta] };
+                filtroAsignacion.fecha_salida = { [Op.between]: [desdeDT, hastaDT] };
             } else if (fechaDesde) {
                 filtroMantenimiento.fecha_inicio = { [Op.gte]: fechaDesde };
-                filtroAsignacion.fecha_salida = { [Op.gte]: fechaDesde };
+                filtroAsignacion.fecha_salida = { [Op.gte]: desdeDT };
             } else if (fechaHasta) {
                 filtroMantenimiento.fecha_inicio = { [Op.lte]: fechaHasta };
-                filtroAsignacion.fecha_salida = { [Op.lte]: fechaHasta };
+                filtroAsignacion.fecha_salida = { [Op.lte]: hastaDT };
             }
 
             // 2. Inicializamos las estructuras de datos que piden los gráficos
@@ -111,7 +121,8 @@ const reporteController = {
             
         } catch (error) {
             console.error("Error general en Reportes:", error);
-            res.send("Error interno al generar el reporte.");
+            req.flash("error", "Error interno al generar el reporte.");
+            res.redirect("/Vehicles");
         }
     }
 };

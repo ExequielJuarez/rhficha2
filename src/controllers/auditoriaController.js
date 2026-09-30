@@ -1,11 +1,14 @@
 const db = require("../model/database/models");
-const { Op } = require("sequelize"); // Importamos los operadores matemáticos de Sequelize
+const { Op } = require("sequelize");
+const { esFechaValida } = require("../utils/fechas");
 
 const auditoriaController = {
   ListarAuditoria: async (req, res) => {
     try {
       // 1. Capturamos las fechas que el usuario elige en el filtro (si es que elige alguna)
       let { fechaDesde, fechaHasta } = req.query;
+      if (fechaDesde && !esFechaValida(fechaDesde)) fechaDesde = undefined;
+      if (fechaHasta && !esFechaValida(fechaHasta)) fechaHasta = undefined;
       let whereClause = {}; // Objeto vacío por si no hay filtros
 
       // 2. Armamos la lógica de la consulta
@@ -20,40 +23,29 @@ const auditoriaController = {
         whereClause.fecha = { [Op.lte]: fechaHasta };
       }
 
-      // 3. Ejecutamos la búsqueda con el filtro y un límite de seguridad
-      let registrosAuditoria = await db.Auditoria.findAll({
+      // 3. Ejecutamos la búsqueda (el usuario viene en la misma consulta, sin una consulta por fila)
+      const registrosAuditoria = await db.Auditoria.findAll({
         where: whereClause,
+        include: [{ model: db.Usuario, as: "usuario", attributes: ["nombre", "apellido"], required: false }],
         order: [
           ["fecha", "DESC"],
           ["hora", "DESC"],
+          ["id_auditoria", "DESC"],
         ],
-        limit: 500, // Límite profesional para no ahogar el servidor con miles de datos
+        limit: 500,
       });
 
       // 4. Limpieza de datos (fechas y usuarios)
-      for (let registro of registrosAuditoria) {
+      for (const registro of registrosAuditoria) {
         if (registro.fecha) {
-          let f = new Date(registro.fecha);
-          f.setMinutes(f.getMinutes() + f.getTimezoneOffset());
-          registro.fechaLimpia = f.toLocaleDateString("es-AR");
+          const [y, m, d] = String(registro.fecha).split("-");
+          registro.fechaLimpia = `${Number(d)}/${Number(m)}/${y}`;
         } else {
           registro.fechaLimpia = "Sin fecha";
         }
-
-        if (registro.id_usuario) {
-          try {
-            let usuario = await db.Usuario.findOne({
-              where: { id_usuario: registro.id_usuario },
-            });
-            if (usuario) {
-              registro.nombreUsuario = `${usuario.nombre} ${usuario.apellido}`;
-            } else {
-              registro.nombreUsuario = `ID: ${registro.id_usuario} (Borrado)`;
-            }
-          } catch (e) {
-            registro.nombreUsuario = `ID: ${registro.id_usuario}`;
-          }
-        }
+        registro.nombreUsuario = registro.usuario
+          ? `${registro.usuario.nombre} ${registro.usuario.apellido}`
+          : `ID: ${registro.id_usuario} (Borrado)`;
       }
 
       // 5. Enviamos todo a la vista (incluyendo los filtros para que no se borren de la pantalla)
@@ -63,7 +55,8 @@ const auditoriaController = {
       });
     } catch (error) {
       console.log(error);
-      res.send("Error al cargar el módulo de Auditoría");
+      req.flash("error", "Error al cargar el módulo de Auditoría.");
+      res.redirect("/Vehicles");
     }
   },
 };

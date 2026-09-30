@@ -117,7 +117,7 @@
                             <% if(siniestros && siniestros.length > 0) { %>
                                 <% siniestros.forEach(s => { %>
                                     <tr class="fila-siniestro">
-                                        <td style="font-weight: 600;"><%= new Date(s.fecha_siniestro).toLocaleDateString('es-AR') %></td>
+                                        <td style="font-weight: 600;"><%= fmtFecha(s.fecha_siniestro) %></td>
                                         <td>
                                             <span style="display:block; font-weight: 800; font-family: 'DM Mono', monospace; color: #2563eb;"><%= s.Vehiculo ? s.Vehiculo.patente : 'Eliminado' %></span>
                                             <span style="font-size: 12px; color: #64748b;"><%= s.Vehiculo ? s.Vehiculo.marca : '' %></span>

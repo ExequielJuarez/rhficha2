@@ -31,6 +31,10 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.STRING(100),
         allowNull: true,
       },
+      observaciones: {
+        type: DataTypes.TEXT,
+        allowNull: true,
+      },
       estado_prestamo: {
         type: DataTypes.STRING(50),
         allowNull: false,

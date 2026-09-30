@@ -4,54 +4,40 @@ const path = require("path");
 const fs = require("fs");
 const multer = require("multer");
 
-const uploadVehiculosDir = path.join(__dirname, "../../public/img/vehiculos");
+// ───────── Subida de archivos (solo imágenes / PDF, máx. 5 MB por archivo) ─────────
+const EXTENSIONES_IMAGEN = [".jpg", ".jpeg", ".png", ".webp", ".gif"];
+const EXTENSIONES_ADJUNTO = [...EXTENSIONES_IMAGEN, ".pdf"];
 
-const storageVehiculos = multer.diskStorage({
-  destination: function (req, file, cb) {
-    if (!fs.existsSync(uploadVehiculosDir)) {
-      fs.mkdirSync(uploadVehiculosDir, { recursive: true });
-    }
-    cb(null, uploadVehiculosDir);
-  },
-  filename: function (req, file, cb) {
-    cb(null, "vehiculo-" + Date.now() + path.extname(file.originalname));
-  },
-});
-const uploadVehiculo = multer({ storage: storageVehiculos });
+const crearUpload = (carpeta, prefijo, extensionesPermitidas) => {
+  const directorio = path.join(__dirname, "../../public/img", carpeta);
+  const storage = multer.diskStorage({
+    destination: function (req, file, cb) {
+      if (!fs.existsSync(directorio)) fs.mkdirSync(directorio, { recursive: true });
+      cb(null, directorio);
+    },
+    filename: function (req, file, cb) {
+      const sufijo = Math.round(Math.random() * 1e6);
+      cb(null, `${prefijo}-${Date.now()}${sufijo}${path.extname(file.originalname).toLowerCase()}`);
+    },
+  });
+  return multer({
+    storage,
+    limits: { fileSize: 5 * 1024 * 1024, files: 6 },
+    fileFilter: function (req, file, cb) {
+      const ext = path.extname(file.originalname).toLowerCase();
+      if (!extensionesPermitidas.includes(ext)) {
+        const error = new Error("Formato de archivo no permitido. Usá " + extensionesPermitidas.join(", ") + ".");
+        error.codigoSubida = true;
+        return cb(error);
+      }
+      cb(null, true);
+    },
+  });
+};
 
-
-
-
-
-const uploadDir = path.join(__dirname, "../../public/img/licencias");
-
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir, { recursive: true });
-    }
-    cb(null, uploadDir);
-  },
-  filename: function (req, file, cb) {
-    cb(null, "chofer-" + Date.now() + path.extname(file.originalname));
-  },
-});
-const upload = multer({ storage: storage });
-
-const uploadSiniestrosDir = path.join(__dirname, "../../public/img/siniestros");
-
-const storageSiniestros = multer.diskStorage({
-  destination: function (req, file, cb) {
-    if (!fs.existsSync(uploadSiniestrosDir)) {
-      fs.mkdirSync(uploadSiniestrosDir, { recursive: true });
-    }
-    cb(null, uploadSiniestrosDir);
-  },
-  filename: function (req, file, cb) {
-    cb(null, "siniestro-" + Date.now() + path.extname(file.originalname));
-  },
-});
-const uploadSiniestro = multer({ storage: storageSiniestros });
+const uploadVehiculo = crearUpload("vehiculos", "vehiculo", EXTENSIONES_IMAGEN);
+const upload = crearUpload("licencias", "chofer", EXTENSIONES_IMAGEN);
+const uploadSiniestro = crearUpload("siniestros", "siniestro", EXTENSIONES_ADJUNTO);
 
 const auditoriaController = require("../controllers/auditoriaController");
 const vehicleController = require("../controllers/vehicleController");
@@ -96,6 +82,7 @@ router.post("/Vehicles/Ajustes/Tipos/Eliminar/:id", authMiddleware, vehicleContr
 router.get("/Vehicles/Editar/:id", authMiddleware, vehicleController.EditVehiculo);
 router.post("/Vehicles/Editar/:id", authMiddleware, uploadVehiculo.fields([{ name: "foto_cedula", maxCount: 1 },{ name: "foto_titulo", maxCount: 1 },{ name: "foto_rto",    maxCount: 1 }]), vehicleController.processEditVehiculo);
 router.get("/Vehicles", authMiddleware, vehicleController.ListVehicles);
+router.get("/Vehicles/Carga", authMiddleware, (req, res) => res.redirect("/CargaVehiculo"));
 router.get("/Vehicles/:id", authMiddleware, vehicleController.getVehicleById);
 router.get("/CargaVehiculo", authMiddleware, vehicleController.CargaVehiculo);
 router.post("/CargaVehiculo", authMiddleware, uploadVehiculo.fields([{ name: "foto_cedula", maxCount: 1 },{ name: "foto_titulo", maxCount: 1 },{ name: "foto_rto",    maxCount: 1 }]), vehicleController.processVehicle);
@@ -109,7 +96,7 @@ router.post("/Repuestos/Eliminar/:id", authMiddleware, vehicleController.deleteR
 // =========================================================
 
 router.get("/Mantenimientos", authMiddleware, vehicleController.Mantenimientos);
-router.post('/Mantenimientos/:id/estado', vehicleController.updateEstadoMantenimiento);
+router.post("/Mantenimientos/:id/estado", authMiddleware, vehicleController.updateEstadoMantenimiento);
 router.get("/Mantenimientos/carga/:id_vehiculo", authMiddleware, vehicleController.CargaVMantenimiento);
 router.get("/Mantenimientos/carga", authMiddleware, vehicleController.CargaVMantenimiento);
 router.post("/CargaMantenimiento", authMiddleware, vehicleController.processMaintenance);
@@ -123,6 +110,7 @@ router.post("/Choferes/:id/editar", authMiddleware, upload.fields([{ name: "imag
 router.post("/Choferes/:id/desactivar", authMiddleware, choferController.desactivarChofer);
 router.post("/Choferes/:id/activar", authMiddleware, choferController.activarChofer);
 router.get("/Choferes/api/todos", authMiddleware, choferController.getTodosJSON);
+router.get("/Choferes/:id", authMiddleware, choferController.verChofer);
 
 router.get("/asignaciones", authMiddleware, assignmentController.showForm);
 router.post("/asignaciones", authMiddleware, assignmentController.create);
@@ -130,6 +118,7 @@ router.post("/asignaciones/:id/finalizar", authMiddleware, assignmentController.
 
 router.get("/Tools", authMiddleware, toolController.ListTools);
 router.get("/Tools/Carga", authMiddleware, toolController.CargaHerramienta);
+router.post("/Tools/Carga", authMiddleware, toolController.processTool);
 router.post("/Tools/ProcessCarga", authMiddleware, toolController.processTool);
 router.get("/Tools/Editar/:id", authMiddleware, toolController.EditHerramienta);
 router.post("/Tools/Editar/:id", authMiddleware, toolController.processEditTool);
@@ -158,8 +147,8 @@ router.get("/Auditoria", authMiddleware, auditoriaController.ListarAuditoria);
 router.get("/Reportes", authMiddleware, reporteController.vistaReportes);
 
 router.get("/Siniestros", authMiddleware, siniestroController.ListarSiniestros);
-router.get("/Siniestros/Carga", authMiddleware, siniestroController.CargaSiniestro);  // ← ANTES del :id
-router.get("/Siniestros/:id", authMiddleware, siniestroController.DetalleSiniestro);  // ← DESPUÉS
+router.get("/Siniestros/Carga", authMiddleware, siniestroController.CargaSiniestro); // antes del :id
+router.get("/Siniestros/:id", authMiddleware, siniestroController.DetalleSiniestro);
 router.post("/Siniestros/Carga", authMiddleware, uploadSiniestro.array("archivos", 5), siniestroController.ProcesoCarga);
 router.post("/Siniestros/:id/Estado", authMiddleware, siniestroController.CambiarEstado);
 router.post("/Siniestros/:id/resolver", authMiddleware, siniestroController.CambiarEstado);

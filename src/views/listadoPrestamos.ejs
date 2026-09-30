@@ -196,6 +196,7 @@
                       <% if (p.estado_prestamo === 'Activo') { %>
                         <form action="/Tools/Devolucion" method="POST" style="margin: 0;">
                           <input type="hidden" name="id_herramienta" value="<%= p.id_herramienta %>">
+                          <input type="hidden" name="id_prestamo" value="<%= p.id_prestamo %>">
                           <button type="submit" style="background-color: #059669; color: white; border: none; padding: 6px 12px; border-radius: 6px; font-weight: 700; font-size: 11px; cursor: pointer; transition: 0.2s;" onmouseover="this.style.backgroundColor='#047857'" onmouseout="this.style.backgroundColor='#059669'">
                             ✓ Devolver
                           </button>

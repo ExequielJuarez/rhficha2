@@ -19,18 +19,19 @@ module.exports = (sequelize, DataTypes) => {
     },
     telefono: {
       type: DataTypes.STRING(20),
-      allowNull: false
+      allowNull: false,
+      unique: true
     },
     direccion: {
       type: DataTypes.STRING(150),
       allowNull: false
     },
     fechaNacimiento: {
-      type: DataTypes.DATE,
+      type: DataTypes.DATEONLY,
       allowNull: false
     },
     fechaIngreso: {
-      type: DataTypes.DATE,
+      type: DataTypes.DATEONLY,
       allowNull: false
     },
     email: {
@@ -38,10 +39,14 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: true
     },
     turno: {
-      type: DataTypes.ENUM('Mañana', 'Tarde'),
+      type: DataTypes.STRING(50),
       allowNull: true
     },
-    foto_documento: {                        // <-- NUEVO
+    foto_documento: {
+      type: DataTypes.STRING(255),
+      allowNull: true
+    },
+    imagen: {
       type: DataTypes.STRING(255),
       allowNull: true
     },
@@ -58,7 +63,7 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: true
     },
     estado: {
-      type: DataTypes.ENUM('Activo', 'Inactivo'),
+      type: DataTypes.STRING(50),
       allowNull: false,
       defaultValue: 'Activo'
     },

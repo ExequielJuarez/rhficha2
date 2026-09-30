@@ -204,7 +204,6 @@
               <select name="estado_actual" id="estado_actual">
                 <option value="">Seleccionar</option>
                 <option value="Disponible">Disponible</option>
-                <option value="En uso">En uso</option>
                 <option value="En mantenimiento">En mantenimiento</option>
                 <option value="Baja">Baja</option>
               </select>
@@ -355,7 +354,7 @@
     document.getElementById(`foto_${nombre}`)?.addEventListener('change', function(e) {
       const p = document.getElementById(`preview-${nombre}`);
       if (e.target.files.length > 0) {
-        p.innerHTML = `Archivo seleccionado: <strong>${e.target.files[0].name}</strong>`;
+        p.innerHTML = `Archivo seleccionado: <strong>${e.target.files[0].name.replace(/[<>&"']/g, '')}</strong>`;
         p.style.color = 'var(--color-blue)';
       } else {
         p.innerHTML = 'Sin imagen seleccionada';

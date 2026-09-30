@@ -1,7 +1,7 @@
 "use strict";
 
 // Agregamos dotenv al inicio para que lea el archivo .env antes de configurar nada
-require("dotenv").config();
+require("dotenv").config({ quiet: true });
 
 const fs = require("fs");
 const path = require("path");
@@ -9,32 +9,39 @@ const Sequelize = require("sequelize");
 const process = require("process");
 const basename = path.basename(__filename);
 const env = process.env.NODE_ENV || "development";
-const config = require(__dirname + "/../config/database.json")[env];
 const db = {};
 
+// La conexión se configura SIEMPRE por variables de entorno (.env). Ver .env.example
+// Si faltan, se usa la configuración local de desarrollo de database.json.
+const config = require(__dirname + "/../config/database.json").development;
+
+const opcionesComunes = {
+  dialect: "mysql",
+  logging: false,
+  pool: { max: 10, min: 0, acquire: 30000, idle: 10000 },
+};
+
 let sequelize;
-// Priorizamos las variables del .env si existen locales. Si no, cae en el config tradicional.
 if (process.env.DB_NAME && process.env.DB_USER) {
   sequelize = new Sequelize(
     process.env.DB_NAME,
     process.env.DB_USER,
-    process.env.DB_PASSWORD,
+    process.env.DB_PASSWORD || null,
     {
+      ...opcionesComunes,
       host: process.env.DB_HOST || "127.0.0.1",
-      port: process.env.DB_PORT || 3306,
-      dialect: "mysql",
-      logging: config.logging, // Mantiene el formato de logs configurado en el json
+      port: Number(process.env.DB_PORT) || 3306,
     },
   );
-} else if (config.use_env_variable) {
-  sequelize = new Sequelize(process.env[config.use_env_variable], config);
-} else {
-  sequelize = new Sequelize(
-    config.database,
-    config.username,
-    config.password,
-    config,
+} else if (env === "production") {
+  throw new Error(
+    "Faltan las variables de entorno de la base de datos (DB_NAME, DB_USER, DB_PASSWORD, DB_HOST).",
   );
+} else {
+  sequelize = new Sequelize(config.database, config.username, config.password, {
+    ...opcionesComunes,
+    host: config.host,
+  });
 }
 
 fs.readdirSync(__dirname)
