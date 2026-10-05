@@ -19,6 +19,8 @@
     .form-add { display: flex; gap: 10px; margin-top: 20px; }
     .btn-delete { background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; padding: 6px 12px; border-radius: 6px; font-size: 12px; font-weight: 800; cursor: pointer; transition: 0.2s; }
     .btn-delete:hover { background: #fee2e2; }
+    .btn-edit { background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; padding: 6px 12px; border-radius: 6px; font-size: 12px; font-weight: 800; cursor: pointer; transition: 0.2s; }
+    .btn-edit:hover { background: #dbeafe; }
 
     #mobile-back-btn {
       background-color: #f8fafc; color: #475569; border: 1px solid #cbd5e1; padding: 8px 14px; font-size: 13px; font-weight: 700; border-radius: 8px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; transition: 0.2s; margin-bottom: 20px; text-decoration: none;
@@ -62,9 +64,12 @@
               <% distritos.forEach(d => { %>
                 <div class="list-item">
                   <span><%= d.nombre %></span>
+                  <div style="display:flex; gap:6px;">
+                  <button type="button" class="btn-edit" title="Renombrar distrito" onclick="renombrarCatalogo('/Vehicles/Ajustes/Distritos/Renombrar/<%= d.id_distrito || d.id %>', <%= JSON.stringify(d.nombre) %>, 'Nuevo nombre del distrito (se actualizan los vehículos que lo usan):')">Editar</button>
                   <form action="/Vehicles/Ajustes/Distritos/Eliminar/<%= d.id_distrito || d.id %>" method="POST" style="margin:0;">
                     <button type="submit" class="btn-delete" title="Eliminar Distrito" onclick="return confirm('¿Eliminar este distrito?');">X</button>
                   </form>
+                  </div>
                 </div>
               <% }) %>
             <% } else { %>
@@ -86,9 +91,18 @@
               <% tiposVehiculo.forEach(t => { %>
                 <div class="list-item">
                   <span><%= t.descripcion || t.nombre %></span>
+                  <div style="display:flex; gap:6px; align-items:center;">
+                  <form action="/Vehicles/Ajustes/Tipos/Editar/<%= t.id_tipo || t.id %>" method="POST" style="margin:0;">
+                    <select name="unidad" title="Unidad de medida de uso" onchange="this.form.submit()" style="padding:5px 6px; border:1px solid #cbd5e1; border-radius:6px; font-size:12px; font-weight:700; color:#475569; background:#fff;">
+                      <option value="km" <%= t.unidad !== 'hs' ? 'selected' : '' %>>km</option>
+                      <option value="hs" <%= t.unidad === 'hs' ? 'selected' : '' %>>horas</option>
+                    </select>
+                  </form>
+                  <button type="button" class="btn-edit" title="Renombrar tipo" onclick="renombrarCatalogo('/Vehicles/Ajustes/Tipos/Editar/<%= t.id_tipo || t.id %>', <%= JSON.stringify(t.descripcion || t.nombre) %>, 'Nuevo nombre del tipo de vehículo:')">Editar</button>
                   <form action="/Vehicles/Ajustes/Tipos/Eliminar/<%= t.id_tipo || t.id %>" method="POST" style="margin:0;">
                     <button type="submit" class="btn-delete" title="Eliminar Tipo" onclick="return confirm('¿Eliminar este tipo de vehículo?');">X</button>
                   </form>
+                  </div>
                 </div>
               <% }) %>
             <% } else { %>
@@ -99,6 +113,10 @@
           </div>
           <form action="/Vehicles/Ajustes/Tipos" method="POST" class="form-add">
             <input type="text" name="descripcion" class="input-add" placeholder="Ej: Motocicleta..." required>
+            <select name="unidad" title="Unidad de medida de uso" class="input-add" style="flex: 0 0 auto;">
+              <option value="km">km</option>
+              <option value="hs">horas</option>
+            </select>
             <button type="submit" class="btn-add">+ Añadir Tipo</button>
           </form>
         </div>
@@ -107,6 +125,7 @@
     </main>
   </div>
 
+  <script src="/js/renombrar.js"></script>
   <script src="/js/sidebar.js"></script>
   <script>
     document.addEventListener('DOMContentLoaded', () => {

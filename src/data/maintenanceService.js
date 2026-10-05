@@ -5,7 +5,8 @@ const { ErrorNegocio } = require("../utils/errores");
 
 // Programado: próximo service por kilometraje (aún no se hizo). En proceso: el vehículo está en el taller.
 // Realizado: service terminado (o registro histórico cargado a mano).
-const ESTADOS_MANTENIMIENTO = ["Programado", "En proceso", "Realizado"];
+const ESTADOS_MANTENIMIENTO = ["Programado", "En proceso", "Realizado", "Cancelado"];
+const ESTADOS_ALTA = ["Programado", "En proceso", "Realizado"]; // los que se pueden elegir al cargar una orden
 const DIAS_RECIENTE = 15; // un service más viejo que esto se considera registro histórico
 const ESTADOS_ABIERTOS = ["En proceso"]; // sólo estos mantienen al vehículo fuera de servicio
 
@@ -23,12 +24,29 @@ const ordenesAbiertas = (id_vehiculo, transaction, excluirId = null) => {
 const maintenanceService = {
   ESTADOS_MANTENIMIENTO,
 
+  // Un service programado a X km deja de tener sentido cuando ya se realizó otro a X km o más:
+  // se cancela solo (queda registrado en sus observaciones).
+  cancelarProgramadosObsoletos: async function (id_vehiculo, transaction = null) {
+    const opciones = transaction ? { transaction } : {};
+    const ultimoKm = await db.Mantenimiento.max("km_servicio", { where: { id_vehiculo, estado: "Realizado" }, ...opciones });
+    if (!ultimoKm) return 0;
+    const obsoletos = await db.Mantenimiento.findAll({
+      where: { id_vehiculo, estado: "Programado", proximo_km: { [Op.lte]: ultimoKm } },
+      ...opciones,
+    });
+    for (const m of obsoletos) {
+      const nota = `Cancelado automáticamente: ya se realizó un service a los ${ultimoKm} km.`;
+      await m.update({ estado: "Cancelado", observaciones: [m.observaciones, nota].filter(Boolean).join(" | ") }, opciones);
+    }
+    return obsoletos.length;
+  },
+
   // Alta de una orden. Los importes se calculan SIEMPRE en el servidor a partir del detalle.
   crear: async function (body, id_usuario) {
     const transaction = await db.sequelize.transaction();
     try {
       const estado = body.estado;
-      if (!ESTADOS_MANTENIMIENTO.includes(estado)) throw new ErrorNegocio("El estado de la orden no es válido.");
+      if (!ESTADOS_ALTA.includes(estado)) throw new ErrorNegocio("El estado de la orden no es válido.");
 
       const tipo = String(body.tipo_servicio || "").trim();
       if (!tipo) throw new ErrorNegocio("Indicá el tipo de servicio.");
@@ -206,6 +224,7 @@ const maintenanceService = {
         }
       }
       if (Object.keys(cambios).length) await vehiculo.update(cambios, { transaction });
+      if (estado === "Realizado") await maintenanceService.cancelarProgramadosObsoletos(vehiculo.id_vehiculo, transaction);
 
       await transaction.commit();
       return { mantenimiento, lineas };
@@ -227,14 +246,20 @@ const maintenanceService = {
       const anterior = mantenimiento.estado;
       if (anterior === nuevoEstado) throw new ErrorNegocio(`La orden ya está en estado "${nuevoEstado}".`);
       if (anterior === "Realizado") throw new ErrorNegocio("Una orden Realizada no puede volver a abrirse.");
+      if (anterior === "Cancelado") throw new ErrorNegocio("Una orden Cancelada no puede volver a abrirse.");
       if (nuevoEstado === "Programado") throw new ErrorNegocio("Una orden en curso no puede volver a Programado.");
+      if (nuevoEstado === "Cancelado" && anterior !== "Programado") {
+        throw new ErrorNegocio("Sólo se puede cancelar un service Programado (uno en proceso ya consumió repuestos: finalizalo).");
+      }
 
       const vehiculo = await db.Vehiculo.findByPk(mantenimiento.id_vehiculo, { transaction, lock: transaction.LOCK.UPDATE });
       const cambiosOrden = { estado: nuevoEstado };
       const cambiosVehiculo = {};
       const eraProgramado = anterior === "Programado";
 
-      if (nuevoEstado === "En proceso") {
+      if (nuevoEstado === "Cancelado") {
+        cambiosOrden.observaciones = [mantenimiento.observaciones, "Cancelado manualmente."].filter(Boolean).join(" | ");
+      } else if (nuevoEstado === "En proceso") {
         if (vehiculo) {
           if (["Baja", "En siniestro"].includes(vehiculo.estado_actual)) {
             throw new ErrorNegocio(`No se puede iniciar: el vehículo está "${vehiculo.estado_actual}".`);
@@ -280,6 +305,7 @@ const maintenanceService = {
 
       await mantenimiento.update(cambiosOrden, { transaction });
       if (vehiculo && Object.keys(cambiosVehiculo).length) await vehiculo.update(cambiosVehiculo, { transaction });
+      if (nuevoEstado === "Realizado") await maintenanceService.cancelarProgramadosObsoletos(mantenimiento.id_vehiculo, transaction);
 
       await transaction.commit();
       return { mantenimiento, anterior };

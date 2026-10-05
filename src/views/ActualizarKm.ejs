@@ -84,8 +84,9 @@
                 value="<%= v.id_vehiculo %>"
                 data-patente="<%= v.patente %>"
                 data-detalle="<%= v.marca %> <%= v.modelo %>"
-                data-km="<%= v.km_actual %>">
-                <%= v.patente %> · <%= v.marca %> <%= v.modelo %>
+                data-km="<%= v.km_actual %>"
+                data-unidad="<%= unidadDe(v) %>">
+                <%= v.patente %> · <%= v.marca %> <%= v.modelo %><%= unidadDe(v) === 'hs' ? ' (horas)' : '' %>
             </option>
         <% }) %>
     <% } %>
@@ -181,18 +182,21 @@
     const kmNuevoInput = document.getElementById('km_nuevo');
     const kmDiffHint = document.getElementById('km-diff-hint');
     let kmActualGlobal = null;
+    let unidadActual = 'km';
 
     vehicleSelect.addEventListener('change', function() {
       const opt = this.options[this.selectedIndex];
       if (!this.value) {
         kmActualDisplay.textContent = '0 km';
+        unidadActual = 'km';
         kmActualGlobal = null;
         kmDiffHint.textContent = '';
         return;
       }
       
       const kmNum = parseInt(opt.dataset.km) || 0;
-      kmActualDisplay.textContent = kmNum.toLocaleString('es-AR') + ' km';
+      unidadActual = opt.dataset.unidad === 'hs' ? 'hs' : 'km';
+      kmActualDisplay.textContent = kmNum.toLocaleString('es-AR') + ' ' + unidadActual;
       kmActualGlobal = kmNum;
       
       if (!kmNuevoInput.value) kmNuevoInput.value = kmNum;
@@ -206,13 +210,13 @@
       
       const diff = nuevo - kmActualGlobal;
       if (diff > 0) {
-        kmDiffHint.textContent = `+${diff.toLocaleString('es-AR')} km respecto al registro actual`;
+        kmDiffHint.textContent = `+${diff.toLocaleString('es-AR')} ${unidadActual} respecto al registro actual`;
         kmDiffHint.style.color = '#059669'; // Verde
       } else if (diff === 0) {
         kmDiffHint.textContent = 'Sin cambios';
         kmDiffHint.style.color = '#64748b'; // Gris
       } else {
-        kmDiffHint.textContent = `⚠ Valor menor al actual (-${Math.abs(diff).toLocaleString('es-AR')} km)`;
+        kmDiffHint.textContent = `⚠ Valor menor al actual (-${Math.abs(diff).toLocaleString('es-AR')} ${unidadActual})`;
         kmDiffHint.style.color = '#dc2626'; // Rojo
       }
     }

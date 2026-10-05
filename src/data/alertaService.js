@@ -1,6 +1,7 @@
 const db = require("../model/database/models");
 const { Op } = require("sequelize");
 const { diasHasta } = require("../utils/fechas");
+const maintenanceService = require("./maintenanceService");
 
 const recortar = (texto, max) => String(texto == null ? "" : texto).slice(0, max);
 
@@ -332,10 +333,17 @@ const alertaService = {
         const UMBRAL_MEDIA = 5000; // "falta poco"
         const UMBRAL_ALTA = 2000; // "falta muy poco"
 
-        const vehiculos = await db.Vehiculo.findAll({ where: { estado_actual: { [Op.ne]: "Baja" } } });
+        const vehiculos = await db.Vehiculo.findAll({
+          where: { estado_actual: { [Op.ne]: "Baja" } },
+          include: [{ association: "TipoVehiculo", attributes: ["unidad"] }],
+        });
         const deseadas = [];
 
         for (const v of vehiculos) {
+          const u = v.TipoVehiculo && v.TipoVehiculo.unidad ? v.TipoVehiculo.unidad : "km";
+          // Los services programados que ya quedaron superados por uno posterior se cancelan solos
+          await maintenanceService.cancelarProgramadosObsoletos(v.id_vehiculo);
+
           // Objetivos de km: los services PROGRAMADOS y el "próximo service" del último service realizado
           const objetivos = [];
 
@@ -365,15 +373,15 @@ const alertaService = {
           if (kmRestantes <= 0) {
             tipo = "mantenimiento_vencido";
             prioridad = "alta";
-            mensaje = `Service ${palabra} superado hace ${Math.abs(kmRestantes)} km (${palabra} a los ${objetivo.km} km)`;
+            mensaje = `Service ${palabra} superado hace ${Math.abs(kmRestantes)} ${u} (${palabra} a los ${objetivo.km} ${u})`;
           } else if (kmRestantes <= UMBRAL_ALTA) {
             tipo = "mantenimiento_proximo";
             prioridad = "alta";
-            mensaje = `Faltan solo ${kmRestantes} km para el service ${palabra} (${objetivo.km} km)`;
+            mensaje = `Faltan solo ${kmRestantes} ${u} para el service ${palabra} (${objetivo.km} ${u})`;
           } else if (kmRestantes <= UMBRAL_MEDIA) {
             tipo = "mantenimiento_proximo";
             prioridad = "media";
-            mensaje = `Faltan ${kmRestantes} km para el service ${palabra} (${objetivo.km} km)`;
+            mensaje = `Faltan ${kmRestantes} ${u} para el service ${palabra} (${objetivo.km} ${u})`;
           } else {
             continue;
           }
@@ -438,11 +446,76 @@ const alertaService = {
     });
   },
 
+  // Asignaciones que debían haber vuelto y siguen activas
+  generarAlertasAsignaciones: function () {
+    return serializar(async () => {
+      try {
+        const activas = await db.AsignacionVehiculo.findAll({
+          where: { estado: "Activo", fecha_estimada_devolucion: { [Op.ne]: null } },
+          include: [{ association: "vehiculo" }, { association: "Chofer" }],
+        });
+
+        const deseadas = [];
+        for (const a of activas) {
+          const dias = diasHasta(a.fecha_estimada_devolucion);
+          if (dias === null || dias >= 0 || !a.vehiculo) continue;
+          const atraso = Math.abs(dias);
+          const chofer = a.Chofer ? `${a.Chofer.nombre} ${a.Chofer.apellido}` : "chofer desconocido";
+          deseadas.push({
+            clave: String(a.id_vehiculo),
+            tipo: "asignacion_vencida",
+            prioridad: atraso >= 7 ? "alta" : "media",
+            mensaje: `Asignación vencida hace ${atraso} días: ${a.vehiculo.patente} sigue con ${chofer}`,
+            entidad_tipo: "Vehiculo",
+            entidad_id: a.id_vehiculo,
+            entidad_nombre: `${a.vehiculo.marca} ${a.vehiculo.modelo} (${a.vehiculo.patente})`,
+          });
+        }
+
+        const existentes = await db.Alerta.findAll({ where: { tipo: "asignacion_vencida", entidad_tipo: "Vehiculo" } });
+        await sincronizarGrupo(deseadas, existentes, (al) => String(al.entidad_id));
+      } catch (error) {
+        console.log("Error generando alertas de asignaciones:", error);
+      }
+    });
+  },
+
+  // Repuestos con stock igual o menor al mínimo configurado
+  generarAlertasStock: function () {
+    return serializar(async () => {
+      try {
+        const repuestos = await db.Repuesto.findAll();
+        const deseadas = [];
+        for (const r of repuestos) {
+          if (r.stock > r.stock_minimo) continue;
+          const sinStock = r.stock <= 0;
+          deseadas.push({
+            clave: String(r.id_repuesto),
+            tipo: "stock_bajo",
+            prioridad: sinStock ? "alta" : "media",
+            mensaje: sinStock
+              ? `Sin stock de repuesto: ${r.nombre} (mínimo ${r.stock_minimo})`
+              : `Stock bajo de repuesto: ${r.nombre} — quedan ${r.stock} (mínimo ${r.stock_minimo})`,
+            entidad_tipo: "Repuesto",
+            entidad_id: r.id_repuesto,
+            entidad_nombre: r.nombre,
+          });
+        }
+        const existentes = await db.Alerta.findAll({ where: { tipo: "stock_bajo", entidad_tipo: "Repuesto" } });
+        await sincronizarGrupo(deseadas, existentes, (al) => String(al.entidad_id));
+      } catch (error) {
+        console.log("Error generando alertas de stock:", error);
+      }
+    });
+  },
+
   generarTodas: async function () {
     await alertaService.generarAlertasLicencias();
     await alertaService.generarAlertasVehiculos();
     await alertaService.generarAlertasMantenimiento();
     await alertaService.generarAlertasPrestamos();
+    await alertaService.generarAlertasAsignaciones();
+    await alertaService.generarAlertasStock();
   },
 };
 

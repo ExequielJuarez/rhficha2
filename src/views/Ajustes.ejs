@@ -18,6 +18,8 @@
     .input-add:focus { border-color: var(--color-blue); box-shadow: 0 0 0 3px rgba(37,99,235,0.1); }
     .form-add { display: flex; gap: 10px; margin-top: 20px; }
     .btn-delete { background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; padding: 6px 12px; border-radius: var(--radius-md); font-size: 12px; font-weight: 800; cursor: pointer; transition: 0.2s; }
+    .btn-edit { background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; padding: 6px 12px; border-radius: 6px; font-size: 12px; font-weight: 800; cursor: pointer; transition: 0.2s; }
+    .btn-edit:hover { background: #dbeafe; }
     .btn-delete:hover { background: #fee2e2; }
 
     /* ── ADAPTACIÓN MÓVIL ── */
@@ -52,9 +54,12 @@
               <% sectores.forEach(s => { %>
                 <div class="list-item">
                   <span><%= s.nombre %></span>
-                  <form action="/Tools/Ajustes/Sectores/Eliminar/<%= s.id_sector %>" method="POST" style="margin:0;">
-                    <button type="submit" class="btn-delete" title="Eliminar Sector">X</button>
-                  </form>
+                  <div style="display:flex; gap:6px;">
+                    <button type="button" class="btn-edit" title="Renombrar sector" onclick="renombrarCatalogo('/Tools/Ajustes/Sectores/Renombrar/<%= s.id_sector %>', <%= JSON.stringify(s.nombre) %>, 'Nuevo nombre del sector (se actualizan herramientas y préstamos):')">Editar</button>
+                    <form action="/Tools/Ajustes/Sectores/Eliminar/<%= s.id_sector %>" method="POST" style="margin:0;">
+                      <button type="submit" class="btn-delete" title="Eliminar Sector">X</button>
+                    </form>
+                  </div>
                 </div>
               <% }) %>
             <% } else { %>
@@ -78,6 +83,7 @@
                   </div>
                   <div style="display: flex; align-items: center; gap: 10px;">
                     <span class="badge <%= o.estado === 'Activo' ? 'badge--success' : 'badge--danger' %>" style="font-size: 10px; padding: 2px 6px;"><%= o.estado %></span>
+                    <button type="button" class="btn-edit" title="Renombrar operario" onclick="renombrarCatalogo('/Tools/Ajustes/Operarios/Renombrar/<%= o.id_operario %>', <%= JSON.stringify(o.nombre) %>, 'Nuevo nombre del operario (se actualizan sus préstamos):')">Editar</button>
                     <form action="/Tools/Ajustes/Operarios/Eliminar/<%= o.id_operario %>" method="POST" style="margin:0;">
                       <button type="submit" class="btn-delete" title="Eliminar Operario">X</button>
                     </form>
@@ -98,6 +104,7 @@
     </main>
   </div>
 
+  <script src="/js/renombrar.js"></script>
   <script src="/js/sidebar.js"></script>
   <script>
     /* ── FIX BOTÓN HAMBURGUESA BLINDADO ── */

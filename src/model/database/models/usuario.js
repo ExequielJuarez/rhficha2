@@ -36,7 +36,7 @@ module.exports = (sequelize, dataTypes) => {
     permisos: {
       type: dataTypes.STRING(255),
       allowNull: true,
-      defaultValue: "Vehicles",
+      defaultValue: null,
     },
   };
   let config = {

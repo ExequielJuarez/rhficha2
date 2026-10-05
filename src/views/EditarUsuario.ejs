@@ -92,7 +92,7 @@
                         <label for="id_rol">Rol del Usuario</label>
                         <select id="id_rol" name="id_rol" required>
                             <% roles.forEach(rol => { %>
-                                <option value="<%= rol.id_rol %>" <%= usuario.id_rol == rol.id_rol ? 'selected' : '' %>><%= rol.nombre %></option>
+                                <option value="<%= rol.id_rol %>" data-permisos="<%= rol.permisos || '' %>" <%= usuario.id_rol == rol.id_rol ? 'selected' : '' %>><%= rol.nombre %></option>
                             <% }) %>
                         </select>
                     </div>
@@ -170,6 +170,12 @@
                     cartelAdmin.style.display = 'none';
                 }
             }
+            // Al cambiar el rol se marcan los permisos que ese rol trae por defecto
+            // (si se dejan así, el usuario hereda los del rol y sigue sus cambios futuros)
+            rolSelect.addEventListener('change', function () {
+                const permisosRol = (rolSelect.options[rolSelect.selectedIndex].dataset.permisos || '').split(',').map(x => x.trim());
+                document.querySelectorAll('input[name="vistas"]').forEach(cb => { cb.checked = permisosRol.includes(cb.value); });
+            });
             rolSelect.addEventListener('change', togglePermisos);
             togglePermisos();
         }

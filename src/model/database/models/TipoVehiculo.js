@@ -9,6 +9,11 @@ module.exports = (sequelize, dataTypes) => {
         descripcion: {
             type: dataTypes.STRING(100),
             allowNull: false
+        },
+        unidad: {
+            type: dataTypes.STRING(10),
+            allowNull: false,
+            defaultValue: 'km'
         }
     };
     const config = {

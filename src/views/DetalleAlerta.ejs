@@ -59,8 +59,8 @@
             </nav>
 
             <%
-            const LABELS = { licencia_vencida: 'Licencia vencida', licencia_proxima: 'Licencia próxima a vencer', mantenimiento_pendiente: 'Mantenimiento pendiente', mantenimiento_finalizado: 'Mantenimiento finalizado', documentacion_vencida: 'Documentación vencida', vehiculo_fuera_servicio: 'Vehículo fuera de servicio', herramienta_devuelta: 'Herramienta devuelta', prestamo_vencido: 'Préstamo vencido', critica: 'Alerta crítica', informativa: 'Informativa' };
-            const ICONOS = { licencia_vencida: '⚠️', licencia_proxima: '🕐', mantenimiento_pendiente: '🔧', mantenimiento_finalizado: '✅', documentacion_vencida: '📄', vehiculo_fuera_servicio: '🚫', herramienta_devuelta: '🔙', prestamo_vencido: '📋', critica: '🚨', informativa: 'ℹ️' };
+            const LABELS = { licencia_vencida: 'Licencia vencida', licencia_proxima: 'Licencia próxima a vencer', mantenimiento_pendiente: 'Mantenimiento pendiente', mantenimiento_finalizado: 'Mantenimiento finalizado', documentacion_vencida: 'Documentación vencida', vehiculo_fuera_servicio: 'Vehículo fuera de servicio', herramienta_devuelta: 'Herramienta devuelta', prestamo_vencido: 'Préstamo vencido', asignacion_vencida: 'Asignación vencida', stock_bajo: 'Stock bajo', critica: 'Alerta crítica', informativa: 'Informativa' };
+            const ICONOS = { licencia_vencida: '⚠️', licencia_proxima: '🕐', mantenimiento_pendiente: '🔧', mantenimiento_finalizado: '✅', documentacion_vencida: '📄', vehiculo_fuera_servicio: '🚫', herramienta_devuelta: '🔙', prestamo_vencido: '📋', asignacion_vencida: '⏰', stock_bajo: '📦', critica: '🚨', informativa: 'ℹ️' };
             %>
 
             <article class="vehicle-profile" style="padding: 32px;">
@@ -110,9 +110,11 @@
                                     'Herramienta': '/Tools',
                                     'Siniestro':   '/Siniestros',
                                 };
-                                const rutaDetalle = RUTAS_ENTIDAD[alerta.entidad_tipo]
-                                    ? `${RUTAS_ENTIDAD[alerta.entidad_tipo]}/${alerta.entidad_id}`
-                                    : null;
+                                const rutaDetalle = alerta.entidad_tipo === 'Repuesto'
+                                    ? '/Repuestos/Gestionar'
+                                    : (RUTAS_ENTIDAD[alerta.entidad_tipo]
+                                        ? `${RUTAS_ENTIDAD[alerta.entidad_tipo]}/${alerta.entidad_id}`
+                                        : null);
                                 %>
                                 <% if (rutaDetalle) { %>
                                     <a href="<%= rutaDetalle %>" style="color: var(--color-blue); text-decoration: none; font-weight: 700; display: inline-flex; align-items: center; gap: 4px;">
@@ -160,9 +162,11 @@
                             'Herramienta': '/Tools',
                             'Siniestro':   '/Siniestros',
                         };
-                        const rutaBtn = RUTAS_BTN[alerta.entidad_tipo]
-                            ? `${RUTAS_BTN[alerta.entidad_tipo]}/${alerta.entidad_id}`
-                            : null;
+                        const rutaBtn = alerta.entidad_tipo === 'Repuesto'
+                            ? '/Repuestos/Gestionar'
+                            : (RUTAS_BTN[alerta.entidad_tipo]
+                                ? `${RUTAS_BTN[alerta.entidad_tipo]}/${alerta.entidad_id}`
+                                : null);
                         %>
                         <% if (rutaBtn) { %>
                             <a href="<%= rutaBtn %>" style="background: white; border: 1px solid var(--color-border); padding: 10px 20px; border-radius: 8px; font-weight: 700; font-size: 13px; color: var(--color-text-primary); text-decoration: none; display: inline-flex; align-items: center;">

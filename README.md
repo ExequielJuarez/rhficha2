@@ -45,11 +45,19 @@ la base se cree sola. No toca la base real.
 ## Notas de diseño
 
 - Permisos por módulo (`Vehicles`, `Choferes`, `Mantenimientos`, `Tools`, `Alertas`, `Reportes`, `Usuarios`, `Roles`,
-  `Auditoria`, `Siniestros`). Se revalidan contra la base en cada pedido. Los permisos del **usuario** prevalecen;
-  los del rol sólo se usan si el usuario no tiene ninguno propio.
+  `Auditoria`, `Siniestros`). Se revalidan contra la base en cada pedido. Un usuario **hereda** los permisos de su rol (y
+  sigue sus cambios) mientras no se le marquen permisos distintos; si se le personalizan, quedan como propios.
 - Todo formulario/fetch de escritura lleva token CSRF (lo agrega `public/js/csrf.js`).
-- Alertas: licencias (≤30 días), RTO/seguro, service por km, préstamos vencidos y siniestros abiertos. Se recalculan al
+- Alertas: licencias (≤30 días), RTO/seguro, service por km u horas, préstamos vencidos, asignaciones vencidas, stock bajo de repuestos y siniestros abiertos. Se recalculan al
   iniciar, cada día a las 6:00, al abrir el Panel de Alertas y tras los cambios relevantes; las que dejan de corresponder se eliminan.
 - Mantenimientos: **Programado** (próximo service por km, sin fecha; no mueve el vehículo), **En proceso** (en el taller) y **Realizado** (también para cargar services viejos). La alerta de service usa el service programado más cercano o el "próximo km" del último service realizado.
+- Asignar un vehículo exige: estado Disponible, RTO y seguro vigentes, chofer activo y sin otro vehículo, y una licencia vigente cuya
+  categoría habilite ese tipo de vehículo (moto = A, camión = C/E, maquinaria = G, resto = B/B1/B2/C/D/E).
+- Mantenimientos: un service Programado superado por uno posterior se cancela solo; también se puede cancelar a mano.
+  "En mantenimiento" y "En siniestro" los fija el sistema (órdenes En proceso / siniestros abiertos), no se editan a mano.
+- Cada tipo de vehículo tiene su unidad de uso (km u horas, p. ej. maquinaria pesada); los repuestos tienen stock mínimo.
+- Distritos, sectores y operarios se pueden renombrar (se actualizan vehículos, herramientas y préstamos).
+- La auditoría registra también los intentos de ingreso fallidos, los bloqueos y los cierres de sesión.
+- Las bases creadas con versiones anteriores se actualizan solas al arrancar (migraciones idempotentes).
 - Estados de vehículo: `Disponible`, `En uso` (sólo vía Asignaciones), `En mantenimiento`, `En siniestro` (sólo vía Siniestros) y `Baja`.
 - Las imágenes subidas se guardan en `public/img/*` (sólo JPG/PNG/WEBP/GIF, y PDF en siniestros; máx. 5 MB) y no se versionan.

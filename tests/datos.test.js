@@ -56,10 +56,11 @@ test("mantenimientos: importes, fechas y estados coherentes", async () => {
   await sinFilas("repuestos <> suma del detalle", `SELECT m.id_mantenimiento FROM mantenimiento m WHERE ROUND(m.costo_repuestos,2) <> ROUND(COALESCE((SELECT SUM(d.cantidad*d.costo_unitario) FROM detalle_mantenimiento d WHERE d.id_mantenimiento=m.id_mantenimiento),0),2)`);
   await sinFilas("fecha de fin incoherente con el estado", `SELECT id_mantenimiento FROM mantenimiento WHERE (estado='Realizado') <> (fecha_fin IS NOT NULL)`);
   await sinFilas("fin anterior al inicio", `SELECT id_mantenimiento FROM mantenimiento WHERE fecha_fin < fecha_inicio`);
-  await sinFilas("km del servicio mayor al km actual del vehículo (salvo programados)", `SELECT m.id_mantenimiento FROM mantenimiento m JOIN vehiculo v USING(id_vehiculo) WHERE m.estado<>'Programado' AND m.km_servicio > v.km_actual`);
+  await sinFilas("km del servicio mayor al km actual del vehículo (salvo programados)", `SELECT m.id_mantenimiento FROM mantenimiento m JOIN vehiculo v USING(id_vehiculo) WHERE m.estado NOT IN ('Programado','Cancelado') AND m.km_servicio > v.km_actual`);
   await sinFilas("próximo km no mayor al km del servicio", `SELECT id_mantenimiento FROM mantenimiento WHERE estado='Realizado' AND proximo_km IS NOT NULL AND proximo_km <= km_servicio`);
   await sinFilas("programado sin km objetivo", `SELECT id_mantenimiento FROM mantenimiento WHERE estado='Programado' AND (proximo_km IS NULL OR proximo_km<>km_servicio)`);
-  await sinFilas("estado inválido", `SELECT id_mantenimiento FROM mantenimiento WHERE estado NOT IN ('Programado','En proceso','Realizado')`);
+  await sinFilas("estado inválido", `SELECT id_mantenimiento FROM mantenimiento WHERE estado NOT IN ('Programado','En proceso','Realizado','Cancelado')`);
+  await sinFilas("programado superado por un service posterior (debería estar cancelado)", `SELECT m.id_mantenimiento FROM mantenimiento m WHERE m.estado='Programado' AND m.proximo_km <= COALESCE((SELECT MAX(r.km_servicio) FROM mantenimiento r WHERE r.id_vehiculo=m.id_vehiculo AND r.estado='Realizado'),0)`);
   await sinFilas("repuestos con stock negativo", `SELECT id_repuesto FROM repuestos WHERE stock < 0`);
 });
 
@@ -96,6 +97,13 @@ test("referencias y catálogos", async () => {
   await sinFilas("usuario con permisos desconocidos", `SELECT id_usuario FROM usuario WHERE permisos REGEXP '(^|,)(Vehiculos|Admin|Todo)(,|$)'`);
 });
 
+test("catálogos y configuración nuevos", async () => {
+  await sinFilas("unidad de tipo de vehículo inválida", `SELECT id_tipo FROM tipo_vehiculo WHERE unidad NOT IN ('km','hs')`);
+  await sinFilas("stock mínimo negativo", `SELECT id_repuesto FROM repuestos WHERE stock_minimo < 0`);
+  await sinFilas("auditoría sin usuario que no sea de login", `SELECT id_auditoria FROM auditoria WHERE id_usuario IS NULL AND accion NOT LIKE 'LOGIN%'`);
+  await sinFilas("maquinaria pesada sin unidad en horas", `SELECT id_tipo FROM tipo_vehiculo WHERE descripcion LIKE '%aquinaria%' AND unidad<>'hs'`);
+});
+
 test("el set de datos cubre todos los escenarios para probar", async () => {
   const cuenta = async (sql) => (await filas(sql))[0].n;
   const casos = {
@@ -115,6 +123,11 @@ test("el set de datos cubre todos los escenarios para probar", async () => {
     "herramientas en reparación y de baja": [`SELECT COUNT(*) n FROM herramienta WHERE estado IN ('En Reparación','Baja')`, 3],
     "siniestros en los 3 estados": [`SELECT COUNT(DISTINCT estado) n FROM siniestro`, 3],
     "repuesto sin stock": [`SELECT COUNT(*) n FROM repuestos WHERE stock=0`, 1],
+    "service cancelado": [`SELECT COUNT(*) n FROM mantenimiento WHERE estado='Cancelado'`, 1],
+    "repuestos con stock bajo o sin stock": [`SELECT COUNT(*) n FROM repuestos WHERE stock <= stock_minimo`, 3],
+    "asignación vencida": [`SELECT COUNT(*) n FROM asignacion_vehiculo WHERE estado='Activo' AND fecha_estimada_devolucion < UTC_TIMESTAMP()`, 1],
+    "usuario que hereda los permisos del rol": [`SELECT COUNT(*) n FROM usuario WHERE permisos IS NULL AND id_rol<>1`, 1],
+    "intentos de login fallidos auditados": [`SELECT COUNT(*) n FROM auditoria WHERE accion='LOGIN_FALLIDO'`, 2],
     "usuario bloqueado": [`SELECT COUNT(*) n FROM usuario WHERE activo=0`, 1],
   };
   for (const [nombre, [sql, minimo]] of Object.entries(casos)) {

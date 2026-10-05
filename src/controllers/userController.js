@@ -1,7 +1,7 @@
 const db = require("../model/database/models");
 const bcrypt = require("bcryptjs");
 const auditoriaService = require("../data/auditoriaService");
-const { PERMISOS_DISPONIBLES, ROL_ADMIN, normalizarVistas, resolverPermisos } = require("../utils/permisos");
+const { PERMISOS_DISPONIBLES, ROL_ADMIN, normalizarVistas, resolverPermisos, listaDesdeTexto } = require("../utils/permisos");
 
 // Permisos que sólo un Administrador puede otorgar
 const PERMISOS_RESTRINGIDOS = ["Usuarios", "Roles", "Auditoria"];
@@ -24,14 +24,29 @@ const estaBloqueado = (clave) => {
   return registro.cantidad >= MAX_INTENTOS;
 };
 
+// Devuelve la cantidad de fallos acumulados
 const registrarFallo = (clave) => {
   const registro = intentosFallidos.get(clave);
   if (!registro || Date.now() - registro.desde > VENTANA_MS) {
     intentosFallidos.set(clave, { cantidad: 1, desde: Date.now() });
-  } else {
-    registro.cantidad += 1;
+    return 1;
   }
+  registro.cantidad += 1;
+  return registro.cantidad;
 };
+
+// Todo intento de ingreso fallido queda en la auditoría (con o sin usuario conocido)
+const auditarIntento = (accion, usuarioDB, nombreIngresado, req, detalle) =>
+  auditoriaService.registrarAuditoria(
+    usuarioDB ? usuarioDB.id_usuario : null,
+    "usuario",
+    usuarioDB ? usuarioDB.id_usuario : null,
+    accion,
+    null,
+    null,
+    `${detalle} — usuario ingresado: "${String(nombreIngresado).slice(0, 50)}" (IP ${req.ip})`,
+    { sinUsuario: true },
+  );
 
 // Hash de relleno para que el tiempo de respuesta no revele si el usuario existe
 const HASH_RELLENO = bcrypt.hashSync("relleno-no-usar", 10);
@@ -51,6 +66,15 @@ const destinoSegunPermisos = (rol, permisos) => {
   ];
   const encontrado = orden.find(([permiso]) => permisos.includes(permiso));
   return encontrado ? encontrado[1] : null;
+};
+
+// Si los permisos elegidos son exactamente los del rol, no se guardan: el usuario HEREDA los del rol
+// (así, cuando se edite el rol, el cambio le llega). Si difieren, quedan como permisos propios.
+const permisosParaGuardar = (rol, permisos) => {
+  if (rol.nombre === ROL_ADMIN) return null;
+  const delRol = listaDesdeTexto(rol.permisos);
+  const mismos = permisos.length === delRol.length && permisos.every((p) => delRol.includes(p));
+  return mismos ? null : permisos.join(",");
 };
 
 const esAdminSesion = (req) => req.session.usuarioLogueado.rol === ROL_ADMIN;
@@ -82,6 +106,7 @@ const userController = {
 
       const clave = claveIntento(req, usuarioIngresado);
       if (estaBloqueado(clave)) {
+        await auditarIntento("LOGIN_BLOQUEADO", null, usuarioIngresado, req, "Intento de ingreso rechazado por exceso de intentos fallidos");
         return mostrarError("Demasiados intentos fallidos. Esperá 15 minutos e intentá nuevamente.", 429);
       }
 
@@ -93,11 +118,22 @@ const userController = {
       const contrasenaValida = bcrypt.compareSync(contrasenaIngresada, usuarioDB ? usuarioDB.contrasena : HASH_RELLENO);
 
       if (!usuarioDB || !contrasenaValida) {
-        registrarFallo(clave);
+        const fallos = registrarFallo(clave);
+        await auditarIntento(
+          "LOGIN_FALLIDO",
+          usuarioDB,
+          usuarioIngresado,
+          req,
+          usuarioDB ? "Contraseña incorrecta" : "Usuario inexistente",
+        );
+        if (fallos === MAX_INTENTOS) {
+          await auditarIntento("LOGIN_BLOQUEADO", usuarioDB, usuarioIngresado, req, `Se alcanzó el máximo de ${MAX_INTENTOS} intentos fallidos: bloqueo de 15 minutos`);
+        }
         return mostrarError("Usuario o contraseña incorrectos.");
       }
 
       if (!usuarioDB.activo) {
+        await auditarIntento("LOGIN_RECHAZADO", usuarioDB, usuarioIngresado, req, "Intento de ingreso de un usuario desactivado");
         return mostrarError("Tu usuario ha sido bloqueado o desactivado. Contactá al administrador.", 403);
       }
 
@@ -141,7 +177,11 @@ const userController = {
     }
   },
 
-  CerrarSesion: (req, res) => {
+  CerrarSesion: async (req, res) => {
+    const usuario = req.session && req.session.usuarioLogueado;
+    if (usuario) {
+      await auditoriaService.registrarAuditoria(usuario.id, "usuario", usuario.id, "LOGOUT", null, null, "Cierre de sesión");
+    }
     req.session.destroy(() => res.redirect("/InicioSesion"));
   },
 
@@ -244,7 +284,7 @@ const userController = {
         nombre_usuario,
         contrasena: bcrypt.hashSync(contrasena, 10),
         id_rol,
-        permisos: permisos.join(","),
+        permisos: permisosParaGuardar(rol, permisos),
         activo: true,
       });
 
@@ -254,7 +294,7 @@ const userController = {
         nuevoUsuario.id_usuario,
         "CREAR",
         null,
-        { nombre, apellido, nombre_usuario, id_rol, permisos: permisos.join(","), activo: true },
+        { nombre, apellido, nombre_usuario, id_rol, permisos: permisos.join(","), hereda_del_rol: permisosParaGuardar(rol, permisos) === null, activo: true },
         `Alta usuario: ${nombre} ${apellido} (${nombre_usuario})`,
       );
 
@@ -393,7 +433,7 @@ const userController = {
           // Los permisos restringidos que ya tenía no se tocan (el formulario no los muestra)
           permisos = [...new Set([...pedidos, ...existentes.filter((p) => PERMISOS_RESTRINGIDOS.includes(p))])];
         }
-        permisosStr = permisos.join(",");
+        permisosStr = permisosParaGuardar(rolNuevo, permisos);
 
         // Nunca puede quedar el sistema sin un Administrador activo
         if (viejoEsAdmin && (rolNuevo.nombre !== ROL_ADMIN || !activo)) {
@@ -421,7 +461,7 @@ const userController = {
           permisos: usuarioViejo.permisos,
           activo: usuarioViejo.activo,
         },
-        { nombre, apellido, nombre_usuario, id_rol, permisos: permisosStr, activo, contrasena_modificada: !!contrasenaNueva },
+        { nombre, apellido, nombre_usuario, id_rol, permisos: permisosStr === null ? "(hereda del rol)" : permisosStr, activo, contrasena_modificada: !!contrasenaNueva },
         `Edición de usuario ID: ${idUsuario} (${nombre_usuario})${contrasenaNueva ? " — se cambió la contraseña" : ""}.`,
       );
 
@@ -491,7 +531,16 @@ const userController = {
         `Modificación de permisos del rol ${rolViejo.nombre} (ID: ${rolViejo.id_rol})`,
       );
 
-      req.flash("ok", "Permisos del rol actualizados.");
+      const heredan = await db.Usuario.count({
+        where: { id_rol: rolViejo.id_rol, [db.Sequelize.Op.or]: [{ permisos: null }, { permisos: "" }] },
+      });
+      const propios = await db.Usuario.count({
+        where: { id_rol: rolViejo.id_rol, permisos: { [db.Sequelize.Op.and]: [{ [db.Sequelize.Op.ne]: null }, { [db.Sequelize.Op.ne]: "" }] } },
+      });
+      req.flash(
+        "ok",
+        `Permisos del rol actualizados. Se aplican a ${heredan} usuario(s) que heredan del rol` + (propios ? `; ${propios} usuario(s) con permisos propios no cambian.` : "."),
+      );
       res.redirect("/Usuarios/Roles");
     } catch (error) {
       console.error(error);

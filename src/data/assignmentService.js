@@ -3,14 +3,32 @@ const { Op } = require("sequelize");
 const { hoyISO, aISO } = require("../utils/fechas");
 
 const { ErrorNegocio } = require("../utils/errores");
+const { categoriasPermitidas, mapaPorTipo } = require("../utils/licencias");
+
+// Motivo por el que un vehículo no puede salir a la calle por su documentación (o null)
+const motivoDocumentacion = (vehiculo, hasta = hoyISO()) => {
+  const rto = aISO(vehiculo.rto_vencimiento);
+  const seguro = aISO(vehiculo.seguro_vencimiento);
+  const partes = [];
+  if (rto && rto < hasta) partes.push(`RTO vencida el ${rto.split("-").reverse().join("/")}`);
+  if (seguro && seguro < hasta) partes.push(`seguro vencido el ${seguro.split("-").reverse().join("/")}`);
+  return partes.length ? partes.join(" y ") : null;
+};
 
 const assignmentService = {
+  motivoDocumentacion,
   ErrorNegocio,
 
   getFormData: async function () {
     const vehiculos = await db.Vehiculo.findAll({
       where: { estado_actual: "Disponible" },
+      include: [{ association: "TipoVehiculo" }],
       order: [["patente", "ASC"]],
+    });
+    // Un vehículo con RTO o seguro vencidos se muestra pero no se puede elegir
+    vehiculos.forEach((v) => {
+      v.setDataValue("bloqueo", motivoDocumentacion(v));
+      v.setDataValue("tipoDescripcion", v.TipoVehiculo ? v.TipoVehiculo.descripcion : "");
     });
 
     const asignacionesActivas = await db.AsignacionVehiculo.findAll({
@@ -35,8 +53,13 @@ const assignmentService = {
     const choferes = candidatos.filter(
       (c) => c.licencias.length > 0 && c.licencias.some((l) => aISO(l.fecha_vencimiento) >= hoy),
     );
+    choferes.forEach((c) => {
+      const vigentes = c.licencias.filter((l) => aISO(l.fecha_vencimiento) >= hoy).map((l) => l.categoria);
+      c.setDataValue("categorias", vigentes.join(", "));
+    });
 
-    return { vehiculos, choferes };
+    const tipos = [...new Set(vehiculos.map((v) => v.getDataValue("tipoDescripcion")).filter(Boolean))];
+    return { vehiculos, choferes, categoriasPorTipo: mapaPorTipo(tipos) };
   },
 
   getActiveAssignments: async function () {
@@ -63,6 +86,10 @@ const assignmentService = {
       if (vehiculo.estado_actual !== "Disponible") {
         throw new ErrorNegocio(`El vehículo ${vehiculo.patente} no está disponible (estado: ${vehiculo.estado_actual}).`);
       }
+      const bloqueoDocs = motivoDocumentacion(vehiculo);
+      if (bloqueoDocs) {
+        throw new ErrorNegocio(`El vehículo ${vehiculo.patente} no puede salir: ${bloqueoDocs}. Renová la documentación antes de asignarlo.`);
+      }
 
       const chofer = await db.Chofer.findByPk(data.id_chofer, {
         include: [{ model: db.LicenciaChofer, as: "licencias" }],
@@ -72,9 +99,17 @@ const assignmentService = {
       if (chofer.estado !== "Activo") throw new ErrorNegocio("El chofer seleccionado no está activo.");
 
       const desde = aISO(data.fecha_desde) || hoyISO();
-      const licenciaVigente = chofer.licencias.some((l) => aISO(l.fecha_vencimiento) >= desde);
-      if (!licenciaVigente) {
+      const licenciasVigentes = chofer.licencias.filter((l) => aISO(l.fecha_vencimiento) >= desde);
+      if (licenciasVigentes.length === 0) {
         throw new ErrorNegocio(`El chofer ${chofer.nombre} ${chofer.apellido} no tiene una licencia vigente a la fecha de salida.`);
+      }
+      // La categoría de la licencia debe habilitar para ese tipo de vehículo
+      const tipo = await db.TipoVehiculo.findByPk(vehiculo.id_tipo, { transaction });
+      const permitidas = categoriasPermitidas(tipo ? tipo.descripcion : null);
+      if (permitidas && !licenciasVigentes.some((l) => permitidas.includes(l.categoria))) {
+        throw new ErrorNegocio(
+          `${chofer.nombre} ${chofer.apellido} tiene licencia ${licenciasVigentes.map((l) => l.categoria).join("/")} y un vehículo tipo "${tipo.descripcion}" requiere categoría ${permitidas.join(" o ")}.`,
+        );
       }
 
       const choferOcupado = await db.AsignacionVehiculo.findOne({

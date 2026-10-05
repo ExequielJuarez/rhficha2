@@ -22,6 +22,52 @@ const credenciales = () => {
   };
 };
 
+// Migraciones idempotentes: actualizan bases creadas con versiones anteriores del esquema.
+async function migrar(conexion) {
+  const existeColumna = async (tabla, columna) => {
+    const [r] = await conexion.query(`SHOW COLUMNS FROM \`${tabla}\` LIKE ?`, [columna]);
+    return r.length > 0;
+  };
+  const tipoColumna = async (tabla, columna) => {
+    const [r] = await conexion.query(`SHOW COLUMNS FROM \`${tabla}\` LIKE ?`, [columna]);
+    return r.length ? String(r[0].Type) : "";
+  };
+
+  // Alertas: nuevos tipos (asignaciones vencidas y stock bajo de repuestos)
+  const tiposAlerta = await tipoColumna("alerta", "tipo");
+  if (tiposAlerta && (!tiposAlerta.includes("asignacion_vencida") || !tiposAlerta.includes("stock_bajo"))) {
+    await conexion.query(
+      "ALTER TABLE alerta MODIFY tipo ENUM('licencia_vencida','licencia_proxima','mantenimiento_pendiente','mantenimiento_finalizado','mantenimiento_proximo','mantenimiento_vencido','documentacion_vencida','vehiculo_fuera_servicio','vehiculo_en_mantenimiento','herramienta_devuelta','prestamo_vencido','asignacion_vencida','stock_bajo','siniestro_activo','critica','informativa') NOT NULL",
+    );
+  }
+
+  // Repuestos: stock mínimo para avisar cuando queda poco
+  if (!(await existeColumna("repuestos", "stock_minimo"))) {
+    await conexion.query("ALTER TABLE repuestos ADD COLUMN stock_minimo INT NOT NULL DEFAULT 3 AFTER stock");
+  }
+
+  // Tipos de vehículo: unidad de medida de uso (km u horas)
+  if (!(await existeColumna("tipo_vehiculo", "unidad"))) {
+    await conexion.query("ALTER TABLE tipo_vehiculo ADD COLUMN unidad VARCHAR(10) NOT NULL DEFAULT 'km'");
+    await conexion.query("UPDATE tipo_vehiculo SET unidad='hs' WHERE descripcion LIKE '%aquinaria%'");
+  }
+
+  // Auditoría: permite registrar eventos sin usuario (intentos de login con un usuario inexistente)
+  const [colAud] = await conexion.query("SHOW COLUMNS FROM auditoria LIKE 'id_usuario'");
+  if (colAud.length && colAud[0].Null === "NO") {
+    await conexion.query("ALTER TABLE auditoria MODIFY id_usuario INT NULL");
+  }
+
+  // Usuarios: sin permisos propios = heredan los del rol
+  const [colPerm] = await conexion.query("SHOW COLUMNS FROM usuario LIKE 'permisos'");
+  if (colPerm.length && colPerm[0].Default !== null) {
+    await conexion.query("ALTER TABLE usuario MODIFY permisos VARCHAR(255) NULL DEFAULT NULL");
+  }
+
+  // Mantenimientos: "Pendiente" pasó a llamarse "Programado"
+  await conexion.query("UPDATE mantenimiento SET estado='Programado' WHERE estado='Pendiente'");
+}
+
 async function prepararBaseDeDatos() {
   const { database, ...conexionSinBase } = credenciales();
   if (!/^[A-Za-z0-9_]+$/.test(database)) throw new Error("Nombre de base de datos inválido: " + database);
@@ -44,6 +90,9 @@ async function prepararBaseDeDatos() {
       await conexion.query(fs.readFileSync(ARCHIVO_ESQUEMA, "utf8"));
       baseNueva = true;
     }
+
+    // 2b) Actualizar bases creadas con versiones anteriores
+    await migrar(conexion);
 
     // 3) Crear el administrador inicial si no hay usuarios
     const [[{ total }]] = await conexion.query("SELECT COUNT(*) AS total FROM usuario");

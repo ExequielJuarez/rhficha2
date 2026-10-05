@@ -94,8 +94,9 @@
                 <option value="">— Seleccioná un vehículo disponible —</option>
                 <% if (typeof vehiculos !== 'undefined') { %>
                   <% vehiculos.forEach(v => { %>
-                    <option value="<%= v.id_vehiculo %>" data-modelo="<%= v.marca %> <%= v.modelo %>" data-km="<%= v.km_actual %>">
-                      <%= v.patente %> — <%= v.marca %> <%= v.modelo %>
+                    <% const bloqueo = v.getDataValue ? v.getDataValue('bloqueo') : v.bloqueo; %>
+                    <option value="<%= v.id_vehiculo %>" data-modelo="<%= v.marca %> <%= v.modelo %>" data-km="<%= v.km_actual %>" data-unidad="<%= unidadDe(v) %>" data-tipo="<%= v.getDataValue ? v.getDataValue('tipoDescripcion') : '' %>" <%= bloqueo ? 'disabled' : '' %>>
+                      <%= v.patente %> — <%= v.marca %> <%= v.modelo %><%= bloqueo ? ' (' + bloqueo + ')' : '' %>
                     </option>
                   <% }) %>
                 <% } %>
@@ -108,8 +109,9 @@
                 <option value="">— Seleccioná un chofer activo —</option>
                 <% if (typeof choferes !== 'undefined') { %>
                   <% choferes.forEach(c => { %>
-                    <option value="<%= c.id_chofer %>" data-dni="<%= c.dni %>" data-licencia="">
-                      <%= c.apellido %>, <%= c.nombre %>
+                    <% const categorias = c.getDataValue ? c.getDataValue('categorias') : ''; %>
+                    <option value="<%= c.id_chofer %>" data-dni="<%= c.dni %>" data-licencia="" data-categorias="<%= categorias %>">
+                      <%= c.apellido %>, <%= c.nombre %><%= categorias ? ' (Lic. ' + categorias + ')' : '' %>
                     </option>
                   <% }) %>
                 <% } %>
@@ -265,7 +267,7 @@
             const modelo  = opt.dataset.modelo || '—';
             const kmRaw   = opt.dataset.km ? Number(opt.dataset.km) : 0;
             prevVehiculoPatente.textContent = patente;
-            prevVehiculoInfo.textContent    = modelo + ' · ' + kmRaw.toLocaleString('es-AR') + ' km';
+            prevVehiculoInfo.textContent    = modelo + ' · ' + kmRaw.toLocaleString('es-AR') + ' ' + (opt.dataset.unidad === 'hs' ? 'hs' : 'km');
             prevVehiculoCard.classList.add('preview-card--active');
             kmSalidaInput.min = kmRaw;
             kmSalidaInput.value = kmRaw; 
@@ -335,6 +337,28 @@
         }
         });
     }
+
+    // Sólo se pueden elegir choferes cuya licencia habilita para el tipo de vehículo elegido
+    (function () {
+      const CATEGORIAS_POR_TIPO = <%- safeJson(typeof categoriasPorTipo !== 'undefined' ? categoriasPorTipo : {}) %>;
+      const selV = document.getElementById('select-vehiculo');
+      const selC = document.getElementById('select-chofer');
+      if (!selV || !selC) return;
+      function filtrarChoferes() {
+        const tipo = selV.options[selV.selectedIndex] ? selV.options[selV.selectedIndex].dataset.tipo : '';
+        const permitidas = CATEGORIAS_POR_TIPO[tipo];
+        Array.from(selC.options).forEach(function (opt) {
+          if (!opt.value) return;
+          const cats = (opt.dataset.categorias || '').split(',').map(function (x) { return x.trim(); });
+          const ok = !permitidas || cats.some(function (c) { return permitidas.indexOf(c) !== -1; });
+          opt.disabled = !ok;
+          opt.textContent = opt.textContent.replace(/ — no habilitado para este vehículo$/, '') + (ok ? '' : ' — no habilitado para este vehículo');
+        });
+        if (selC.options[selC.selectedIndex] && selC.options[selC.selectedIndex].disabled) { selC.value = ''; selC.dispatchEvent(new Event('change')); }
+      }
+      selV.addEventListener('change', filtrarChoferes);
+      filtrarChoferes();
+    })();
 
     const idVehiculo = new URLSearchParams(window.location.search).get('id_vehiculo');
     if (idVehiculo && selectVehiculo) {

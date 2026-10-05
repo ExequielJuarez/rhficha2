@@ -8,12 +8,13 @@ const { ErrorNegocio } = require("../utils/errores");
 const assignmentController = {
   showForm: async (req, res) => {
     try {
-      const { vehiculos, choferes } = await assignmentService.getFormData();
+      const { vehiculos, choferes, categoriasPorTipo } = await assignmentService.getFormData();
       const asignaciones = await assignmentService.getActiveAssignments();
 
       res.render("AsignacionVehiculo", {
         vehiculos,
         choferes,
+        categoriasPorTipo,
         asignaciones,
         error: req.query.error || null,
         success: req.query.success || null,
@@ -63,6 +64,7 @@ const assignmentController = {
       );
 
       await alertaService.generarAlertasMantenimiento();
+      await alertaService.generarAlertasAsignaciones();
       res.redirect("/asignaciones?success=" + encodeURIComponent("Asignación registrada correctamente"));
     } catch (error) {
       const mensaje = error instanceof ErrorNegocio ? error.message : "Error al guardar la asignación";
@@ -84,6 +86,7 @@ const assignmentController = {
         `Finalización de la asignación ID: ${asignacion.id_asignacion} (vehículo ID: ${asignacion.id_vehiculo})`,
       );
       await alertaService.generarAlertasMantenimiento();
+      await alertaService.generarAlertasAsignaciones();
       res.redirect("/asignaciones?success=" + encodeURIComponent("Asignación finalizada correctamente"));
     } catch (error) {
       const mensaje = error instanceof ErrorNegocio ? error.message : "Error al finalizar la asignación";

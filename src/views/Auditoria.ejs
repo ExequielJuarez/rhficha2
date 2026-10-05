@@ -122,7 +122,7 @@
                                         let badgeColor = 'badge--info';
                                         let accionStr = registro.accion || '';
                                         if(accionStr === 'CREAR' || accionStr === 'LOGIN') badgeColor = 'badge--success';
-                                        if(accionStr === 'ELIMINAR') badgeColor = 'badge--danger';
+                                        if(accionStr === 'ELIMINAR' || accionStr.indexOf('LOGIN_') === 0) badgeColor = 'badge--danger';
                                         if(accionStr.indexOf('EDITAR') === 0) badgeColor = 'badge--warning';
                                     %>
                                     <tr class="data-table__row fila-registro">

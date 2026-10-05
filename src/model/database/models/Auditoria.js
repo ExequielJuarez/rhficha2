@@ -9,7 +9,7 @@ module.exports = (sequelize, dataTypes) => {
     },
     id_usuario: {
       type: dataTypes.INTEGER,
-      allowNull: false,
+      allowNull: true,
     },
     tabla_afectada: {
       type: dataTypes.STRING(100),

@@ -24,15 +24,15 @@ const auditoriaService = {
   // Registra un movimiento. Nunca rompe la operación principal si falla.
   registrarAuditoria: async (id_usuario, tabla, id_registro, accion, valor_anterior, valor_nuevo, descripcion, opciones = {}) => {
     try {
-      if (!id_usuario) {
+      if (!id_usuario && !opciones.sinUsuario) {
         console.error("Auditoría omitida: no hay usuario asociado a la acción", tabla, accion);
         return;
       }
       const { fecha, hora } = fechaHoraLocal();
-      const idRegistro = Number(id_registro);
+      const idRegistro = id_registro === null || id_registro === undefined || id_registro === "" ? NaN : Number(id_registro);
       await db.Auditoria.create(
         {
-          id_usuario,
+          id_usuario: id_usuario || null,
           tabla_afectada: tabla,
           id_registro_afectado: Number.isInteger(idRegistro) ? idRegistro : null,
           accion,

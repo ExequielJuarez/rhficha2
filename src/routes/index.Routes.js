@@ -76,7 +76,9 @@ router.post("/Usuarios/Roles/Editar/:id", authMiddleware, userController.Proceso
 router.get("/Vehicles/Ajustes", authMiddleware, vehicleController.Ajustes);
 router.post("/Vehicles/Ajustes/Distritos", authMiddleware, vehicleController.createDistrito);
 router.post("/Vehicles/Ajustes/Distritos/Eliminar/:id", authMiddleware, vehicleController.deleteDistrito);
+router.post("/Vehicles/Ajustes/Distritos/Renombrar/:id", authMiddleware, vehicleController.renombrarDistrito);
 router.post("/Vehicles/Ajustes/Tipos", authMiddleware, vehicleController.createTipo);
+router.post("/Vehicles/Ajustes/Tipos/Editar/:id", authMiddleware, vehicleController.editarTipo);
 router.post("/Vehicles/Ajustes/Tipos/Eliminar/:id", authMiddleware, vehicleController.deleteTipo);
 
 router.get("/Vehicles/Editar/:id", authMiddleware, vehicleController.EditVehiculo);
@@ -93,6 +95,7 @@ router.post("/ActualizarKm", authMiddleware, vehicleController.processActualizar
 // ================= RUTAS NUEVAS: REPUESTOS =================
 router.get("/Repuestos/Gestionar", authMiddleware, vehicleController.GestionarRepuestos);
 router.post("/Repuestos/Agregar", authMiddleware, vehicleController.createRepuesto);
+router.post("/Repuestos/Ajustar/:id", authMiddleware, vehicleController.ajustarRepuesto);
 router.post("/Repuestos/Eliminar/:id", authMiddleware, vehicleController.deleteRepuesto);
 // =========================================================
 
@@ -130,8 +133,10 @@ router.post("/Tools/Prestamo", authMiddleware, toolController.processPrestamo);
 router.post("/Tools/Devolucion", authMiddleware, toolController.processDevolucion);
 router.get("/Tools/Ajustes", authMiddleware, toolController.Ajustes);
 router.post("/Tools/Ajustes/Sectores", authMiddleware, toolController.createSector);
+router.post("/Tools/Ajustes/Sectores/Renombrar/:id", authMiddleware, toolController.renombrarSector);
 router.post("/Tools/Ajustes/Sectores/Eliminar/:id", authMiddleware, toolController.deleteSector);
 router.post("/Tools/Ajustes/Operarios", authMiddleware, toolController.createOperario);
+router.post("/Tools/Ajustes/Operarios/Renombrar/:id", authMiddleware, toolController.renombrarOperario);
 router.post("/Tools/Ajustes/Operarios/Eliminar/:id", authMiddleware, toolController.deleteOperario);
 router.get("/Tools/:id", authMiddleware, toolController.getToolById);
 

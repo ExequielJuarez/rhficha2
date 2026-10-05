@@ -154,7 +154,7 @@
               <a href="/Vehicles/<%= vehiculo.id_vehiculo %>" class="vehicle-card__link">
                 <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 4px;">
                   <span class="vehicle-card__plate" style="font-size: 14px;"><%= vehiculo.patente %></span>
-                  <span class="vehicle-card__km" style="font-size: 11px;"><%= vehiculo.km_actual %> km</span>
+                  <span class="vehicle-card__km" style="font-size: 11px;"><%= fmtUso(vehiculo.km_actual, vehiculo) %></span>
                 </div>
                 <span class="vehicle-card__model" style="font-size: 12px; margin-bottom: 8px;"><%= vehiculo.marca %> - <%= vehiculo.modelo %></span>
                 <span class="badge <%= getBadgeClass(vehiculo.estado_actual) %>" style="font-size: 10px; padding: 2px 6px;"><%= vehiculo.estado_actual %></span>
@@ -245,8 +245,8 @@
                 <dd class="vehicle-profile__spec-value"><%= vehiculoSeleccionado.anio %></dd>
               </div>
               <div class="vehicle-profile__spec-row">
-                <dt class="vehicle-profile__spec-label">Km Actual</dt>
-                <dd class="vehicle-profile__spec-value" style="font-size: 15px; color: #0f172a; font-weight: 800;"><%= vehiculoSeleccionado.km_actual %> km</dd>
+                <dt class="vehicle-profile__spec-label"><%= unidadDe(vehiculoSeleccionado) === 'hs' ? 'Horas de uso' : 'Km Actual' %></dt>
+                <dd class="vehicle-profile__spec-value" style="font-size: 15px; color: #0f172a; font-weight: 800;"><%= fmtUso(vehiculoSeleccionado.km_actual, vehiculoSeleccionado) %></dd>
               </div>
             </dl>
 

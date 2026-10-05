@@ -45,7 +45,9 @@ const auditoriaController = {
         }
         registro.nombreUsuario = registro.usuario
           ? `${registro.usuario.nombre} ${registro.usuario.apellido}`
-          : `ID: ${registro.id_usuario} (Borrado)`;
+          : registro.id_usuario
+            ? `ID: ${registro.id_usuario} (Borrado)`
+            : "Sin identificar";
       }
 
       // 5. Enviamos todo a la vista (incluyendo los filtros para que no se borren de la pantalla)

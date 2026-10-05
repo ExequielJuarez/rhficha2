@@ -18,7 +18,7 @@ const reporteController = {
             const desdeDT = new Date(`${fechaDesde}T00:00:00`);
             const hastaDT = new Date(`${fechaHasta}T23:59:59.999`);
 
-            let filtroMantenimiento = {};
+            let filtroMantenimiento = { estado: { [Op.ne]: 'Cancelado' } }; // las órdenes canceladas no cuentan
             let filtroAsignacion = {};
 
             if (fechaDesde && fechaHasta) {

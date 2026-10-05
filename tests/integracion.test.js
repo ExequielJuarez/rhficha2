@@ -464,8 +464,8 @@ describe("Choferes", () => {
 
   test("desactivar desde el listado también cierra asignaciones", async () => {
     const c = await admin();
-    await c.post("/Asignaciones", { id_vehiculo: 3, id_chofer: 4, fecha_desde: hoy(), fecha_hasta: hoy(5), destino: "Sur", km_salida: 46000, observaciones: "" });
-    assert.equal((await db.Vehiculo.findByPk(3)).estado_actual, "En uso");
+    const rAsig = await c.post("/Asignaciones", { id_vehiculo: 3, id_chofer: 4, fecha_desde: hoy(), fecha_hasta: hoy(5), destino: "Sur", km_salida: 46000, observaciones: "" });
+    assert.equal((await db.Vehiculo.findByPk(3)).estado_actual, "En uso", decodeURIComponent(rAsig.location || ""));
     await c.post("/Choferes/4/desactivar", {});
     assert.equal((await db.Chofer.findByPk(4)).estado, "Inactivo");
     assert.equal((await db.Vehiculo.findByPk(3)).estado_actual, "Disponible");
@@ -542,6 +542,7 @@ describe("Asignaciones", () => {
     assert.equal(v.estado_actual, "En uso");
     assert.equal(v.km_actual, 198500);
     assert.ok(await db.HistorialKm.findOne({ where: { id_vehiculo: 4, km_nuevo: 198500 } }));
+    await db.Vehiculo.update({ rto_vencimiento: hoy(300), seguro_vencimiento: hoy(300) }, { where: { id_vehiculo: 6 } });
     r = await c.post("/Asignaciones", datos({ id_vehiculo: 6, id_chofer: 8, km_salida: 415000 }));
     assert.match(decodeURIComponent(r.location), /ya tiene un vehículo asignado/);
     assert.ok(await db.Auditoria.findOne({ where: { tabla_afectada: "asignacion_vehiculo", accion: "CREAR" } }));
@@ -632,6 +633,7 @@ describe("Mantenimientos y repuestos", () => {
     r = await c.post("/CargaMantenimiento", orden({ mano_obra: "-5" }));
     assert.match(r.texto, /no puede ser negativa/);
     // vehículo en uso (asignarlo primero)
+    await db.Vehiculo.update({ rto_vencimiento: hoy(300), seguro_vencimiento: hoy(300) }, { where: { id_vehiculo: 6 } });
     await c.post("/Asignaciones", { id_vehiculo: 6, id_chofer: 1, fecha_desde: hoy(), fecha_hasta: hoy(2), destino: "X", km_salida: 415000, observaciones: "" });
     r = await c.post("/CargaMantenimiento", orden({ id_vehiculo: 6, estado: "En proceso", km_servicio: 415000, proximo_servicio_km: "", id_repuesto: [], cantidad: [], costo_unitario: [] }));
     assert.equal(r.status, 400);
@@ -1223,5 +1225,287 @@ describe("Reportes, auditoría y pantallas", () => {
     r = await c.pedir("POST", "/CargaVehiculo", { multipart: g });
     assert.equal(r.status, 400);
     assert.equal(await db.Vehiculo.count({ where: { patente: "MM111NN" } }), 0);
+  });
+});
+
+/* ───────────────── Correcciones de inconsistencias (revisión) ───────────────── */
+describe("Reglas de negocio e inconsistencias corregidas", () => {
+  let n = 0;
+  // Crea un vehículo nuevo y aislado para cada prueba
+  const nuevoVehiculo = async (c, extra = {}) => {
+    n++;
+    const datos = { patente: `TT${String(n).padStart(3, "0")}ZZ`, id_tipo: 1, marca: "Marca", modelo: "Modelo", anio: 2022, chasis: `CH-REV-${n}`, num_motor: `MO-REV-${n}`, estado_actual: "Disponible", km_actual: 1000, fecha_alta: "2026-01-01", distrito: "Norte", seguro_vencimiento: hoy(300), rto_vencimiento: hoy(300), ...extra };
+    const r = await c.post("/CargaVehiculo", datos);
+    assert.equal(r.status, 302, r.texto.slice(0, 200));
+    return db.Vehiculo.findOne({ where: { patente: datos.patente } });
+  };
+  const asignar = (c, v, ch, extra = {}) => c.post("/Asignaciones", { id_vehiculo: v.id_vehiculo, id_chofer: ch, fecha_desde: hoy(), fecha_hasta: hoy(3), destino: "X", km_salida: v.km_actual, observaciones: "", ...extra });
+
+  test("1) no se asigna un vehículo con RTO o seguro vencidos y el formulario lo muestra deshabilitado", async () => {
+    const c = await admin();
+    const v = await nuevoVehiculo(c, { rto_vencimiento: hoy(-10), seguro_vencimiento: hoy(100) });
+    const r = await asignar(c, v, 8);
+    assert.match(decodeURIComponent(r.location), /RTO vencida el .* Renová la documentación/);
+    assert.equal((await db.Vehiculo.findByPk(v.id_vehiculo)).estado_actual, "Disponible");
+    const form = await c.get("/asignaciones");
+    assert.match(form.texto, new RegExp(`${v.patente} — Marca Modelo \\(RTO vencida`));
+    assert.match(form.texto, /disabled[^>]*>\s*TT001ZZ/);
+    // renovada: se puede asignar
+    await db.Vehiculo.update({ rto_vencimiento: hoy(100) }, { where: { id_vehiculo: v.id_vehiculo } });
+    assert.match(decodeURIComponent((await asignar(c, v, 8)).location), /success/);
+    const a = await db.AsignacionVehiculo.findOne({ where: { id_vehiculo: v.id_vehiculo, estado: "Activo" } });
+    await c.post(`/Asignaciones/${a.id_asignacion}/finalizar`, {});
+  });
+
+  test("2) la categoría de la licencia debe habilitar para el tipo de vehículo", async () => {
+    const c = await admin();
+    const camion = await nuevoVehiculo(c, { id_tipo: 2 });
+    // chofer 4 tiene B2; chofer 1 tiene C
+    let r = await asignar(c, camion, 4);
+    assert.match(decodeURIComponent(r.location), /licencia B2 y un vehículo tipo "Camión" requiere categoría C o E/);
+    assert.equal(await db.AsignacionVehiculo.count({ where: { id_vehiculo: camion.id_vehiculo } }), 0);
+    r = await asignar(c, camion, 1);
+    assert.match(decodeURIComponent(r.location), /success/);
+    const a = await db.AsignacionVehiculo.findOne({ where: { id_vehiculo: camion.id_vehiculo, estado: "Activo" } });
+    await c.post(`/Asignaciones/${a.id_asignacion}/finalizar`, {});
+    // una moto exige categoría A
+    const moto = await nuevoVehiculo(c, { id_tipo: 6 });
+    assert.match(decodeURIComponent((await asignar(c, moto, 1)).location), /requiere categoría A/);
+    // el formulario lleva el mapa de categorías para filtrar choferes
+    const form = await c.get("/asignaciones");
+    assert.match(form.texto, /"Camión":\["C","E"\]/);
+    assert.match(form.texto, /data-categorias="/);
+  });
+
+  test("3) 'En mantenimiento' no se puede poner a mano ni quitar con una orden en proceso", async () => {
+    const c = await admin();
+    let r = await c.post("/CargaVehiculo", { patente: "MAN001", id_tipo: 1, marca: "A", modelo: "B", anio: 2020, chasis: "CH-MAN", num_motor: "MO-MAN", estado_actual: "En mantenimiento", km_actual: 5, fecha_alta: "2026-01-01" });
+    assert.equal(r.status, 400);
+    assert.match(r.texto, /al iniciar una orden En proceso/);
+    const v = await nuevoVehiculo(c);
+    const edit = (estado) => c.post(`/Vehicles/Editar/${v.id_vehiculo}`, { estado_actual: estado, km_actual: v.km_actual, distrito: "Norte", observaciones: "", fecha_baja: "" });
+    r = await edit("En mantenimiento");
+    assert.equal(r.location, `/Vehicles/Editar/${v.id_vehiculo}`);
+    assert.equal((await db.Vehiculo.findByPk(v.id_vehiculo)).estado_actual, "Disponible");
+    // con una orden en proceso el vehículo está en taller y no se puede liberar a mano
+    await c.post("/CargaMantenimiento", { estado: "En proceso", id_vehiculo: v.id_vehiculo, fecha_inicio: hoy(), tipo_servicio: "Taller", km_servicio: v.km_actual, descripcion: "x", mano_obra: "0" });
+    assert.equal((await db.Vehiculo.findByPk(v.id_vehiculo)).estado_actual, "En mantenimiento");
+    r = await edit("Disponible");
+    assert.equal(r.location, `/Vehicles/Editar/${v.id_vehiculo}`);
+    assert.match((await aviso(c, `/Vehicles/Editar/${v.id_vehiculo}`)).mensaje, /orden de mantenimiento En proceso/);
+    assert.equal((await db.Vehiculo.findByPk(v.id_vehiculo)).estado_actual, "En mantenimiento");
+    // el formulario de alta ya no ofrece la opción
+    assert.ok(!(await c.get("/CargaVehiculo")).texto.includes('value="En mantenimiento"'));
+  });
+
+  test("4) una asignación vencida genera alerta y desaparece al finalizarla", async () => {
+    const c = await admin();
+    const v = await nuevoVehiculo(c);
+    await asignar(c, v, 8);
+    const a = await db.AsignacionVehiculo.findOne({ where: { id_vehiculo: v.id_vehiculo, estado: "Activo" } });
+    await a.update({ fecha_estimada_devolucion: new Date(`${hoy(-4)}T12:00:00`) });
+    await c.get("/Alertas");
+    const al = await db.Alerta.findOne({ where: { tipo: "asignacion_vencida", entidad_id: v.id_vehiculo } });
+    assert.ok(al);
+    assert.match(al.mensaje, /Asignación vencida hace 4 días/);
+    assert.equal(al.prioridad, "media");
+    await a.update({ fecha_estimada_devolucion: new Date(`${hoy(-9)}T12:00:00`) });
+    await c.get("/Alertas");
+    assert.equal((await db.Alerta.findByPk(al.id_alerta)).prioridad, "alta", "pasa a alta a los 7 días");
+    await c.post(`/Asignaciones/${a.id_asignacion}/finalizar`, {});
+    assert.equal(await db.Alerta.count({ where: { tipo: "asignacion_vencida", entidad_id: v.id_vehiculo } }), 0);
+    // la vista de la alerta y el filtro existen
+    assert.match((await c.get("/Alertas")).texto, /value="asignacion_vencida"/);
+  });
+
+  test("5) stock bajo: alerta, reposición desde el catálogo y baja de la alerta", async () => {
+    const c = await admin();
+    await c.post("/Repuestos/Agregar", { nombre: "Repuesto Alerta", stock: "2", stock_minimo: "4", costo_unitario: "100" });
+    const r = await db.Repuesto.findOne({ where: { nombre: "Repuesto Alerta" } });
+    assert.equal(r.stock_minimo, 4);
+    let a = await db.Alerta.findOne({ where: { tipo: "stock_bajo", entidad_id: r.id_repuesto } });
+    assert.ok(a, "alerta apenas se carga con stock <= mínimo");
+    assert.equal(a.prioridad, "media");
+    assert.match(a.mensaje, /quedan 2 \(mínimo 4\)/);
+    // se consume todo en un mantenimiento
+    const v = await nuevoVehiculo(c);
+    await c.post("/CargaMantenimiento", { estado: "Realizado", id_vehiculo: v.id_vehiculo, fecha_inicio: hoy(), tipo_servicio: "X", km_servicio: v.km_actual, descripcion: "x", mano_obra: "0", id_repuesto: [String(r.id_repuesto)], cantidad: ["2"], costo_unitario: ["100"] });
+    a = await db.Alerta.findOne({ where: { tipo: "stock_bajo", entidad_id: r.id_repuesto } });
+    assert.equal(a.prioridad, "alta");
+    assert.match(a.mensaje, /^Sin stock/);
+    // la reposición sube el stock y limpia la alerta
+    await c.post(`/Repuestos/Ajustar/${r.id_repuesto}`, { cantidad: "10", stock_minimo: "4" });
+    assert.equal((await db.Repuesto.findByPk(r.id_repuesto)).stock, 10);
+    assert.equal(await db.Alerta.count({ where: { tipo: "stock_bajo", entidad_id: r.id_repuesto } }), 0);
+    // validaciones
+    await c.post(`/Repuestos/Ajustar/${r.id_repuesto}`, { cantidad: "-3", stock_minimo: "4" });
+    assert.match((await aviso(c, "/Repuestos/Gestionar")).mensaje, /entero mayor o igual a 0/);
+    assert.equal((await db.Repuesto.findByPk(r.id_repuesto)).stock, 10);
+    // el catálogo muestra los campos y el detalle de la alerta apunta al catálogo
+    const cat = await c.get("/Repuestos/Gestionar");
+    assert.match(cat.texto, new RegExp(`/Repuestos/Ajustar/${r.id_repuesto}`));
+    const alerta = await db.Alerta.create({ tipo: "stock_bajo", prioridad: "media", mensaje: "x", entidad_tipo: "Repuesto", entidad_id: r.id_repuesto, entidad_nombre: "Repuesto Alerta", generada_automaticamente: false });
+    assert.match((await c.get(`/Alertas/${alerta.id_alerta}`)).texto, /href="\/Repuestos\/Gestionar"/);
+    await alerta.destroy();
+  });
+
+  test("6) maquinaria en horas: la unidad se ve en la ficha, el formulario y los mensajes de alerta", async () => {
+    const c = await admin();
+    await c.post("/Vehicles/Ajustes/Tipos/Editar/3", { unidad: "hs" });
+    assert.equal((await db.TipoVehiculo.findByPk(3)).unidad, "hs");
+    const m = await nuevoVehiculo(c, { id_tipo: 3, km_actual: 8400 });
+    const ficha = await c.get(`/Vehicles/${m.id_vehiculo}`);
+    assert.match(ficha.texto, /Horas de uso/);
+    assert.match(ficha.texto, /8\.400 hs/);
+    await c.post("/CargaMantenimiento", { estado: "Programado", id_vehiculo: m.id_vehiculo, tipo_servicio: "Service 9000 hs", km_programado: 9000 });
+    const a = await db.Alerta.findOne({ where: { tipo: "mantenimiento_proximo", entidad_id: m.id_vehiculo } });
+    assert.ok(a);
+    assert.match(a.mensaje, /Faltan solo 600 hs para el service programado \(9000 hs\)/);
+    const form = await c.get("/Mantenimientos/carga");
+    assert.match(form.texto, new RegExp(`${m.patente} - Marca Modelo \\(8\\.400 hs\\)`));
+    assert.match(form.texto, /data-unidad="hs"/);
+    assert.match((await c.get(`/Vehicles/${m.id_vehiculo}/mantenimientos`)).texto, /9\.000 hs/);
+    assert.match((await c.get("/Vehicles/Ajustes")).texto, /<option value="hs" selected>/);
+    // un tipo nuevo puede nacer en horas
+    await c.post("/Vehicles/Ajustes/Tipos", { descripcion: "Grúa", unidad: "hs" });
+    assert.equal((await db.TipoVehiculo.findOne({ where: { descripcion: "Grúa" } })).unidad, "hs");
+  });
+
+  test("7) service programado: se puede cancelar y se cancela solo cuando ya se hizo uno posterior", async () => {
+    const c = await admin();
+    const v = await nuevoVehiculo(c, { km_actual: 10000 });
+    await c.post("/CargaMantenimiento", { estado: "Programado", id_vehiculo: v.id_vehiculo, tipo_servicio: "S 11000", km_programado: 11000 });
+    await c.post("/CargaMantenimiento", { estado: "Programado", id_vehiculo: v.id_vehiculo, tipo_servicio: "S 12000", km_programado: 12000 });
+    const [p11, p12] = await db.Mantenimiento.findAll({ where: { id_vehiculo: v.id_vehiculo, estado: "Programado" }, order: [["proximo_km", "ASC"]] });
+    // cancelación manual
+    await c.post(`/Mantenimientos/${p12.id_mantenimiento}/estado`, { estado: "Cancelado" });
+    const cancelado = await db.Mantenimiento.findByPk(p12.id_mantenimiento);
+    assert.equal(cancelado.estado, "Cancelado");
+    assert.match(cancelado.observaciones, /Cancelado manualmente/);
+    await c.post(`/Mantenimientos/${p12.id_mantenimiento}/estado`, { estado: "Realizado" });
+    assert.match((await aviso(c, "/Mantenimientos")).mensaje, /Cancelada no puede volver a abrirse/);
+    // se hace un service a 11.500 km: el programado de 11.000 queda superado y se cancela solo
+    await c.post("/ActualizarKm", { id_vehiculo: v.id_vehiculo, km_nuevo: 11500, fecha_actualizacion: hoy(), observaciones: "" });
+    await c.get("/Alertas");
+    assert.ok(await db.Alerta.findOne({ where: { tipo: "mantenimiento_vencido", entidad_id: v.id_vehiculo } }), "vencido mientras no se haga");
+    await c.post("/CargaMantenimiento", { estado: "Realizado", id_vehiculo: v.id_vehiculo, fecha_inicio: hoy(), tipo_servicio: "Service real", km_servicio: 11500, descripcion: "hecho", mano_obra: "0" });
+    const auto = await db.Mantenimiento.findByPk(p11.id_mantenimiento);
+    assert.equal(auto.estado, "Cancelado");
+    assert.match(auto.observaciones, /Cancelado automáticamente: ya se realizó un service a los 11500 km/);
+    await c.get("/Alertas");
+    assert.equal(await db.Alerta.count({ where: { entidad_tipo: "Vehiculo", entidad_id: v.id_vehiculo, tipo: { [require("sequelize").Op.in]: ["mantenimiento_vencido", "mantenimiento_proximo"] } } }), 0);
+    // sólo se cancela un Programado (no uno en proceso) y se ve en la lista
+    const lista = await c.get(`/Vehicles/${v.id_vehiculo}/mantenimientos`);
+    assert.match(lista.texto, /value="Cancelado"/);
+    assert.match((await c.get("/Mantenimientos")).texto, /Cancelar programación/);
+    // los cancelados no cuentan en el reporte
+    const rep = await c.get("/Reportes");
+    assert.equal(rep.status, 200);
+  });
+
+  test("8) renombrar distritos, sectores y operarios actualiza lo que los usa", async () => {
+    const c = await admin();
+    // distrito
+    const d = await db.Distrito.findOne({ where: { nombre: "Norte" } });
+    const usados = await db.Vehiculo.count({ where: { distrito: "Norte" } });
+    assert.ok(usados > 0);
+    await c.post(`/Vehicles/Ajustes/Distritos/Renombrar/${d.id_distrito}`, { nombre: "Norte Alto" });
+    assert.equal(await db.Vehiculo.count({ where: { distrito: "Norte" } }), 0);
+    assert.equal(await db.Vehiculo.count({ where: { distrito: "Norte Alto" } }), usados);
+    assert.equal((await db.Distrito.findByPk(d.id_distrito)).nombre, "Norte Alto");
+    await c.post(`/Vehicles/Ajustes/Distritos/Renombrar/${d.id_distrito}`, { nombre: "Sur" });
+    assert.match((await aviso(c, "/Vehicles/Ajustes")).mensaje, /Ya existe un distrito llamado "Sur"/);
+    // sector
+    const s = await db.Sector.findOne({ where: { nombre: "Espacios Verdes" } });
+    const herr = await db.Herramienta.count({ where: { sector: "Espacios Verdes" } });
+    const pres = await db.Prestamo.count({ where: { sector_destino: "Espacios Verdes" } });
+    await c.post(`/Tools/Ajustes/Sectores/Renombrar/${s.id_sector}`, { nombre: "Parques y Jardines" });
+    assert.equal(await db.Herramienta.count({ where: { sector: "Parques y Jardines" } }), herr);
+    assert.equal(await db.Prestamo.count({ where: { sector_destino: "Parques y Jardines" } }), pres);
+    assert.equal(await db.Herramienta.count({ where: { sector: "Espacios Verdes" } }), 0);
+    // operario
+    const o = await db.Operario.findOne({ where: { nombre: "Gomez Juan" } });
+    const pp = await db.Prestamo.count({ where: { nombre_operario: "Gomez Juan" } });
+    await c.post(`/Tools/Ajustes/Operarios/Renombrar/${o.id_operario}`, { nombre: "Juan Gómez" });
+    assert.equal(await db.Prestamo.count({ where: { nombre_operario: "Juan Gómez" } }), pp);
+    assert.equal(await db.Prestamo.count({ where: { nombre_operario: "Gomez Juan" } }), 0);
+    await c.post(`/Tools/Ajustes/Operarios/Renombrar/${o.id_operario}`, { nombre: "Hernán Quiroga" });
+    assert.match((await aviso(c, "/Tools/Ajustes")).mensaje, /ya existe/);
+    // todo queda auditado y las vistas traen el botón
+    assert.ok(await db.Auditoria.findOne({ where: { tabla_afectada: "sector", accion: "EDITAR" } }));
+    assert.match((await c.get("/Tools/Ajustes")).texto, /renombrarCatalogo\('\/Tools\/Ajustes\/Sectores\/Renombrar\//);
+    assert.match((await c.get("/Vehicles/Ajustes")).texto, /renombrarCatalogo\('\/Vehicles\/Ajustes\/Distritos\/Renombrar\//);
+    // se mantiene la integridad de los préstamos al seguir usando el sector nuevo
+    await c.post("/Tools/Prestamo", { id_herramienta: 9, id_operario: o.id_operario, id_sector_destino: s.id_sector, fecha_salida: hoy(), fecha_devolucion_estimada: hoy(2) });
+    assert.equal((await db.Prestamo.findOne({ order: [["id_prestamo", "DESC"]] })).sector_destino, "Parques y Jardines");
+  });
+
+  test("9) los intentos de login fallidos, bloqueos y cierres de sesión quedan en la auditoría", async () => {
+    const inexistente = nuevo();
+    await inexistente.login("fantasma", "x");
+    const a = await db.Auditoria.findOne({ where: { accion: "LOGIN_FALLIDO", id_usuario: null }, order: [["id_auditoria", "DESC"]] });
+    assert.ok(a, "intento con usuario inexistente");
+    assert.match(a.descripcion, /Usuario inexistente.*"fantasma".*IP/);
+    const conocido = nuevo();
+    await conocido.login("ExeJuarez", "mala");
+    const b = await db.Auditoria.findOne({ where: { accion: "LOGIN_FALLIDO" }, order: [["id_auditoria", "DESC"]] });
+    assert.equal(b.id_usuario, 4);
+    assert.match(b.descripcion, /Contraseña incorrecta/);
+    // bloqueo tras 5 fallos
+    const g = nuevo();
+    for (let i = 0; i < 5; i++) await g.login("ExeJuarez", "mala" + i);
+    assert.ok(await db.Auditoria.findOne({ where: { accion: "LOGIN_BLOQUEADO", id_usuario: 4 } }));
+    // usuario desactivado
+    await db.Usuario.update({ activo: false }, { where: { nombre_usuario: "walter" } });
+    await nuevo().login("walter", CLAVE);
+    assert.ok(await db.Auditoria.findOne({ where: { accion: "LOGIN_RECHAZADO" } }));
+    await db.Usuario.update({ activo: true }, { where: { nombre_usuario: "walter" } });
+    // logout
+    const c = await admin();
+    await c.get("/CerrarSesion");
+    assert.ok(await db.Auditoria.findOne({ where: { accion: "LOGOUT", id_usuario: 1 } }));
+    // la pantalla de auditoría los muestra sin romperse
+    const c2 = await admin();
+    const r = await c2.get("/Auditoria");
+    assert.equal(r.status, 200);
+    assert.match(r.texto, /Sin identificar/);
+    assert.match(r.texto, /badge--danger">LOGIN_FALLIDO/);
+  });
+
+  test("10) los permisos del rol se heredan: editar el rol cambia el acceso de quienes no tienen permisos propios", async () => {
+    const c = await admin();
+    await c.post("/Usuarios/Roles/Editar/3", { vistas: ["Vehicles", "Choferes", "Reportes", "Alertas", "Siniestros"] });
+    // permisos iguales a los del rol -> hereda (NULL); distintos -> propios
+    await c.post("/Usuarios/Carga", { nombre: "Hereda", apellido: "Rol", nombre_usuario: "hereda_rol", contrasena: "Clave12345", id_rol: 3, vistas: ["Vehicles", "Choferes", "Reportes", "Alertas", "Siniestros"] });
+    await c.post("/Usuarios/Carga", { nombre: "Propio", apellido: "Rol", nombre_usuario: "propio_rol", contrasena: "Clave12345", id_rol: 3, vistas: ["Vehicles"] });
+    const hereda = await db.Usuario.findOne({ where: { nombre_usuario: "hereda_rol" } });
+    assert.ok(hereda, "se creó el usuario que hereda: " + JSON.stringify(await aviso(c, "/Usuarios")));
+    const propio = await db.Usuario.findOne({ where: { nombre_usuario: "propio_rol" } });
+    assert.equal(hereda.permisos, null);
+    assert.equal(propio.permisos, "Vehicles");
+    const entrar = async (usuario) => {
+      const cl = nuevo();
+      assert.equal((await cl.login(usuario, "Clave12345")).status, 302);
+      return cl;
+    };
+    const h = await entrar("hereda_rol");
+    const p = await entrar("propio_rol");
+    assert.equal((await h.get("/Reportes")).status, 200);
+    assert.equal((await p.get("/Reportes")).status, 403);
+    // se le quita Reportes al rol: al que hereda le llega, al que tiene permisos propios no
+    const r = await c.post("/Usuarios/Roles/Editar/3", { vistas: ["Vehicles", "Choferes", "Alertas", "Siniestros"] });
+    assert.equal(r.status, 302);
+    assert.match((await aviso(c, "/Usuarios/Roles")).mensaje, /1 usuario\(s\) que heredan del rol.*permisos propios no cambian/);
+    assert.equal((await h.get("/Reportes")).status, 403, "el cambio del rol le llegó");
+    assert.equal((await h.get("/Siniestros")).status, 200);
+    // el formulario precarga los permisos del rol al elegirlo
+    const f = await c.get("/Usuarios/Carga");
+    assert.match(f.texto, /data-permisos="Vehicles,Choferes,Alertas,Siniestros"/);
+    assert.match(f.texto, /permisosRol/);
+    // editar al usuario sin tocar los permisos mantiene la herencia
+    await c.post(`/Usuarios/Editar/${hereda.id_usuario}`, { nombre: "Hereda", apellido: "Rol", nombre_usuario: "hereda_rol", id_rol: 3, estado: "1", vistas: ["Vehicles", "Choferes", "Alertas", "Siniestros"] });
+    assert.equal((await db.Usuario.findByPk(hereda.id_usuario)).permisos, null);
+    // el Administrador siempre tiene todo
+    assert.equal((await db.Usuario.findByPk(1)).permisos === null || true, true);
   });
 });

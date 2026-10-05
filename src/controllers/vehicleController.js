@@ -57,20 +57,55 @@ const vehicleController = {
   createRepuesto: async (req, res) => {
     try {
       const nombre = String(req.body.nombre || "").trim();
+      const stockMinimo = Number(req.body.stock_minimo === "" || req.body.stock_minimo === undefined ? 3 : req.body.stock_minimo);
       const stock = Number(req.body.stock === "" || req.body.stock === undefined ? 0 : req.body.stock);
       const costo = Number(req.body.costo_unitario === "" || req.body.costo_unitario === undefined ? 0 : req.body.costo_unitario);
 
       if (!nombre || nombre.length > 150) throw new ErrorNegocio("Ingresá el nombre del repuesto (hasta 150 caracteres).");
       if (!Number.isInteger(stock) || stock < 0) throw new ErrorNegocio("El stock debe ser un entero mayor o igual a 0.");
       if (!Number.isFinite(costo) || costo < 0) throw new ErrorNegocio("El costo unitario no puede ser negativo.");
+      if (!Number.isInteger(stockMinimo) || stockMinimo < 0) throw new ErrorNegocio("El stock mínimo debe ser un entero mayor o igual a 0.");
       if (await db.Repuesto.findOne({ where: { nombre } })) throw new ErrorNegocio(`Ya existe un repuesto llamado "${nombre}".`);
 
-      const repuesto = await db.Repuesto.create({ nombre, stock, costo_unitario: costo });
-      await auditoriaService.desdeRequest(req, "repuesto", repuesto.id_repuesto, "CREAR", null, { nombre, stock, costo_unitario: costo }, `Alta de repuesto: ${nombre}`);
+      const repuesto = await db.Repuesto.create({ nombre, stock, stock_minimo: stockMinimo, costo_unitario: costo });
+      await auditoriaService.desdeRequest(req, "repuesto", repuesto.id_repuesto, "CREAR", null, { nombre, stock, stock_minimo: stockMinimo, costo_unitario: costo }, `Alta de repuesto: ${nombre}`);
+      await alertaService.generarAlertasStock();
       req.flash("ok", "Repuesto agregado.");
     } catch (error) {
       if (!(error instanceof ErrorNegocio)) console.log("Error guardando repuesto:", error);
       req.flash("error", error instanceof ErrorNegocio ? error.message : "No se pudo guardar el repuesto.");
+    }
+    res.redirect("/Repuestos/Gestionar");
+  },
+
+  // Repone stock (suma unidades) y/o cambia el stock mínimo de aviso
+  ajustarRepuesto: async (req, res) => {
+    try {
+      const repuesto = await db.Repuesto.findByPk(req.params.id);
+      if (!repuesto) throw new ErrorNegocio("El repuesto no existe.");
+
+      const sumar = req.body.cantidad === undefined || req.body.cantidad === "" ? 0 : Number(req.body.cantidad);
+      const minimo = req.body.stock_minimo === undefined || req.body.stock_minimo === "" ? repuesto.stock_minimo : Number(req.body.stock_minimo);
+      if (!Number.isInteger(sumar) || sumar < 0) throw new ErrorNegocio("La cantidad a reponer debe ser un entero mayor o igual a 0.");
+      if (!Number.isInteger(minimo) || minimo < 0) throw new ErrorNegocio("El stock mínimo debe ser un entero mayor o igual a 0.");
+      if (sumar === 0 && minimo === repuesto.stock_minimo) throw new ErrorNegocio("No hay cambios para guardar.");
+
+      const anterior = { stock: repuesto.stock, stock_minimo: repuesto.stock_minimo };
+      await repuesto.update({ stock: repuesto.stock + sumar, stock_minimo: minimo });
+      await auditoriaService.desdeRequest(
+        req,
+        "repuesto",
+        repuesto.id_repuesto,
+        "EDITAR",
+        anterior,
+        { stock: repuesto.stock, stock_minimo: repuesto.stock_minimo },
+        `Ajuste de repuesto ${repuesto.nombre}: ${sumar ? `se repusieron ${sumar} unidades` : "cambio de stock mínimo"}`,
+      );
+      await alertaService.generarAlertasStock();
+      req.flash("ok", sumar ? `Se repusieron ${sumar} unidades de "${repuesto.nombre}" (stock: ${repuesto.stock}).` : "Stock mínimo actualizado.");
+    } catch (error) {
+      if (!(error instanceof ErrorNegocio)) console.log("Error ajustando repuesto:", error);
+      req.flash("error", error instanceof ErrorNegocio ? error.message : "No se pudo ajustar el repuesto.");
     }
     res.redirect("/Repuestos/Gestionar");
   },
@@ -84,6 +119,7 @@ const vehicleController = {
         throw new ErrorNegocio(`No se puede eliminar "${repuesto.nombre}": figura en ${usos} mantenimiento(s) registrado(s).`);
       }
       await repuesto.destroy();
+      await db.Alerta.destroy({ where: { tipo: "stock_bajo", entidad_tipo: "Repuesto", entidad_id: repuesto.id_repuesto } });
       await auditoriaService.desdeRequest(req, "repuesto", repuesto.id_repuesto, "ELIMINAR", { nombre: repuesto.nombre, stock: repuesto.stock }, null, `Baja de repuesto: ${repuesto.nombre}`);
       req.flash("ok", "Repuesto eliminado.");
     } catch (error) {
@@ -98,6 +134,7 @@ const vehicleController = {
     try {
       const vehiculos = await db.Vehiculo.findAll({
         where: { estado_actual: ["Disponible", "En uso", "En mantenimiento"] },
+        include: [{ association: "TipoVehiculo", attributes: ["unidad"] }],
         order: [["patente", "ASC"]],
       });
       const repuestos = await db.Repuesto.findAll({ order: [["nombre", "ASC"]] });
@@ -162,6 +199,7 @@ const vehicleController = {
       );
 
       await alertaService.generarAlertasMantenimiento();
+      await alertaService.generarAlertasStock();
       req.flash("ok", "Orden de mantenimiento guardada.");
       res.redirect("/Mantenimientos");
     } catch (error) {
@@ -257,6 +295,32 @@ const vehicleController = {
     res.redirect("/Vehicles/Ajustes");
   },
 
+  // Renombra un distrito y actualiza los vehículos que lo usan (se guardan por nombre)
+  renombrarDistrito: async (req, res) => {
+    const transaction = await db.sequelize.transaction();
+    try {
+      const nuevo = String(req.body.nombre || "").trim();
+      if (!nuevo || nuevo.length > 100) throw new ErrorNegocio("Ingresá el nuevo nombre (hasta 100 caracteres).");
+      const distrito = await db.Distrito.findByPk(req.params.id, { transaction, lock: transaction.LOCK.UPDATE });
+      if (!distrito) throw new ErrorNegocio("El distrito no existe.");
+      if (nuevo === distrito.nombre) throw new ErrorNegocio("El nombre es el mismo que el actual.");
+      const repetido = await db.Distrito.findOne({ where: { nombre: nuevo, id_distrito: { [db.Sequelize.Op.ne]: distrito.id_distrito } }, transaction });
+      if (repetido) throw new ErrorNegocio(`Ya existe un distrito llamado "${nuevo}".`);
+
+      const anterior = distrito.nombre;
+      const [vehiculos] = await db.Vehiculo.update({ distrito: nuevo }, { where: { distrito: anterior }, transaction });
+      await distrito.update({ nombre: nuevo }, { transaction });
+      await transaction.commit();
+      await auditoriaService.desdeRequest(req, "distrito", distrito.id_distrito, "EDITAR", { nombre: anterior }, { nombre: nuevo }, `Distrito renombrado: "${anterior}" → "${nuevo}" (${vehiculos} vehículo(s) actualizados)`);
+      req.flash("ok", `Distrito renombrado. Se actualizaron ${vehiculos} vehículo(s).`);
+    } catch (error) {
+      await transaction.rollback().catch(() => {});
+      if (!(error instanceof ErrorNegocio)) console.log(error);
+      req.flash("error", error instanceof ErrorNegocio ? error.message : "No se pudo renombrar el distrito.");
+    }
+    res.redirect("/Vehicles/Ajustes");
+  },
+
   deleteDistrito: async (req, res) => {
     try {
       const distrito = await db.Distrito.findByPk(req.params.id);
@@ -278,12 +342,36 @@ const vehicleController = {
       const descripcion = String(req.body.descripcion || "").trim();
       if (!descripcion || descripcion.length > 100) throw new ErrorNegocio("Ingresá la descripción del tipo (hasta 100 caracteres).");
       if (await db.TipoVehiculo.findOne({ where: { descripcion } })) throw new ErrorNegocio(`El tipo "${descripcion}" ya existe.`);
-      const tipo = await db.TipoVehiculo.create({ descripcion });
+      const unidad = req.body.unidad === "hs" ? "hs" : "km";
+      const tipo = await db.TipoVehiculo.create({ descripcion, unidad });
       await auditoriaService.desdeRequest(req, "tipo_vehiculo", tipo.id_tipo, "CREAR", null, { descripcion }, `Alta de tipo de vehículo: ${descripcion}`);
       req.flash("ok", "Tipo de vehículo agregado.");
     } catch (error) {
       if (!(error instanceof ErrorNegocio)) console.log(error);
       req.flash("error", error instanceof ErrorNegocio ? error.message : "No se pudo agregar el tipo de vehículo.");
+    }
+    res.redirect("/Vehicles/Ajustes");
+  },
+
+  // Cambia el nombre y/o la unidad de medida (km u horas) de un tipo de vehículo
+  editarTipo: async (req, res) => {
+    try {
+      const tipo = await db.TipoVehiculo.findByPk(req.params.id);
+      if (!tipo) throw new ErrorNegocio("El tipo de vehículo no existe.");
+      const descripcion = req.body.descripcion === undefined ? tipo.descripcion : String(req.body.descripcion).trim();
+      const unidad = req.body.unidad === undefined ? tipo.unidad : req.body.unidad === "hs" ? "hs" : "km";
+      if (!descripcion || descripcion.length > 100) throw new ErrorNegocio("Ingresá la descripción del tipo (hasta 100 caracteres).");
+      if (descripcion !== tipo.descripcion && (await db.TipoVehiculo.findOne({ where: { descripcion } }))) throw new ErrorNegocio(`El tipo "${descripcion}" ya existe.`);
+      if (descripcion === tipo.descripcion && unidad === tipo.unidad) throw new ErrorNegocio("No hay cambios para guardar.");
+
+      const anterior = { descripcion: tipo.descripcion, unidad: tipo.unidad };
+      await tipo.update({ descripcion, unidad });
+      await auditoriaService.desdeRequest(req, "tipo_vehiculo", tipo.id_tipo, "EDITAR", anterior, { descripcion, unidad }, `Tipo de vehículo editado: "${anterior.descripcion}" → "${descripcion}" (${unidad})`);
+      await alertaService.generarAlertasMantenimiento();
+      req.flash("ok", "Tipo de vehículo actualizado.");
+    } catch (error) {
+      if (!(error instanceof ErrorNegocio)) console.log(error);
+      req.flash("error", error instanceof ErrorNegocio ? error.message : "No se pudo actualizar el tipo de vehículo.");
     }
     res.redirect("/Vehicles/Ajustes");
   },
@@ -398,12 +486,14 @@ const vehicleController = {
       const asignaciones = await db.Vehiculo.findAll({
         where: { estado_actual: "En uso" },
         attributes: ["id_vehiculo", "patente", "marca", "modelo", "km_actual"],
+        include: [{ association: "TipoVehiculo", attributes: ["unidad"] }],
         order: [["patente", "ASC"]],
       });
       const historial = await vehicleService.getHistorialKm();
       const vehiculosConHistorial = await vehicleService.getVehiculosConHistorial();
       const todosVehiculos = await db.Vehiculo.findAll({
         attributes: ["id_vehiculo", "patente", "marca", "modelo", "km_actual"],
+        include: [{ association: "TipoVehiculo", attributes: ["unidad"] }],
         order: [["patente", "ASC"]],
       });
       res.render("ActualizarKm", { asignaciones, historial, vehiculosConHistorial, todosVehiculos });

@@ -235,6 +235,56 @@ const toolController = {
     "No se pudo crear el sector.",
   ),
 
+  // Renombra un sector y actualiza herramientas y préstamos que lo guardan por nombre
+  renombrarSector: async (req, res) => {
+    const transaction = await db.sequelize.transaction();
+    try {
+      const nuevo = String(req.body.nombre || "").trim();
+      if (!nuevo || nuevo.length > 100) throw new ErrorNegocio("Ingresá el nuevo nombre (hasta 100 caracteres).");
+      const sector = await db.Sector.findByPk(req.params.id, { transaction, lock: transaction.LOCK.UPDATE });
+      if (!sector) throw new ErrorNegocio("El sector no existe.");
+      if (nuevo === sector.nombre) throw new ErrorNegocio("El nombre es el mismo que el actual.");
+      if (await db.Sector.findOne({ where: { nombre: nuevo, id_sector: { [db.Sequelize.Op.ne]: sector.id_sector } }, transaction })) throw new ErrorNegocio(`El sector "${nuevo}" ya existe.`);
+
+      const anterior = sector.nombre;
+      const [herr] = await db.Herramienta.update({ sector: nuevo }, { where: { sector: anterior }, transaction });
+      const [prest] = await db.Prestamo.update({ sector_destino: nuevo }, { where: { sector_destino: anterior }, transaction });
+      await sector.update({ nombre: nuevo }, { transaction });
+      await transaction.commit();
+      await auditoriaService.desdeRequest(req, "sector", sector.id_sector, "EDITAR", { nombre: anterior }, { nombre: nuevo }, `Sector renombrado: "${anterior}" → "${nuevo}" (${herr} herramienta(s) y ${prest} préstamo(s) actualizados)`);
+      req.flash("ok", `Sector renombrado. Se actualizaron ${herr} herramienta(s) y ${prest} préstamo(s).`);
+    } catch (error) {
+      await transaction.rollback().catch(() => {});
+      if (!(error instanceof ErrorNegocio)) console.log(error);
+      req.flash("error", error instanceof ErrorNegocio ? error.message : "No se pudo renombrar el sector.");
+    }
+    res.redirect("/Tools/Ajustes");
+  },
+
+  renombrarOperario: async (req, res) => {
+    const transaction = await db.sequelize.transaction();
+    try {
+      const nuevo = String(req.body.nombre || "").trim();
+      if (!nuevo || nuevo.length > 100) throw new ErrorNegocio("Ingresá el nuevo nombre (hasta 100 caracteres).");
+      const operario = await db.Operario.findByPk(req.params.id, { transaction, lock: transaction.LOCK.UPDATE });
+      if (!operario) throw new ErrorNegocio("El operario no existe.");
+      if (nuevo === operario.nombre) throw new ErrorNegocio("El nombre es el mismo que el actual.");
+      if (await db.Operario.findOne({ where: { nombre: nuevo, id_operario: { [db.Sequelize.Op.ne]: operario.id_operario } }, transaction })) throw new ErrorNegocio(`El operario "${nuevo}" ya existe.`);
+
+      const anterior = operario.nombre;
+      const [prest] = await db.Prestamo.update({ nombre_operario: nuevo }, { where: { nombre_operario: anterior }, transaction });
+      await operario.update({ nombre: nuevo }, { transaction });
+      await transaction.commit();
+      await auditoriaService.desdeRequest(req, "operario", operario.id_operario, "EDITAR", { nombre: anterior }, { nombre: nuevo }, `Operario renombrado: "${anterior}" → "${nuevo}" (${prest} préstamo(s) actualizados)`);
+      req.flash("ok", `Operario renombrado. Se actualizaron ${prest} préstamo(s).`);
+    } catch (error) {
+      await transaction.rollback().catch(() => {});
+      if (!(error instanceof ErrorNegocio)) console.log(error);
+      req.flash("error", error instanceof ErrorNegocio ? error.message : "No se pudo renombrar el operario.");
+    }
+    res.redirect("/Tools/Ajustes");
+  },
+
   deleteSector: conAviso(
     "/Tools/Ajustes",
     async (req) => {

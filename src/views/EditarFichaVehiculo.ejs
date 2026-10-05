@@ -178,7 +178,9 @@
                 <option value="">Seleccionar</option>
                 <option value="Disponible"       <%= vehiculo.estado_actual === 'Disponible'       ? 'selected' : '' %>>Disponible</option>
                 <option value="En uso"           <%= vehiculo.estado_actual === 'En uso'           ? 'selected' : '' %>>En uso</option>
-                <option value="En mantenimiento" <%= vehiculo.estado_actual === 'En mantenimiento' ? 'selected' : '' %>>En mantenimiento</option>
+                <% if (vehiculo.estado_actual === 'En mantenimiento') { %>
+                <option value="En mantenimiento" selected>En mantenimiento</option>
+                <% } %>
                 <% if (vehiculo.estado_actual === 'En siniestro') { %>
                 <option value="En siniestro"     selected>En siniestro</option>
                 <% } %>

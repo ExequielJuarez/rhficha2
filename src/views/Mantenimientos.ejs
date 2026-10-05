@@ -303,6 +303,7 @@
                                 <option value="Realizado">Realizado</option>
                                 <option value="Programado">Programado</option>
                                 <option value="En proceso">En proceso</option>
+                                <option value="Cancelado">Cancelado</option>
                             </select>
                             <div style="display: flex; gap: 5px;">
                                 <button type="button" id="btn-limpiar" style="flex: 1; background: #e2e8f0; color: #475569; padding: 6px; font-size: 11px; border-radius: 4px; font-weight: 700;">Limpiar</button>
@@ -332,7 +333,7 @@
                                 </div>
                                 <div style="display: flex; justify-content: space-between; align-items: center;">
                                     <span style="font-size: 11px; color: #64748b;"><%= fmtFecha(m.fecha_inicio) %></span>
-                                    <span style="font-size: 12px; font-weight: 800; color: #0f172a; font-family: var(--font-mono);"><%= m.estado === 'Programado' ? '—' : fmtMoneda(m.costo_total) %></span>
+                                    <span style="font-size: 12px; font-weight: 800; color: #0f172a; font-family: var(--font-mono);"><%= m.estado === 'Programado' || m.estado === 'Cancelado' ? '—' : fmtMoneda(m.costo_total) %></span>
                                 </div>
                             </li>
                         <% }) %>
@@ -384,7 +385,7 @@
                                             Orden: <%= m.tipo_servicio %>
                                             <span class="badge <%= getEstadoMaint(m.estado) %>" style="font-size: 11px;"><%= m.estado %></span>
                                         </h2>
-                                        <p style="margin: 4px 0 0; color: #64748b; font-size: 13px;"><%= m.estado === 'Programado' ? 'Programado el' : 'Fecha de ingreso:' %> <%= fmtFecha(m.fecha_inicio) %></p>
+                                        <p style="margin: 4px 0 0; color: #64748b; font-size: 13px;"><%= m.estado === 'Programado' || m.estado === 'Cancelado' ? 'Programado el' : 'Fecha de ingreso:' %> <%= fmtFecha(m.fecha_inicio) %></p>
                                     </div>
                                     <button onclick="window.print()" class="no-print" style="background-color: #f1f5f9; color: #334155; border: 1px solid #cbd5e1; padding: 8px 14px; font-size: 12px; font-weight: 700; border-radius: 6px; display: flex; align-items: center; transition: 0.2s;">
                                         <svg viewBox="0 0 20 20" fill="currentColor" style="width: 14px; height: 14px; margin-right: 5px;"><path fill-rule="evenodd" d="M5 4v3H4a2 2 0 00-2 2v3a2 2 0 002 2h1v2a2 2 0 002 2h6a2 2 0 002-2v-2h1a2 2 0 002-2V9a2 2 0 00-2-2h-1V4a2 2 0 00-2-2H7a2 2 0 00-2 2zm8 0H7v3h6V4zm0 8H7v4h6v-4z" clip-rule="evenodd"/></svg>
@@ -405,14 +406,14 @@
                                     </dl>
                                     <dl class="vehicle-profile__spec-group">
                                         <div class="vehicle-profile__spec-row">
-                                            <dt class="vehicle-profile__spec-label"><%= m.estado === 'Programado' ? 'Km del service programado' : 'Km al realizar servicio' %></dt>
-                                            <dd class="vehicle-profile__spec-value" style="font-family: var(--font-mono);"><%= m.km_servicio || 0 %> km</dd>
+                                            <dt class="vehicle-profile__spec-label"><%= m.estado === 'Programado' || m.estado === 'Cancelado' ? (unidadDe(m.vehiculo) === 'hs' ? 'Horas del service programado' : 'Km del service programado') : (unidadDe(m.vehiculo) === 'hs' ? 'Horas al realizar servicio' : 'Km al realizar servicio') %></dt>
+                                            <dd class="vehicle-profile__spec-value" style="font-family: var(--font-mono);"><%= fmtUso(m.km_servicio, m.vehiculo) %></dd>
                                         </div>
-                                        <% if (m.estado !== 'Programado') { %>
+                                        <% if (m.estado !== 'Programado' && m.estado !== 'Cancelado') { %>
                                         <div class="vehicle-profile__spec-row">
                                             <dt class="vehicle-profile__spec-label">Sugerencia Próximo Servicio</dt>
                                             <dd class="vehicle-profile__spec-value" style="color: #d97706; font-weight: 700;">
-                                                <% if (m.proximo_servicio_km) { %> A los <%= m.proximo_servicio_km %> km <% } else { %> No especificado <% } %>
+                                                <% if (m.proximo_servicio_km) { %> A los <%= fmtUso(m.proximo_servicio_km, m.vehiculo) %> <% } else { %> No especificado <% } %>
                                             </dd>
                                         </div>
                                         <% } %>
@@ -440,7 +441,7 @@
                                 </div>
 
                                 <aside class="detail-side-column">
-                                    <% if (m.estado !== 'Programado') { %>
+                                    <% if (m.estado !== 'Programado' && m.estado !== 'Cancelado') { %>
                                     <section class="data-card">
                                         <header class="data-card__header">
                                             <svg class="data-card__icon" viewBox="0 0 20 20" fill="currentColor"><path d="M4 4a2 2 0 00-2 2v1h16V6a2 2 0 00-2-2H4z"/><path fill-rule="evenodd" d="M18 9H2v5a2 2 0 002 2h12a2 2 0 002-2V9zM4 13a1 1 0 011-1h1a1 1 0 110 2H5a1 1 0 01-1-1zm5-1a1 1 0 100 2h1a1 1 0 100-2H9z" clip-rule="evenodd"/></svg>
@@ -485,6 +486,14 @@
                                                  Marcar como Realizado
                                             </button>
                                         </form>
+                                        <% if (m.estado === 'Programado') { %>
+                                        <form action="/Mantenimientos/<%= m.id_mantenimiento %>/estado" method="POST" style="margin:0;" onsubmit="return confirm('¿Cancelar este service programado?');">
+                                            <input type="hidden" name="estado" value="Cancelado">
+                                            <button type="submit" style="width:100%; background-color: #fef2f2; color: #dc2626; border: 1px solid #fecaca; padding: 10px; font-size: 13px; font-weight: 700; border-radius: 6px; cursor: pointer;">
+                                                 Cancelar programación
+                                            </button>
+                                        </form>
+                                        <% } %>
                                         </div>
                                     </section>
                                     <% } %>

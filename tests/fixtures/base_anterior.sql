@@ -1,4 +1,356 @@
 -- ============================================================================
+--  Ficha Técnica de Vehículos · Base de datos COMPLETA (esquema + datos de ejemplo)
+--  Archivo generado a partir de esquema.sql y datos_demo.sql (npm run db:armar).
+--
+--  Uso:   mysql -u root -p < pruebasdb/copiaseguridad.sql
+--
+--  ATENCIÓN: BORRA y vuelve a crear la base `vehiculos_db`.
+--  Usuarios de ejemplo (contraseña temporal  Ficha2026! ): admin, carlos_oficina,
+--  walter, ExeJuarez, taller_jefe y ex_empleado (bloqueado).
+-- ============================================================================
+
+DROP DATABASE IF EXISTS `vehiculos_db`;
+CREATE DATABASE `vehiculos_db` CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
+USE `vehiculos_db`;
+
+-- ============================================================================
+--  Ficha Técnica de Vehículos · ESQUEMA de la base de datos (sin datos de ejemplo)
+--
+--  Lo ejecuta automáticamente la aplicación la primera vez que arranca sobre una
+--  base vacía. También sirve para crear la estructura a mano:
+--      mysql -u root -p vehiculos_db < pruebasdb/esquema.sql
+--  Incluye únicamente los 3 roles base. El usuario administrador lo crea la
+--  aplicación (ver README, variable ADMIN_PASSWORD).
+-- ============================================================================
+
+SET NAMES utf8mb4;
+SET FOREIGN_KEY_CHECKS = 0;
+
+-- ---------------------------------------------------------------------------
+--  Roles y usuarios
+-- ---------------------------------------------------------------------------
+CREATE TABLE `rol` (
+  `id_rol` int(11) NOT NULL AUTO_INCREMENT,
+  `nombre` varchar(50) NOT NULL,
+  `descripcion` varchar(255) DEFAULT NULL,
+  `permisos` varchar(255) DEFAULT 'Vehicles',
+  PRIMARY KEY (`id_rol`),
+  UNIQUE KEY `uq_rol_nombre` (`nombre`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+CREATE TABLE `usuario` (
+  `id_usuario` int(11) NOT NULL AUTO_INCREMENT,
+  `nombre_usuario` varchar(50) NOT NULL,
+  `contrasena` varchar(255) NOT NULL,
+  `nombre` varchar(50) NOT NULL,
+  `apellido` varchar(50) NOT NULL,
+  `activo` tinyint(1) NOT NULL DEFAULT 1,
+  `id_rol` int(11) NOT NULL,
+  `permisos` varchar(255) DEFAULT 'Vehicles',
+  PRIMARY KEY (`id_usuario`),
+  UNIQUE KEY `nombre_usuario` (`nombre_usuario`),
+  KEY `fk_usuario_rol` (`id_rol`),
+  CONSTRAINT `fk_usuario_rol` FOREIGN KEY (`id_rol`) REFERENCES `rol` (`id_rol`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- ---------------------------------------------------------------------------
+--  Catálogos
+-- ---------------------------------------------------------------------------
+CREATE TABLE `tipo_vehiculo` (
+  `id_tipo` int(11) NOT NULL AUTO_INCREMENT,
+  `descripcion` varchar(100) NOT NULL,
+  PRIMARY KEY (`id_tipo`),
+  UNIQUE KEY `uq_tipo_descripcion` (`descripcion`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+CREATE TABLE `distritos` (
+  `id_distrito` int(11) NOT NULL AUTO_INCREMENT,
+  `nombre` varchar(100) NOT NULL,
+  PRIMARY KEY (`id_distrito`),
+  UNIQUE KEY `uq_distrito_nombre` (`nombre`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+CREATE TABLE `sectores` (
+  `id_sector` int(11) NOT NULL AUTO_INCREMENT,
+  `nombre` varchar(100) NOT NULL,
+  PRIMARY KEY (`id_sector`),
+  UNIQUE KEY `uq_sector_nombre` (`nombre`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+CREATE TABLE `operarios` (
+  `id_operario` int(11) NOT NULL AUTO_INCREMENT,
+  `nombre` varchar(100) NOT NULL,
+  `estado` varchar(50) DEFAULT 'Activo',
+  PRIMARY KEY (`id_operario`),
+  UNIQUE KEY `uq_operario_nombre` (`nombre`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- ---------------------------------------------------------------------------
+--  Vehículos
+-- ---------------------------------------------------------------------------
+CREATE TABLE `vehiculo` (
+  `id_vehiculo` int(11) NOT NULL AUTO_INCREMENT,
+  `patente` varchar(20) NOT NULL,
+  `legajo` varchar(30) DEFAULT NULL,
+  `marca` varchar(50) NOT NULL,
+  `modelo` varchar(50) NOT NULL,
+  `anio` int(11) NOT NULL,
+  `id_tipo` int(11) NOT NULL,
+  `num_chasis` varchar(50) DEFAULT NULL,
+  `num_motor` varchar(50) DEFAULT NULL,
+  `combustible` varchar(30) DEFAULT NULL,
+  `transmision` varchar(30) DEFAULT NULL,
+  `km_actual` int(11) NOT NULL DEFAULT 0,
+  `cedula_numero` varchar(100) DEFAULT NULL,
+  `cedula_titular` varchar(150) DEFAULT NULL,
+  `seguro_compania` varchar(100) DEFAULT NULL,
+  `seguro_vencimiento` date DEFAULT NULL,
+  `rto_vencimiento` date DEFAULT NULL,
+  `estado_actual` varchar(50) NOT NULL DEFAULT 'Disponible',
+  `distrito` varchar(50) DEFAULT NULL,
+  `area` varchar(100) DEFAULT NULL,
+  `observaciones` text DEFAULT NULL,
+  `imagen_url` varchar(255) DEFAULT NULL,
+  `fecha_alta` date NOT NULL,
+  `fecha_baja` date DEFAULT NULL,
+  `foto_cedula` varchar(255) DEFAULT NULL,
+  `foto_titulo` varchar(255) DEFAULT NULL,
+  `foto_rto` varchar(255) DEFAULT NULL,
+  PRIMARY KEY (`id_vehiculo`),
+  UNIQUE KEY `patente` (`patente`),
+  UNIQUE KEY `legajo` (`legajo`),
+  UNIQUE KEY `uq_vehiculo_chasis` (`num_chasis`),
+  UNIQUE KEY `uq_vehiculo_motor` (`num_motor`),
+  UNIQUE KEY `uq_vehiculo_cedula` (`cedula_numero`),
+  KEY `fk_vehiculo_tipo` (`id_tipo`),
+  KEY `idx_vehiculo_estado` (`estado_actual`),
+  CONSTRAINT `fk_vehiculo_tipo` FOREIGN KEY (`id_tipo`) REFERENCES `tipo_vehiculo` (`id_tipo`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+CREATE TABLE `historial_km` (
+  `id_historial` int(11) NOT NULL AUTO_INCREMENT,
+  `id_vehiculo` int(11) NOT NULL,
+  `km_anterior` int(11) NOT NULL,
+  `km_nuevo` int(11) NOT NULL,
+  `fecha` date NOT NULL,
+  `observaciones` text DEFAULT NULL,
+  PRIMARY KEY (`id_historial`),
+  KEY `id_vehiculo` (`id_vehiculo`),
+  CONSTRAINT `historial_km_ibfk_1` FOREIGN KEY (`id_vehiculo`) REFERENCES `vehiculo` (`id_vehiculo`) ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- ---------------------------------------------------------------------------
+--  Choferes
+-- ---------------------------------------------------------------------------
+CREATE TABLE `chofer` (
+  `id_chofer` int(11) NOT NULL AUTO_INCREMENT,
+  `nombre` varchar(50) NOT NULL,
+  `apellido` varchar(50) NOT NULL,
+  `dni` varchar(20) NOT NULL,
+  `telefono` varchar(20) DEFAULT NULL,
+  `direccion` varchar(150) DEFAULT NULL,
+  `estado` varchar(50) NOT NULL DEFAULT 'Activo',
+  `fechaNacimiento` date DEFAULT NULL,
+  `fechaIngreso` date DEFAULT NULL,
+  `email` varchar(150) DEFAULT NULL,
+  `turno` varchar(50) DEFAULT NULL,
+  `createdAt` datetime DEFAULT NULL,
+  `updatedAt` datetime DEFAULT NULL,
+  `foto_documento` varchar(255) DEFAULT NULL,
+  `imagen` varchar(255) DEFAULT NULL,
+  `motivoBaja` text DEFAULT NULL,
+  PRIMARY KEY (`id_chofer`),
+  UNIQUE KEY `dni` (`dni`),
+  UNIQUE KEY `uq_chofer_telefono` (`telefono`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+CREATE TABLE `licencia_chofer` (
+  `id_licencia` int(11) NOT NULL AUTO_INCREMENT,
+  `id_chofer` int(11) NOT NULL,
+  `numero` varchar(50) NOT NULL,
+  `categoria` varchar(20) NOT NULL,
+  `fecha_emision` date NOT NULL,
+  `fecha_vencimiento` date NOT NULL,
+  `imagen` varchar(255) DEFAULT NULL,
+  PRIMARY KEY (`id_licencia`),
+  KEY `fk_licencia_chofer` (`id_chofer`),
+  CONSTRAINT `fk_licencia_chofer` FOREIGN KEY (`id_chofer`) REFERENCES `chofer` (`id_chofer`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+CREATE TABLE `asignacion_vehiculo` (
+  `id_asignacion` int(11) NOT NULL AUTO_INCREMENT,
+  `id_vehiculo` int(11) NOT NULL,
+  `id_chofer` int(11) NOT NULL,
+  `fecha_salida` datetime NOT NULL,
+  `fecha_estimada_devolucion` datetime DEFAULT NULL,
+  `fecha_devolucion` datetime DEFAULT NULL,
+  `destino_area` varchar(100) DEFAULT NULL,
+  `observaciones` text DEFAULT NULL,
+  `estado` varchar(20) NOT NULL DEFAULT 'Activo',
+  PRIMARY KEY (`id_asignacion`),
+  KEY `idx_asig_vehiculo` (`id_vehiculo`),
+  KEY `idx_asig_chofer` (`id_chofer`),
+  CONSTRAINT `fk_asig_chofer` FOREIGN KEY (`id_chofer`) REFERENCES `chofer` (`id_chofer`),
+  CONSTRAINT `fk_asig_vehiculo` FOREIGN KEY (`id_vehiculo`) REFERENCES `vehiculo` (`id_vehiculo`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- ---------------------------------------------------------------------------
+--  Mantenimientos y repuestos
+-- ---------------------------------------------------------------------------
+CREATE TABLE `repuestos` (
+  `id_repuesto` int(11) NOT NULL AUTO_INCREMENT,
+  `nombre` varchar(150) NOT NULL,
+  `stock` int(11) NOT NULL DEFAULT 0,
+  `costo_unitario` decimal(12,2) NOT NULL DEFAULT 0.00,
+  PRIMARY KEY (`id_repuesto`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+CREATE TABLE `mantenimiento` (
+  `id_mantenimiento` int(11) NOT NULL AUTO_INCREMENT,
+  `id_vehiculo` int(11) NOT NULL,
+  `id_usuario` int(11) NOT NULL,
+  `tipo_servicio` varchar(100) NOT NULL,
+  `fecha_inicio` date NOT NULL,
+  `fecha_fin` date DEFAULT NULL,
+  `km_servicio` int(11) NOT NULL,
+  `costo_total` decimal(12,2) DEFAULT 0.00,
+  `descripcion` text DEFAULT NULL,
+  `observaciones` text DEFAULT NULL,
+  `proximo_km` int(11) DEFAULT NULL,
+  `proxima_fecha` date DEFAULT NULL,
+  `estado` varchar(20) NOT NULL DEFAULT 'Realizado',
+  `mano_obra` decimal(12,2) DEFAULT 0.00,
+  `costo_repuestos` decimal(12,2) DEFAULT 0.00,
+  PRIMARY KEY (`id_mantenimiento`),
+  KEY `fk_mant_usuario` (`id_usuario`),
+  KEY `idx_mant_vehiculo` (`id_vehiculo`),
+  KEY `idx_mant_fecha` (`fecha_inicio`),
+  CONSTRAINT `fk_mant_usuario` FOREIGN KEY (`id_usuario`) REFERENCES `usuario` (`id_usuario`),
+  CONSTRAINT `fk_mant_vehiculo` FOREIGN KEY (`id_vehiculo`) REFERENCES `vehiculo` (`id_vehiculo`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+CREATE TABLE `detalle_mantenimiento` (
+  `id_detalle` int(11) NOT NULL AUTO_INCREMENT,
+  `id_mantenimiento` int(11) NOT NULL,
+  `id_repuesto` int(11) NOT NULL,
+  `cantidad` int(11) NOT NULL DEFAULT 1,
+  `costo_unitario` decimal(12,2) NOT NULL DEFAULT 0.00,
+  PRIMARY KEY (`id_detalle`),
+  KEY `fk_det_mant` (`id_mantenimiento`),
+  KEY `fk_det_repuesto` (`id_repuesto`),
+  CONSTRAINT `fk_det_mant` FOREIGN KEY (`id_mantenimiento`) REFERENCES `mantenimiento` (`id_mantenimiento`),
+  CONSTRAINT `fk_det_repuesto` FOREIGN KEY (`id_repuesto`) REFERENCES `repuestos` (`id_repuesto`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- ---------------------------------------------------------------------------
+--  Herramientas y préstamos
+-- ---------------------------------------------------------------------------
+CREATE TABLE `herramienta` (
+  `id_herramienta` int(11) NOT NULL AUTO_INCREMENT,
+  `codigo_activo` varchar(50) NOT NULL,
+  `nombre` varchar(100) NOT NULL,
+  `sector` varchar(100) DEFAULT NULL,
+  `estado` varchar(50) NOT NULL DEFAULT 'Disponible',
+  `stock` int(11) NOT NULL DEFAULT 1,
+  `combustible_energia` varchar(50) DEFAULT NULL,
+  `observaciones` text DEFAULT NULL,
+  `imagen_url` varchar(255) DEFAULT NULL,
+  `fecha_alta` datetime NOT NULL,
+  PRIMARY KEY (`id_herramienta`),
+  UNIQUE KEY `codigo_activo` (`codigo_activo`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+CREATE TABLE `prestamo` (
+  `id_prestamo` int(11) NOT NULL AUTO_INCREMENT,
+  `id_herramienta` int(11) NOT NULL,
+  `nombre_operario` varchar(100) NOT NULL,
+  `fecha_salida` datetime NOT NULL,
+  `fecha_devolucion_estimada` datetime DEFAULT NULL,
+  `fecha_devolucion_real` datetime DEFAULT NULL,
+  `sector_destino` varchar(100) DEFAULT NULL,
+  `observaciones` text DEFAULT NULL,
+  `estado_prestamo` varchar(50) NOT NULL DEFAULT 'Activo',
+  PRIMARY KEY (`id_prestamo`),
+  KEY `fk_prestamo_herramienta` (`id_herramienta`),
+  KEY `idx_prestamo_estado` (`estado_prestamo`),
+  CONSTRAINT `fk_prestamo_herramienta` FOREIGN KEY (`id_herramienta`) REFERENCES `herramienta` (`id_herramienta`) ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- ---------------------------------------------------------------------------
+--  Siniestros
+-- ---------------------------------------------------------------------------
+CREATE TABLE `siniestro` (
+  `id_siniestro` int(11) NOT NULL AUTO_INCREMENT,
+  `id_vehiculo` int(11) NOT NULL,
+  `id_chofer` int(11) DEFAULT NULL,
+  `chofer_involucrado` varchar(100) DEFAULT NULL,
+  `fecha_siniestro` date NOT NULL,
+  `ubicacion` varchar(255) NOT NULL,
+  `relato` text DEFAULT NULL,
+  `danos_vehiculo` text DEFAULT NULL,
+  `tercero_vehiculo` varchar(100) DEFAULT NULL,
+  `tercero_seguro` varchar(100) DEFAULT NULL,
+  `tercero_conductor` varchar(100) DEFAULT NULL,
+  `tercero_contacto` varchar(100) DEFAULT NULL,
+  `estado` varchar(50) NOT NULL DEFAULT 'EN PROCESO',
+  `archivos_adjuntos` text DEFAULT NULL,
+  `createdAt` datetime NOT NULL,
+  `updatedAt` datetime NOT NULL,
+  PRIMARY KEY (`id_siniestro`),
+  KEY `id_vehiculo` (`id_vehiculo`),
+  KEY `fk_siniestro_chofer` (`id_chofer`),
+  CONSTRAINT `siniestro_ibfk_1` FOREIGN KEY (`id_vehiculo`) REFERENCES `vehiculo` (`id_vehiculo`) ON DELETE NO ACTION ON UPDATE CASCADE,
+  CONSTRAINT `fk_siniestro_chofer` FOREIGN KEY (`id_chofer`) REFERENCES `chofer` (`id_chofer`) ON DELETE SET NULL ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- ---------------------------------------------------------------------------
+--  Alertas y auditoría
+-- ---------------------------------------------------------------------------
+CREATE TABLE `alerta` (
+  `id_alerta` int(11) NOT NULL AUTO_INCREMENT,
+  `tipo` enum('licencia_vencida','licencia_proxima','mantenimiento_pendiente','mantenimiento_finalizado','mantenimiento_proximo','mantenimiento_vencido','documentacion_vencida','vehiculo_fuera_servicio','vehiculo_en_mantenimiento','herramienta_devuelta','prestamo_vencido','siniestro_activo','critica','informativa') NOT NULL,
+  `prioridad` enum('alta','media','baja') NOT NULL DEFAULT 'media',
+  `mensaje` varchar(255) NOT NULL,
+  `entidad_tipo` varchar(50) DEFAULT NULL,
+  `entidad_id` int(11) DEFAULT NULL,
+  `entidad_nombre` varchar(100) DEFAULT NULL,
+  `leida` tinyint(1) NOT NULL DEFAULT 0,
+  `generada_automaticamente` tinyint(1) NOT NULL DEFAULT 0,
+  `createdAt` datetime NOT NULL,
+  `updatedAt` datetime NOT NULL,
+  PRIMARY KEY (`id_alerta`),
+  KEY `idx_alerta_entidad` (`entidad_tipo`,`entidad_id`),
+  KEY `idx_alerta_leida` (`leida`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+CREATE TABLE `auditoria` (
+  `id_auditoria` int(11) NOT NULL AUTO_INCREMENT,
+  `id_usuario` int(11) NOT NULL,
+  `tabla_afectada` varchar(100) NOT NULL,
+  `id_registro_afectado` int(11) DEFAULT NULL,
+  `accion` varchar(20) NOT NULL,
+  `fecha` date NOT NULL,
+  `hora` time NOT NULL,
+  `valor_anterior` text DEFAULT NULL,
+  `valor_nuevo` text DEFAULT NULL,
+  `descripcion` text DEFAULT NULL,
+  PRIMARY KEY (`id_auditoria`),
+  KEY `idx_audit_usuario` (`id_usuario`),
+  KEY `idx_audit_fecha` (`fecha`),
+  CONSTRAINT `fk_audit_usuario` FOREIGN KEY (`id_usuario`) REFERENCES `usuario` (`id_usuario`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+-- ---------------------------------------------------------------------------
+--  Roles base
+-- ---------------------------------------------------------------------------
+INSERT INTO `rol` (`id_rol`,`nombre`,`descripcion`,`permisos`) VALUES
+ (1,'Administrador','Acceso total al sistema','Vehicles,Choferes,Mantenimientos,Tools,Alertas,Reportes,Usuarios,Roles,Auditoria,Siniestros'),
+ (2,'Jefe de Taller','Acceso a mantenimientos, repuestos y herramientas','Vehicles,Mantenimientos,Tools,Alertas'),
+ (3,'Principal','Acceso de supervisión general y reportes','Vehicles,Choferes,Reportes,Alertas,Siniestros');
+
+SET FOREIGN_KEY_CHECKS = 1;
+
+-- ============================================================================
 --  Ficha Técnica de Vehículos · DATOS DE EJEMPLO (demo)
 --
 --  Pensado para probar TODO el sistema. Las fechas son RELATIVAS a "hoy": cada vez
@@ -26,21 +378,21 @@ SET FOREIGN_KEY_CHECKS = 0;
 
 -- Usuarios (contraseña temporal de todos:  Ficha2026! ). `ex_empleado` está bloqueado a propósito.
 INSERT INTO `usuario` (`id_usuario`,`nombre_usuario`,`contrasena`,`nombre`,`apellido`,`activo`,`id_rol`,`permisos`) VALUES
- (1,'admin','$2b$10$jM.MTLrReit4A2InHkbQ9eSpc5t/V0GsuXjgrCyNgACwuHmgsdNgu','Administrador','Sistema',1,1,NULL),
+ (1,'admin','$2b$10$jM.MTLrReit4A2InHkbQ9eSpc5t/V0GsuXjgrCyNgACwuHmgsdNgu','Administrador','Sistema',1,1,'Vehicles,Choferes,Mantenimientos,Tools,Alertas,Reportes,Usuarios,Roles,Auditoria,Siniestros'),
  (2,'carlos_oficina','$2b$10$jM.MTLrReit4A2InHkbQ9eSpc5t/V0GsuXjgrCyNgACwuHmgsdNgu','Carlos','Gerez',1,3,'Vehicles,Choferes,Auditoria'),
  (3,'walter','$2b$10$jM.MTLrReit4A2InHkbQ9eSpc5t/V0GsuXjgrCyNgACwuHmgsdNgu','Walter Daniel','Gueleb',1,2,'Choferes,Mantenimientos,Auditoria'),
  (4,'ExeJuarez','$2b$10$jM.MTLrReit4A2InHkbQ9eSpc5t/V0GsuXjgrCyNgACwuHmgsdNgu','Exequiel','Juarez',1,3,'Vehicles,Choferes,Mantenimientos,Alertas,Reportes,Siniestros'),
- (5,'taller_jefe','$2b$10$jM.MTLrReit4A2InHkbQ9eSpc5t/V0GsuXjgrCyNgACwuHmgsdNgu','Marta','Quiroga',1,2,NULL),
+ (5,'taller_jefe','$2b$10$jM.MTLrReit4A2InHkbQ9eSpc5t/V0GsuXjgrCyNgACwuHmgsdNgu','Marta','Quiroga',1,2,'Vehicles,Mantenimientos,Tools,Alertas'),
  (6,'ex_empleado','$2b$10$jM.MTLrReit4A2InHkbQ9eSpc5t/V0GsuXjgrCyNgACwuHmgsdNgu','Luis','Paredes',0,3,'Vehicles');
 
 -- Catálogos
-INSERT INTO `tipo_vehiculo` (`id_tipo`,`descripcion`,`unidad`) VALUES
- (1,'Camioneta','km'),
- (2,'Camión','km'),
- (3,'Maquinaria Pesada','hs'),
- (4,'Utilitario','km'),
- (5,'Auto','km'),
- (6,'Motocicleta','km');
+INSERT INTO `tipo_vehiculo` (`id_tipo`,`descripcion`) VALUES
+ (1,'Camioneta'),
+ (2,'Camión'),
+ (3,'Maquinaria Pesada'),
+ (4,'Utilitario'),
+ (5,'Auto'),
+ (6,'Motocicleta');
 
 INSERT INTO `distritos` (`id_distrito`,`nombre`) VALUES
  (1,'Centro'),
@@ -139,29 +491,29 @@ INSERT INTO `asignacion_vehiculo` (`id_asignacion`,`id_vehiculo`,`id_chofer`,`fe
  (10,12,6,(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 20 DAY + INTERVAL 3 HOUR),(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 15 DAY + INTERVAL 3 HOUR),(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 15 DAY + INTERVAL 3 HOUR + INTERVAL 14 HOUR),'Este','Visita a escuelas','Finalizado');
 
 -- Repuestos (hay uno sin stock y varios con stock bajo)
-INSERT INTO `repuestos` (`id_repuesto`,`nombre`,`stock`,`stock_minimo`,`costo_unitario`) VALUES
- (1,'Filtro de Aceite (Universal)',14,3,6500),
- (2,'Aceite Sintético 10W40 (1 Litro)',30,3,8000),
- (3,'Pastillas de Freno (Juego Trasero)',8,3,28000),
- (4,'Filtro de Aire',13,3,15000),
- (5,'Pastillas de Freno (Estándar)',12,3,8000),
- (6,'Filtro de Aceite (Camioneta)',22,3,8500),
- (7,'Filtro de Aire (Camión)',12,3,14000),
- (8,'Filtro de Combustible (Diesel)',16,3,11500),
- (9,'Aceite Motor 15W40 (Tambor 20L)',8,4,85000),
- (10,'Aceite Sintético 5W30 (1L)',35,3,9500),
- (11,'Pastillas de Freno (Juego Delantero)',8,3,35000),
- (12,'Batería 12V 75Ah',5,5,120000),
- (13,'Amortiguador Delantero (Par)',3,3,185000),
- (14,'Bomba de Agua (Diesel)',6,3,75000),
- (15,'Kit de Embrague Completo',0,3,320000),
- (16,'Óptica Trasera Izquierda',15,3,45000),
- (17,'Espejo Retrovisor Derecho',10,3,38000),
- (18,'Cruceta de Cardán',22,3,18000),
- (19,'Inyector Common Rail',8,3,150000),
- (20,'Filtro de Habitáculo',40,3,6500),
- (21,'Correa Poly-V',2,3,22000),
- (22,'Bomba de Freno',5,3,85000);
+INSERT INTO `repuestos` (`id_repuesto`,`nombre`,`stock`,`costo_unitario`) VALUES
+ (1,'Filtro de Aceite (Universal)',14,6500),
+ (2,'Aceite Sintético 10W40 (1 Litro)',30,8000),
+ (3,'Pastillas de Freno (Juego Trasero)',8,28000),
+ (4,'Filtro de Aire',13,15000),
+ (5,'Pastillas de Freno (Estándar)',12,8000),
+ (6,'Filtro de Aceite (Camioneta)',22,8500),
+ (7,'Filtro de Aire (Camión)',12,14000),
+ (8,'Filtro de Combustible (Diesel)',16,11500),
+ (9,'Aceite Motor 15W40 (Tambor 20L)',8,85000),
+ (10,'Aceite Sintético 5W30 (1L)',35,9500),
+ (11,'Pastillas de Freno (Juego Delantero)',8,35000),
+ (12,'Batería 12V 75Ah',5,120000),
+ (13,'Amortiguador Delantero (Par)',3,185000),
+ (14,'Bomba de Agua (Diesel)',6,75000),
+ (15,'Kit de Embrague Completo',0,320000),
+ (16,'Óptica Trasera Izquierda',15,45000),
+ (17,'Espejo Retrovisor Derecho',10,38000),
+ (18,'Cruceta de Cardán',22,18000),
+ (19,'Inyector Common Rail',8,150000),
+ (20,'Filtro de Habitáculo',40,6500),
+ (21,'Correa Poly-V',2,22000),
+ (22,'Bomba de Freno',5,85000);
 
 -- Mantenimientos (programados, en proceso y realizados) con sus repuestos
 INSERT INTO `mantenimiento` (`id_mantenimiento`,`id_vehiculo`,`id_usuario`,`tipo_servicio`,`fecha_inicio`,`fecha_fin`,`km_servicio`,`costo_total`,`descripcion`,`observaciones`,`proximo_km`,`proxima_fecha`,`estado`,`mano_obra`,`costo_repuestos`) VALUES
@@ -185,8 +537,7 @@ INSERT INTO `mantenimiento` (`id_mantenimiento`,`id_vehiculo`,`id_usuario`,`tipo
  (18,2,1,'Frenos',(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 400 DAY),(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 399 DAY),110000,136000,'Cambio de pastillas y bomba de freno',NULL,NULL,NULL,'Realizado',35000,101000),
  (19,12,3,'Cambio de aceite',(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 60 DAY),(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 60 DAY),30000,73500,'Service de los 30.000 km',NULL,40000,NULL,'Realizado',35000,38500),
  (20,18,1,'Cambio de aceite',(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 30 DAY),(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 30 DAY),249000,86500,'Cambio de aceite y filtro','Próximo service a los 255.000 km',255000,NULL,'Realizado',40000,46500),
- (21,13,3,'Revisión de garantía',(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 150 DAY),(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 150 DAY),5000,0,'Revisión de garantía de concesionaria',NULL,15000,NULL,'Realizado',0,0),
- (22,14,1,'Service 10.000 km',(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 20 DAY),NULL,10000,0,'Service programado a los 10000 km','Cancelado manualmente.',10000,NULL,'Cancelado',0,0);
+ (21,13,3,'Revisión de garantía',(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 150 DAY),(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 150 DAY),5000,0,'Revisión de garantía de concesionaria',NULL,15000,NULL,'Realizado',0,0);
 
 INSERT INTO `detalle_mantenimiento` (`id_detalle`,`id_mantenimiento`,`id_repuesto`,`cantidad`,`costo_unitario`) VALUES
  (1,1,6,1,8500),
@@ -321,9 +672,6 @@ INSERT INTO `auditoria` (`id_auditoria`,`id_usuario`,`tabla_afectada`,`id_regist
  (10,1,'herramienta',14,'EDITAR',(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 30 DAY),'12:10:00','{"estado":"Disponible"}','{"estado":"Baja"}','Edición de herramienta ID: 14 (Hormigonera 130L)'),
  (11,1,'prestamo',6,'CREAR',(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 8 DAY),'09:17:00',NULL,'{"nombre_operario":"Hernán Quiroga"}','Préstamo de Cortadora de Césped Naftera a Hernán Quiroga (Espacios Verdes)'),
  (12,1,'siniestro',3,'EDITAR_ESTADO',(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 240 DAY),'13:24:00','{"estado":"EN PROCESO"}','{"estado":"CERRADO"}','Siniestro ID 3 cambió de EN PROCESO a: CERRADO'),
- (13,1,'usuario',6,'EDITAR',(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 45 DAY),'14:31:00','{"activo":true}','{"activo":false}','Edición de usuario ID: 6 (ex_empleado)'),
- (14,NULL,'usuario',NULL,'LOGIN_FALLIDO',(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 2 DAY),'22:38:00',NULL,NULL,'Usuario inexistente — usuario ingresado: "administrador" (IP 10.0.0.15)'),
- (15,2,'usuario',2,'LOGIN_FALLIDO',(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 2 DAY),'22:45:00',NULL,NULL,'Contraseña incorrecta — usuario ingresado: "carlos_oficina" (IP 10.0.0.15)'),
- (16,1,'usuario',1,'LOGOUT',(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) + INTERVAL 0 DAY),'18:52:00',NULL,NULL,'Cierre de sesión');
+ (13,1,'usuario',6,'EDITAR',(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 45 DAY),'14:31:00','{"activo":true}','{"activo":false}','Edición de usuario ID: 6 (ex_empleado)');
 
 SET FOREIGN_KEY_CHECKS = 1;

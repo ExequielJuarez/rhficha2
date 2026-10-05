@@ -31,7 +31,7 @@ CREATE TABLE `usuario` (
   `apellido` varchar(50) NOT NULL,
   `activo` tinyint(1) NOT NULL DEFAULT 1,
   `id_rol` int(11) NOT NULL,
-  `permisos` varchar(255) DEFAULT 'Vehicles',
+  `permisos` varchar(255) DEFAULT NULL,
   PRIMARY KEY (`id_usuario`),
   UNIQUE KEY `nombre_usuario` (`nombre_usuario`),
   KEY `fk_usuario_rol` (`id_rol`),
@@ -44,6 +44,7 @@ CREATE TABLE `usuario` (
 CREATE TABLE `tipo_vehiculo` (
   `id_tipo` int(11) NOT NULL AUTO_INCREMENT,
   `descripcion` varchar(100) NOT NULL,
+  `unidad` varchar(10) NOT NULL DEFAULT 'km',
   PRIMARY KEY (`id_tipo`),
   UNIQUE KEY `uq_tipo_descripcion` (`descripcion`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
@@ -186,6 +187,7 @@ CREATE TABLE `repuestos` (
   `id_repuesto` int(11) NOT NULL AUTO_INCREMENT,
   `nombre` varchar(150) NOT NULL,
   `stock` int(11) NOT NULL DEFAULT 0,
+  `stock_minimo` int(11) NOT NULL DEFAULT 3,
   `costo_unitario` decimal(12,2) NOT NULL DEFAULT 0.00,
   PRIMARY KEY (`id_repuesto`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
@@ -293,7 +295,7 @@ CREATE TABLE `siniestro` (
 -- ---------------------------------------------------------------------------
 CREATE TABLE `alerta` (
   `id_alerta` int(11) NOT NULL AUTO_INCREMENT,
-  `tipo` enum('licencia_vencida','licencia_proxima','mantenimiento_pendiente','mantenimiento_finalizado','mantenimiento_proximo','mantenimiento_vencido','documentacion_vencida','vehiculo_fuera_servicio','vehiculo_en_mantenimiento','herramienta_devuelta','prestamo_vencido','siniestro_activo','critica','informativa') NOT NULL,
+  `tipo` enum('licencia_vencida','licencia_proxima','mantenimiento_pendiente','mantenimiento_finalizado','mantenimiento_proximo','mantenimiento_vencido','documentacion_vencida','vehiculo_fuera_servicio','vehiculo_en_mantenimiento','herramienta_devuelta','prestamo_vencido','asignacion_vencida','stock_bajo','siniestro_activo','critica','informativa') NOT NULL,
   `prioridad` enum('alta','media','baja') NOT NULL DEFAULT 'media',
   `mensaje` varchar(255) NOT NULL,
   `entidad_tipo` varchar(50) DEFAULT NULL,
@@ -310,7 +312,7 @@ CREATE TABLE `alerta` (
 
 CREATE TABLE `auditoria` (
   `id_auditoria` int(11) NOT NULL AUTO_INCREMENT,
-  `id_usuario` int(11) NOT NULL,
+  `id_usuario` int(11) DEFAULT NULL,
   `tabla_afectada` varchar(100) NOT NULL,
   `id_registro_afectado` int(11) DEFAULT NULL,
   `accion` varchar(20) NOT NULL,

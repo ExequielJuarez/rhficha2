@@ -78,6 +78,7 @@ const vehicleService = {
     else if (!ESTADOS_VEHICULO.includes(body.estado_actual)) errores.push("El estado seleccionado no es válido.");
     else if (body.estado_actual === "En uso") errores.push('Un vehículo pasa a "En uso" al asignarle un chofer desde Asignaciones.');
     else if (body.estado_actual === "En siniestro") errores.push('El estado "En siniestro" se asigna al registrar un siniestro.');
+    else if (body.estado_actual === "En mantenimiento") errores.push('Un vehículo pasa a "En mantenimiento" al iniciar una orden En proceso desde Mantenimientos.');
 
     if (body.km_actual === "" || body.km_actual === undefined || !/^\d+$/.test(String(body.km_actual))) {
       errores.push("El kilometraje es obligatorio, entero y no puede ser negativo.");
@@ -160,6 +161,17 @@ const vehicleService = {
         if (estado === "En siniestro") {
           throw new ErrorNegocio('El estado "En siniestro" se asigna al registrar un siniestro.');
         }
+        if (estado === "En mantenimiento") {
+          throw new ErrorNegocio('Un vehículo pasa a "En mantenimiento" al iniciar una orden En proceso desde Mantenimientos.');
+        }
+        if (vehiculo.estado_actual === "En mantenimiento") {
+          const abiertas = await db.Mantenimiento.count({ where: { id_vehiculo: id, estado: "En proceso" }, transaction });
+          if (abiertas > 0) throw new ErrorNegocio("El vehículo tiene una orden de mantenimiento En proceso: finalizala desde Mantenimientos antes de cambiar su estado.");
+        }
+        if (vehiculo.estado_actual === "En siniestro") {
+          const abiertos = await db.Siniestro.count({ where: { id_vehiculo: id, estado: "EN PROCESO" }, transaction });
+          if (abiertos > 0) throw new ErrorNegocio("El vehículo tiene un siniestro en proceso: resolvelo desde Siniestros antes de cambiar su estado.");
+        }
         if (asignacionActiva && estado !== "En uso") {
           throw new ErrorNegocio("El vehículo tiene una asignación activa: finalizala desde Asignaciones antes de cambiar su estado.");
         }
@@ -227,7 +239,10 @@ const vehicleService = {
   getAllMantenimientos: async () => {
     try {
       const mantenimientos = await db.Mantenimiento.findAll({
-        include: [{ association: "vehiculo" }, { association: "detalles" }],
+        include: [
+          { association: "vehiculo", include: [{ association: "TipoVehiculo", attributes: ["unidad"] }] },
+          { association: "detalles" },
+        ],
         order: [
           ["fecha_inicio", "DESC"],
           ["id_mantenimiento", "DESC"],

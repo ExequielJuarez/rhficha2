@@ -50,6 +50,9 @@ app.locals.fmtFecha = (valor) => {
   return d ? `${Number(d)}/${Number(m)}/${y}` : "—";
 };
 app.locals.fmtMoneda = (n) => "$" + Number(n || 0).toLocaleString("es-AR", { maximumFractionDigits: 2 });
+// Unidad de uso del vehículo ("km" u "hs" para maquinaria) y número formateado con su unidad
+app.locals.unidadDe = (v) => (v && v.TipoVehiculo && v.TipoVehiculo.unidad) || "km";
+app.locals.fmtUso = (n, v) => Number(n || 0).toLocaleString("es-AR") + " " + app.locals.unidadDe(v);
 app.locals.diasHasta = fechas.diasHasta;
 app.locals.aISO = fechas.aISO;
 

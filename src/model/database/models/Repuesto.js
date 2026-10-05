@@ -14,6 +14,11 @@ module.exports = (sequelize, dataTypes) => {
             type: dataTypes.INTEGER,
             defaultValue: 0
         },
+        stock_minimo: {
+            type: dataTypes.INTEGER,
+            allowNull: false,
+            defaultValue: 3
+        },
         costo_unitario: {
             type: dataTypes.DECIMAL(12, 2),
             defaultValue: 0.00
