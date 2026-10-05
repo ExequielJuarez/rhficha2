@@ -324,6 +324,11 @@
               <header class="data-card__header">
                 <svg class="data-card__icon" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clip-rule="evenodd"/></svg>
                 <h3 class="data-card__title">Mantenimientos Recientes</h3>
+                <% if (typeof vehiculoSeleccionado !== 'undefined' && vehiculoSeleccionado) { %>
+                <a href="/Vehicles/<%= vehiculoSeleccionado.id_vehiculo %>/mantenimientos" style="margin-left: auto; background-color: #eff6ff; color: #2563eb; border: 1px solid #bfdbfe; padding: 6px 12px; font-size: 12px; font-weight: 700; border-radius: 6px; text-decoration: none; white-space: nowrap;">
+                  Ver todos<%= typeof totalMantenimientos !== 'undefined' ? ' (' + totalMantenimientos + ')' : '' %> →
+                </a>
+                <% } %>
               </header>
               <div class="data-table-wrapper">
                 <table class="data-table">
@@ -334,9 +339,9 @@
                     <% if (typeof ultimosMantenimientos !== 'undefined' && ultimosMantenimientos && ultimosMantenimientos.length > 0) { %>
                       <% ultimosMantenimientos.slice(0,3).forEach(m => { %>
                       <tr class="data-table__row">
-                        <td class="data-table__td" data-label="Fecha"><%= m.fecha_inicio %></td>
+                        <td class="data-table__td" data-label="Fecha"><%= fmtFecha(m.fecha_inicio) %></td>
                         <td class="data-table__td" data-label="Tipo"><%= m.tipo_servicio %></td>
-                        <td class="data-table__td" data-label="Costo" style="font-weight: 700;">$<%= m.costo_total %></td>
+                        <td class="data-table__td" data-label="Costo" style="font-weight: 700;"><%= fmtMoneda(m.costo_total) %></td>
                       </tr>
                       <% }) %>
                     <% } else { %>

@@ -6,6 +6,7 @@ const { ErrorNegocio } = require("../utils/errores");
 // Programado: próximo service por kilometraje (aún no se hizo). En proceso: el vehículo está en el taller.
 // Realizado: service terminado (o registro histórico cargado a mano).
 const ESTADOS_MANTENIMIENTO = ["Programado", "En proceso", "Realizado"];
+const DIAS_RECIENTE = 15; // un service más viejo que esto se considera registro histórico
 const ESTADOS_ABIERTOS = ["En proceso"]; // sólo estos mantienen al vehículo fuera de servicio
 
 const aLista = (valor) => (valor === undefined ? [] : Array.isArray(valor) ? valor : [valor]);
@@ -95,8 +96,21 @@ const maintenanceService = {
       if (!vehiculo) throw new ErrorNegocio("Seleccioná un vehículo válido.");
       if (vehiculo.estado_actual === "Baja") throw new ErrorNegocio("El vehículo está dado de baja.");
       if (vehiculo.estado_actual === "En siniestro") throw new ErrorNegocio("El vehículo está en siniestro: resolvelo antes de cargar un mantenimiento.");
-      if (kmServicio < vehiculo.km_actual) {
+      // Una orden EN PROCESO ocurre ahora, así que no puede tener menos km que el vehículo.
+      // Una orden REALIZADA puede ser un registro histórico (papeles viejos): ahí el km puede ser menor al actual.
+      if (estado === "En proceso" && kmServicio < vehiculo.km_actual) {
         throw new ErrorNegocio(`El km del servicio (${kmServicio}) no puede ser menor al actual del vehículo (${vehiculo.km_actual}).`);
+      }
+
+      // Un service con fecha vieja no puede tener más km que el vehículo hoy: sería un error de carga
+      // (y subiría el km actual del vehículo). Sólo los recientes pueden adelantar el km.
+      if (estado === "Realizado" && kmServicio > vehiculo.km_actual) {
+        const limiteReciente = new Date(Date.now() - DIAS_RECIENTE * 86400000 - 3 * 3600000).toISOString().slice(0, 10);
+        if (body.fecha_inicio < limiteReciente) {
+          throw new ErrorNegocio(
+            `El km del servicio (${kmServicio}) supera el km actual del vehículo (${vehiculo.km_actual}) y la fecha es anterior a ${DIAS_RECIENTE} días. Revisá el km (o actualizá primero el kilometraje del vehículo).`,
+          );
+        }
       }
 
       const abierta = estado === "En proceso";

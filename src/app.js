@@ -12,6 +12,7 @@ const cron = require("node-cron");
 
 const db = require("./model/database/models");
 const alertaService = require("./data/alertaService");
+const { prepararBaseDeDatos } = require("./model/database/preparar");
 const { safeJson, escapeHtml } = require("./utils/html");
 const fechas = require("./utils/fechas");
 const { asegurarToken, verificarToken } = require("./middlewares/csrfMiddleware");
@@ -48,6 +49,7 @@ app.locals.fmtFecha = (valor) => {
   const [y, m, d] = iso.split("-");
   return d ? `${Number(d)}/${Number(m)}/${y}` : "—";
 };
+app.locals.fmtMoneda = (n) => "$" + Number(n || 0).toLocaleString("es-AR", { maximumFractionDigits: 2 });
 app.locals.diasHasta = fechas.diasHasta;
 app.locals.aISO = fechas.aISO;
 
@@ -132,6 +134,9 @@ const generarAlertas = async () => {
 
 const iniciar = async () => {
   try {
+    // Crea la base y las tablas si hace falta (primera vez en una máquina nueva)
+    await prepararBaseDeDatos();
+
     await db.sequelize.authenticate();
     console.log("✅ Conexión a la base de datos MySQL establecida con éxito.");
 

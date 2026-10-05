@@ -5,6 +5,8 @@
   "scripts": {
     "start": "node src/app.js",
     "dev": "nodemon src/app.js",
+    "db:armar": "node scripts/armar-copiaseguridad.js",
+    "db:demo": "node scripts/cargar-demo.js",
     "test": "node --test --test-concurrency=1 tests/*.test.js"
   },
   "keywords": [],

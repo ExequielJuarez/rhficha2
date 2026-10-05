@@ -270,6 +270,29 @@ const vehicleService = {
     }
   },
 
+  // Historial completo de mantenimientos de un vehículo (con repuestos y responsable)
+  getMantenimientosCompletos: async function (id_vehiculo) {
+    const ordenes = await db.Mantenimiento.findAll({
+      where: { id_vehiculo },
+      include: [
+        { association: "usuario", attributes: ["nombre", "apellido"], required: false },
+        { association: "detalles", required: false, include: [{ association: "repuesto", attributes: ["nombre"], required: false }] },
+      ],
+      order: [
+        ["fecha_inicio", "DESC"],
+        ["id_mantenimiento", "DESC"],
+      ],
+    });
+    return ordenes.map((m) => {
+      const o = m.toJSON();
+      const costoRepuestos = Number(o.costo_repuestos) || (o.detalles || []).reduce((t, d) => t + Number(d.cantidad) * Number(d.costo_unitario), 0);
+      o.costo_repuestos = costoRepuestos;
+      o.mano_obra = Number(o.mano_obra) || Math.max(0, (Number(o.costo_total) || 0) - costoRepuestos);
+      o.costo_total = Number(o.costo_total) || 0;
+      return o;
+    });
+  },
+
   getLastAsignaciones: async function (id_vehiculo, limit = 3) {
     try {
       return await db.AsignacionVehiculo.findAll({

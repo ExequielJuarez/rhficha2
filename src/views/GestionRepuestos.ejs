@@ -83,7 +83,7 @@
                         </span>
                       </td>
                       <td style="font-family: var(--font-mono); font-weight: 500;">
-                        $<%= Number(r.costo_unitario).toFixed(2) %>
+                        <%= fmtMoneda(r.costo_unitario) %>
                       </td>
                       <td style="text-align: right;">
                         <form action="/Repuestos/Eliminar/<%= r.id_repuesto %>" method="POST" style="margin:0;">

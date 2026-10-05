@@ -189,6 +189,7 @@ const vehicleController = {
       }
       const vehiculos = await vehicleService.getAll();
       const ultimosMantenimientos = await vehicleService.getLastMantenimientos(id);
+      const totalMantenimientos = await db.Mantenimiento.count({ where: { id_vehiculo: id } });
       const ultimasAsignaciones = await vehicleService.getLastAsignaciones(id);
       const asignacionActiva = await vehicleService.getAsignacionActiva(id);
 
@@ -201,6 +202,7 @@ const vehicleController = {
         vehiculos,
         vehiculoSeleccionado: vehiculo,
         ultimosMantenimientos,
+        totalMantenimientos,
         ultimasAsignaciones,
         asignacionActiva: asignacionActiva || null,
         siniestrosVehiculo,
@@ -208,6 +210,23 @@ const vehicleController = {
     } catch (error) {
       console.log(error);
       req.flash("error", "Error al obtener el vehículo.");
+      res.redirect("/Vehicles");
+    }
+  },
+
+  // Todos los mantenimientos de un vehículo, en lista desplegable
+  MantenimientosDeVehiculo: async (req, res) => {
+    try {
+      const vehiculo = await vehicleService.getOne(req.params.id);
+      if (!vehiculo) {
+        req.flash("error", "El vehículo no existe.");
+        return res.redirect("/Vehicles");
+      }
+      const mantenimientos = await vehicleService.getMantenimientosCompletos(vehiculo.id_vehiculo);
+      res.render("MantenimientosVehiculo", { vehiculo, mantenimientos });
+    } catch (error) {
+      console.log(error);
+      req.flash("error", "Error al cargar los mantenimientos del vehículo.");
       res.redirect("/Vehicles");
     }
   },

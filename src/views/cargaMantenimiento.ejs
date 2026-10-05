@@ -131,6 +131,7 @@
             <div class="form-group">
               <label>Km al momento del servicio <span class="req">*</span></label>
               <input type="number" name="km_servicio" id="km_servicio" min="0" placeholder="Ej: 85000" required>
+              <span id="aviso-historico" style="display:none; font-size:12px; color:#92400e; margin-top:4px;">Es un registro histórico: se guarda en el historial sin modificar el km actual del vehículo.</span>
             </div>
           </div>
           <div class="form-row">
@@ -270,6 +271,11 @@
     selectEstado.addEventListener('change', aplicarEstado);
     selectVehiculo.addEventListener('change', () => { kmServicioInput.value = ''; actualizarKmHint(); });
     kmProgramadoInput.addEventListener('input', actualizarFalta);
+    kmServicioInput.addEventListener('input', () => {
+      const km = kmActualSeleccionado();
+      const historico = selectEstado.value === 'Realizado' && km !== null && kmServicioInput.value !== '' && Number(kmServicioInput.value) < km;
+      document.getElementById('aviso-historico').style.display = historico ? 'block' : 'none';
+    });
     aplicarEstado();
 
     // ── LÓGICA DE REPUESTOS DINÁMICOS Y SEGURA ──
@@ -280,7 +286,7 @@
             <option value="" data-precio="0" disabled selected>-- Seleccione repuesto --</option>
             <% if (typeof repuestos !== 'undefined' && repuestos.length > 0) { %>
               <% repuestos.forEach(r => { %>
-                <option value="<%= r.id_repuesto || r.id %>" data-precio="<%= r.costo_unitario || 0 %>"><%= r.nombre %> (Stock: <%= r.stock %>)</option>
+                <option value="<%= r.id_repuesto || r.id %>" data-precio="<%= r.costo_unitario || 0 %>" <%= r.stock <= 0 ? 'disabled' : '' %>><%= r.nombre %> (Stock: <%= r.stock %>)</option>
               <% }) %>
             <% } %>
           </select>
@@ -335,7 +341,8 @@
       } else {
         const kmServicio = parseFloat(kmServicioInput.value) || 0;
         const proximoKm = parseFloat(document.getElementById('proximo_servicio_km').value) || 0;
-        if (kmServicio < kmActual) errores.push(`El Km del servicio no puede ser menor al actual (${kmActual}).`);
+        // Un servicio ya realizado puede ser un registro viejo (km menor al actual); uno en proceso, no
+        if (estado === 'En proceso' && kmServicio < kmActual) errores.push(`El Km del servicio no puede ser menor al actual (${kmActual}).`);
         if (document.getElementById('proximo_servicio_km').value && proximoKm <= kmServicio) {
           errores.push(`El Próximo Km debe ser mayor al del servicio actual (${kmServicio}).`);
         }

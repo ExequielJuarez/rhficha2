@@ -6,14 +6,28 @@ siniestros, alertas automáticas, reportes y auditoría.
 
 ## Puesta en marcha
 
-1. Requisitos: Node.js 20+ y MySQL/MariaDB.
+1. Requisitos: Node.js 20+ y MySQL/MariaDB en ejecución.
 2. Instalar dependencias: `npm install`
-3. Crear la base de datos con los datos de ejemplo (**borra y recrea `vehiculos_db`**):
-   `mysql -u root -p < pruebasdb/copiaseguridad.sql`
-4. Copiar `.env.example` a `.env` y completar los datos de conexión y `SESSION_SECRET`.
-5. Iniciar: `npm start` (o `npm run dev` con recarga automática) y abrir http://localhost:3000
+3. Copiar `.env.example` a `.env` y completar los datos de conexión (`DB_*`) y `SESSION_SECRET`.
+4. Iniciar: `npm start` (o `npm run dev` con recarga automática) y abrir http://localhost:3000
 
-Usuarios de ejemplo (contraseña temporal `Ficha2026!`, cambiarla al ingresar): `admin`, `carlos_oficina`, `walter`, `ExeJuarez`.
+**La base se crea sola.** Al arrancar, la aplicación crea la base de datos si no existe, crea las tablas
+(`pruebasdb/esquema.sql`) y, si no hay usuarios, el usuario `admin` (contraseña = `ADMIN_PASSWORD` del `.env`;
+si no se define: `Ficha2026!` en desarrollo y una al azar —que se muestra en el log— en producción).
+
+### Datos de ejemplo (para probar todo el sistema)
+
+`npm run db:demo -- --confirmar` **borra y recrea** la base configurada con `pruebasdb/copiaseguridad.sql`: 18 vehículos
+(en uso, en taller, en siniestro, de baja), 16 choferes (licencias vigentes, por vencer, vencidas), mantenimientos
+programados / en proceso / realizados, herramientas y préstamos (vencidos, en reparación), siniestros, auditoría, etc.
+Las fechas son relativas a "hoy", así que siempre hay alertas de todos los tipos.
+También se puede importar a mano: `mysql -u root -p < pruebasdb/copiaseguridad.sql`.
+
+Usuarios de ejemplo (contraseña temporal `Ficha2026!`, cambiarla al ingresar): `admin`, `carlos_oficina`, `walter`,
+`ExeJuarez`, `taller_jefe` y `ex_empleado` (bloqueado, para probar el login).
+
+Archivos de `pruebasdb/`: `esquema.sql` (tablas + roles), `datos_demo.sql` (datos de ejemplo) y `copiaseguridad.sql`
+(los dos anteriores + recrear la base; se regenera con `npm run db:armar`).
 
 ### Producción
 
@@ -23,9 +37,10 @@ Usuarios de ejemplo (contraseña temporal `Ficha2026!`, cambiarla al ingresar): 
 
 ## Pruebas
 
-`npm test` recrea una base **aparte** (`vehiculos_test`) desde `pruebasdb/copiaseguridad.sql`, levanta la
+`npm test` usa bases **aparte** (`vehiculos_test`, `vehiculos_auto_test`), levanta la
 aplicación y recorre los flujos (login/permisos, usuarios, vehículos, choferes, asignaciones,
-mantenimientos, herramientas, siniestros, alertas, reportes). No toca la base real.
+mantenimientos, herramientas, siniestros, alertas, reportes), comprueba que los datos de ejemplo sean coherentes y que
+la base se cree sola. No toca la base real.
 
 ## Notas de diseño
 

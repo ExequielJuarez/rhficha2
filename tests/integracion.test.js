@@ -583,6 +583,34 @@ describe("Mantenimientos y repuestos", () => {
     assert.ok(await db.HistorialKm.findOne({ where: { id_vehiculo: 7, km_nuevo: 62500 } }));
   });
 
+  test("un service viejo (papeles) se puede cargar como Realizado con km menor al actual, sin tocar el km del vehículo", async () => {
+    const c = await admin();
+    const antes = await db.Vehiculo.findByPk(1);
+    const r = await c.post("/CargaMantenimiento", orden({ id_vehiculo: 1, fecha_inicio: "2024-03-10", km_servicio: 30000, proximo_servicio_km: 38000, id_repuesto: [], cantidad: [], costo_unitario: [], mano_obra: "20000" }));
+    assert.equal(r.status, 302, r.texto.slice(0, 300));
+    const m = await db.Mantenimiento.findOne({ where: { id_vehiculo: 1, km_servicio: 30000 } });
+    assert.equal(m.estado, "Realizado");
+    assert.equal(m.fecha_inicio, "2024-03-10");
+    const despues = await db.Vehiculo.findByPk(1);
+    assert.equal(despues.km_actual, antes.km_actual, "el km actual no cambia");
+    assert.equal(despues.estado_actual, antes.estado_actual);
+    assert.equal(await db.HistorialKm.count({ where: { id_vehiculo: 1, km_nuevo: 30000 } }), 0, "no se inventa historial de km");
+    // un registro viejo no pisa el último service: la alerta sigue basándose en el más reciente
+    await c.get("/Alertas");
+    // y aparece en la lista completa del vehículo, ordenado por fecha
+    const lista = await c.get("/Vehicles/1/mantenimientos");
+    assert.match(lista.texto, /10\/3\/2024/);
+  });
+
+  test("un service con fecha vieja no puede tener más km que el vehículo hoy (no adelanta el km por error)", async () => {
+    const c = await admin();
+    const antes = (await db.Vehiculo.findByPk(1)).km_actual;
+    const r = await c.post("/CargaMantenimiento", orden({ id_vehiculo: 1, fecha_inicio: "2025-01-10", km_servicio: antes + 50000, proximo_servicio_km: "", id_repuesto: [], cantidad: [], costo_unitario: [], mano_obra: "0" }));
+    assert.equal(r.status, 400);
+    assert.match(r.texto, /supera el km actual/);
+    assert.equal((await db.Vehiculo.findByPk(1)).km_actual, antes);
+  });
+
   test("stock insuficiente: no guarda nada", async () => {
     const c = await admin();
     const antes = await db.Mantenimiento.count();
@@ -595,7 +623,7 @@ describe("Mantenimientos y repuestos", () => {
 
   test("valida km, próximo servicio, estado y vehículo en uso", async () => {
     const c = await admin();
-    let r = await c.post("/CargaMantenimiento", orden({ km_servicio: 100 }));
+    let r = await c.post("/CargaMantenimiento", orden({ estado: "En proceso", km_servicio: 100, id_repuesto: [], cantidad: [], costo_unitario: [] }));
     assert.match(r.texto, /no puede ser menor al actual/);
     r = await c.post("/CargaMantenimiento", orden({ proximo_servicio_km: 62500 }));
     assert.match(r.texto, /debe ser mayor/);
@@ -691,12 +719,32 @@ describe("Mantenimientos y repuestos", () => {
     assert.ok(!/proxima_fecha/.test(r.texto));
   });
 
+  test("vista 'todos los mantenimientos' del vehículo: lista desplegable con el detalle de cada orden", async () => {
+    const c = await admin();
+    const ficha = await c.get("/Vehicles/1");
+    assert.match(ficha.texto, /href="\/Vehicles\/1\/mantenimientos"/);
+    assert.match(ficha.texto, /Ver todos \(\d+\)/);
+    const r = await c.get("/Vehicles/1/mantenimientos");
+    assert.equal(r.status, 200);
+    assert.match(r.texto, /Mantenimientos de <span[^>]*>AA001BB/);
+    assert.match(r.texto, /mv-item__cabecera/);
+    assert.match(r.texto, /Repuestos utilizados/);
+    assert.match(r.texto, /Filtro de Aceite \(Camioneta\)/);
+    assert.match(r.texto, /\$86\.500/);
+    // vehículo sin órdenes y vehículo inexistente
+    assert.match((await c.get("/Vehicles/11/mantenimientos")).texto, /todavía no tiene mantenimientos/);
+    assert.equal((await c.get("/Vehicles/9999/mantenimientos")).status, 302);
+    // sin permiso de Vehículos no se accede
+    const w = await como("walter");
+    assert.equal((await w.get("/Vehicles/1/mantenimientos")).status, 403);
+  });
+
   test("el listado usa los importes guardados (mano de obra y repuestos)", async () => {
     const c = await admin();
     const r = await c.get("/Mantenimientos");
-    assert.match(r.texto, /\$86500/);
-    assert.match(r.texto, /\$46500/);
-    assert.match(r.texto, /\$40000/);
+    assert.match(r.texto, /\$86\.500/);
+    assert.match(r.texto, /\$46\.500/);
+    assert.match(r.texto, /\$40\.000/);
   });
 
   test("las alertas de service (próximo / vencido) se generan y se actualizan", async () => {
