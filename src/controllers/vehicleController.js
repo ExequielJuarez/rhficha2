@@ -1,5 +1,6 @@
 const path = require("path");
 const fs = require("fs");
+const { Op } = require("sequelize");
 
 const vehicleService = require("../data/vehicleService");
 const maintenanceService = require("../data/maintenanceService");
@@ -236,9 +237,19 @@ const vehicleController = {
         order: [["fecha_siniestro", "DESC"]],
       });
 
+      // Alertas propias del vehículo: documentación, service, asignación vencida y sus siniestros abiertos
+      const idsSiniestros = siniestrosVehiculo.map((s) => s.id_siniestro);
+      const condiciones = [{ entidad_tipo: "Vehiculo", entidad_id: vehiculo.id_vehiculo }];
+      if (idsSiniestros.length) condiciones.push({ entidad_tipo: "Siniestro", entidad_id: idsSiniestros, leida: false });
+      const orden = { alta: 0, media: 1, baja: 2 };
+      const alertasVehiculo = (await db.Alerta.findAll({ where: { [Op.or]: condiciones } })).sort(
+        (a, b) => (orden[a.prioridad] ?? 3) - (orden[b.prioridad] ?? 3) || b.id_alerta - a.id_alerta,
+      );
+
       res.render("listadoVehiculos", {
         vehiculos,
         vehiculoSeleccionado: vehiculo,
+        alertasVehiculo,
         ultimosMantenimientos,
         totalMantenimientos,
         ultimasAsignaciones,
@@ -265,6 +276,30 @@ const vehicleController = {
     } catch (error) {
       console.log(error);
       req.flash("error", "Error al cargar los mantenimientos del vehículo.");
+      res.redirect("/Vehicles");
+    }
+  },
+
+  // Todos los siniestros de un vehículo, en lista desplegable
+  SiniestrosDeVehiculo: async (req, res) => {
+    try {
+      const vehiculo = await vehicleService.getOne(req.params.id);
+      if (!vehiculo) {
+        req.flash("error", "El vehículo no existe.");
+        return res.redirect("/Vehicles");
+      }
+      const siniestros = await db.Siniestro.findAll({
+        where: { id_vehiculo: vehiculo.id_vehiculo },
+        include: [{ model: db.Chofer, as: "Chofer" }],
+        order: [
+          ["fecha_siniestro", "DESC"],
+          ["id_siniestro", "DESC"],
+        ],
+      });
+      res.render("SiniestrosVehiculo", { vehiculo, siniestros });
+    } catch (error) {
+      console.log(error);
+      req.flash("error", "Error al cargar los siniestros del vehículo.");
       res.redirect("/Vehicles");
     }
   },

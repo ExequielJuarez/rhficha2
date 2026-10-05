@@ -1508,4 +1508,72 @@ describe("Reglas de negocio e inconsistencias corregidas", () => {
     // el Administrador siempre tiene todo
     assert.equal((await db.Usuario.findByPk(1)).permisos === null || true, true);
   });
+
+  test("ficha del vehículo: el panel de alertas es solo del vehículo (service, documentación, siniestro) y no mezcla otros", async () => {
+    const c = await admin();
+    const v = await nuevoVehiculo(c, { km_actual: 59000, rto_vencimiento: hoy(-5) });
+    const otro = await nuevoVehiculo(c, { km_actual: 100 });
+    await c.post("/CargaMantenimiento", { estado: "Programado", id_vehiculo: v.id_vehiculo, tipo_servicio: "Service 60000", km_programado: 60000 });
+    await db.Siniestro.create({ id_vehiculo: v.id_vehiculo, fecha_siniestro: hoy(-1), ubicacion: "Ruta 5 km 30", estado: "EN PROCESO" });
+    await require("../src/data/alertaService").generarTodas();
+    const r = await c.get(`/Vehicles/${v.id_vehiculo}`);
+    assert.match(r.texto, /Alertas del Vehículo/);
+    assert.ok(!/Alertas Coberturas/.test(r.texto));
+    assert.match(r.texto, /Faltan solo 1000 km para el service programado \(60000 km\)/);
+    assert.match(r.texto, /RTO\/VTV vencida hace 5 días/);
+    assert.match(r.texto, /Siniestro en proceso no resuelto: Ruta 5 km 30/);
+    // el otro vehículo no tiene alertas y no muestra las de este
+    const r2 = await c.get(`/Vehicles/${otro.id_vehiculo}`);
+    assert.match(r2.texto, /Este vehículo no tiene alertas activas/);
+    assert.ok(!/Ruta 5 km 30/.test(r2.texto.split("Alertas del Vehículo")[1] || ""));
+  });
+
+  test("vista 'todos los siniestros' del vehículo: botón en la ficha y lista desplegable", async () => {
+    const c = await admin();
+    const v = await nuevoVehiculo(c);
+    const vacio = await c.get(`/Vehicles/${v.id_vehiculo}/siniestros`);
+    assert.equal(vacio.status, 200);
+    assert.match(vacio.texto, /no tiene siniestros registrados/);
+    await db.Siniestro.create({ id_vehiculo: v.id_vehiculo, fecha_siniestro: hoy(-20), ubicacion: "Av. Libertad 100", relato: "Choque leve", danos_vehiculo: "Paragolpes", tercero_vehiculo: "Fiat Uno", tercero_seguro: "La Caja", estado: "RESUELTO", archivos_adjuntos: "foto1.jpg" });
+    await db.Siniestro.create({ id_vehiculo: v.id_vehiculo, fecha_siniestro: hoy(-2), ubicacion: "Calle Falsa 123", estado: "EN PROCESO" });
+    const ficha = await c.get(`/Vehicles/${v.id_vehiculo}`);
+    assert.match(ficha.texto, new RegExp(`href="/Vehicles/${v.id_vehiculo}/siniestros"`));
+    assert.match(ficha.texto, /Ver todos \(2\) →/);
+    const r = await c.get(`/Vehicles/${v.id_vehiculo}/siniestros`);
+    assert.equal(r.status, 200);
+    assert.match(r.texto, /Siniestros de <span[^>]*>TT\d+ZZ/);
+    assert.match(r.texto, /Av\. Libertad 100/);
+    assert.match(r.texto, /Choque leve/);
+    assert.match(r.texto, /Fiat Uno/);
+    assert.match(r.texto, /\/img\/siniestros\/foto1\.jpg/);
+    assert.ok(r.texto.indexOf("Calle Falsa 123") < r.texto.indexOf("Av. Libertad 100"), "el más reciente primero");
+    assert.equal((await c.get("/Vehicles/9999/siniestros")).status, 302);
+    assert.equal((await (await como("walter")).get(`/Vehicles/${v.id_vehiculo}/siniestros`)).status, 403);
+  });
+
+  test("un tipo de vehículo nuevo creado en Ajustes se guarda, aparece al dar de alta y funciona de punta a punta", async () => {
+    const c = await admin();
+    await c.post("/Vehicles/Ajustes/Tipos", { descripcion: "Autoelevador", unidad: "hs" });
+    const tipo = await db.TipoVehiculo.findOne({ where: { descripcion: "Autoelevador" } });
+    assert.ok(tipo, "se guardó en la base");
+    assert.match((await c.get("/Vehicles/Ajustes")).texto, /Autoelevador/);
+    assert.match((await c.get("/CargaVehiculo")).texto, new RegExp(`<option value="${tipo.id_tipo}">Autoelevador</option>`));
+    const v = await nuevoVehiculo(c, { id_tipo: tipo.id_tipo, km_actual: 500 });
+    assert.equal(v.id_tipo, tipo.id_tipo);
+    const ficha = await c.get(`/Vehicles/${v.id_vehiculo}`);
+    assert.match(ficha.texto, /Autoelevador/);
+    assert.match(ficha.texto, /500 hs/);
+    // mantenimiento y alerta en horas
+    await c.post("/CargaMantenimiento", { estado: "Programado", id_vehiculo: v.id_vehiculo, tipo_servicio: "Service 600", km_programado: 600 });
+    assert.ok(await db.Alerta.findOne({ where: { tipo: "mantenimiento_proximo", entidad_id: v.id_vehiculo } }));
+    // tipo sin regla de licencia: se puede asignar a un chofer con licencia válida
+    assert.match(decodeURIComponent((await asignar(c, v, 8)).location), /success/);
+    const a = await db.AsignacionVehiculo.findOne({ where: { id_vehiculo: v.id_vehiculo, estado: "Activo" } });
+    await c.post(`/Asignaciones/${a.id_asignacion}/finalizar`, {});
+    // en uso: no se puede borrar el tipo; duplicado rechazado
+    await c.post(`/Vehicles/Ajustes/Tipos/Eliminar/${tipo.id_tipo}`, {});
+    assert.ok(await db.TipoVehiculo.findByPk(tipo.id_tipo));
+    await c.post("/Vehicles/Ajustes/Tipos", { descripcion: "Autoelevador" });
+    assert.equal(await db.TipoVehiculo.count({ where: { descripcion: "Autoelevador" } }), 1);
+  });
 });
