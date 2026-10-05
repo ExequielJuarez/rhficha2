@@ -628,14 +628,14 @@ describe("Mantenimientos y repuestos", () => {
     assert.ok(fin.fecha_fin);
     assert.equal((await db.Vehiculo.findByPk(5)).estado_actual, "Disponible");
     // una orden realizada no se reabre ni se repite
-    await c.post(`/Mantenimientos/${m.id_mantenimiento}/estado`, { estado: "Pendiente" });
+    await c.post(`/Mantenimientos/${m.id_mantenimiento}/estado`, { estado: "Programado" });
     assert.match((await aviso(c, "/Mantenimientos")).mensaje, /no puede volver a abrirse/);
     assert.equal((await db.Mantenimiento.findByPk(m.id_mantenimiento)).estado, "Realizado");
   });
 
   test("con dos órdenes abiertas, el vehículo sólo se libera al cerrar la última", async () => {
     const c = await admin();
-    await c.post("/CargaMantenimiento", orden({ id_vehiculo: 8, estado: "Pendiente", km_servicio: 73000, proximo_servicio_km: "", id_repuesto: [], cantidad: [], costo_unitario: [], mano_obra: "0" }));
+    await c.post("/CargaMantenimiento", orden({ id_vehiculo: 8, estado: "En proceso", km_servicio: 73000, proximo_servicio_km: "", id_repuesto: [], cantidad: [], costo_unitario: [], mano_obra: "0" }));
     await c.post("/CargaMantenimiento", orden({ id_vehiculo: 8, estado: "En proceso", km_servicio: 73000, proximo_servicio_km: "", id_repuesto: [], cantidad: [], costo_unitario: [], mano_obra: "0" }));
     const ordenes = await db.Mantenimiento.findAll({ where: { id_vehiculo: 8 }, order: [["id_mantenimiento", "ASC"]] });
     assert.equal(ordenes.length, 2);
@@ -643,6 +643,52 @@ describe("Mantenimientos y repuestos", () => {
     assert.equal((await db.Vehiculo.findByPk(8)).estado_actual, "En mantenimiento");
     await c.post(`/Mantenimientos/${ordenes[1].id_mantenimiento}/estado`, { estado: "Realizado" });
     assert.equal((await db.Vehiculo.findByPk(8)).estado_actual, "Disponible");
+  });
+
+  test("estado Programado: sólo pide km (sin fecha), no mueve el vehículo y valida contra el km actual", async () => {
+    const c = await admin();
+    const km = (await db.Vehiculo.findByPk(9)).km_actual;
+    let r = await c.post("/CargaMantenimiento", { estado: "Programado", id_vehiculo: 9, tipo_servicio: "Cambio de aceite", km_programado: km });
+    assert.equal(r.status, 400);
+    assert.match(r.texto, /debe ser mayor al km actual/);
+    const estadoVeh = (await db.Vehiculo.findByPk(7)).estado_actual;
+    r = await c.post("/CargaMantenimiento", { estado: "Programado", id_vehiculo: 7, tipo_servicio: "Service 70.000", km_programado: 70000 });
+    assert.equal(r.status, 302, r.texto.slice(0, 300));
+    const m = await db.Mantenimiento.findOne({ where: { id_vehiculo: 7, estado: "Programado" } });
+    assert.equal(m.proximo_km, 70000);
+    assert.equal(m.km_servicio, 70000);
+    assert.equal(m.fecha_fin, null);
+    assert.equal(Number(m.costo_total), 0);
+    assert.equal((await db.Vehiculo.findByPk(7)).estado_actual, estadoVeh, "programar no manda el vehículo al taller");
+    r = await c.post("/CargaMantenimiento", { estado: "Programado", id_vehiculo: 7, tipo_servicio: "Otro", km_programado: 70000 });
+    assert.match(r.texto, /Ya hay un service programado/);
+    await m.destroy();
+  });
+
+  test("Programado → En proceso → Realizado: manejo del vehículo y de los km", async () => {
+    const c = await admin();
+    await c.post("/CargaMantenimiento", { estado: "Programado", id_vehiculo: 7, tipo_servicio: "Service", km_programado: 70000 });
+    const m = await db.Mantenimiento.findOne({ where: { id_vehiculo: 7, estado: "Programado" } });
+    await c.post(`/Mantenimientos/${m.id_mantenimiento}/estado`, { estado: "En proceso" });
+    let o = await db.Mantenimiento.findByPk(m.id_mantenimiento);
+    assert.equal(o.estado, "En proceso");
+    assert.equal(o.proximo_km, null);
+    assert.equal((await db.Vehiculo.findByPk(7)).estado_actual, "En mantenimiento");
+    await c.post(`/Mantenimientos/${m.id_mantenimiento}/estado`, { estado: "Realizado" });
+    o = await db.Mantenimiento.findByPk(m.id_mantenimiento);
+    assert.equal(o.estado, "Realizado");
+    assert.ok(o.fecha_fin);
+    assert.equal((await db.Vehiculo.findByPk(7)).estado_actual, "Disponible");
+    await o.destroy();
+  });
+
+  test("el formulario de mantenimiento pide primero el estado y no tiene fecha de próximo service", async () => {
+    const c = await admin();
+    const r = await c.get("/Mantenimientos/carga");
+    assert.ok(r.texto.indexOf('name="estado"') < r.texto.indexOf('name="id_vehiculo"'), "el estado va primero");
+    assert.match(r.texto, /Programado \(próximo service por kilometraje\)/);
+    assert.match(r.texto, /name="km_programado"/);
+    assert.ok(!/proxima_fecha/.test(r.texto));
   });
 
   test("el listado usa los importes guardados (mano de obra y repuestos)", async () => {
@@ -913,6 +959,100 @@ describe("Siniestros", () => {
 
 /* ───────────────────────────────── ALERTAS ───────────────────────────────── */
 describe("Alertas", () => {
+  const generar = () => require("../src/data/alertaService").generarTodas();
+  const alertaDe = (tipo, id, entidad = "Vehiculo") => db.Alerta.findOne({ where: { tipo, entidad_id: id, entidad_tipo: entidad } });
+
+  test("service: realizado con próximo a 60.000 km → al llegar a 59.000 hay alerta (escenario reportado)", async () => {
+    const c = await admin();
+    await c.post("/CargaMantenimiento", { estado: "Realizado", id_vehiculo: 7, fecha_inicio: hoy(), tipo_servicio: "Aceite", km_servicio: 62700, proximo_servicio_km: 70000, descripcion: "ok", mano_obra: "0" });
+    await c.get("/Alertas");
+    assert.equal(await alertaDe("mantenimiento_proximo", 7), null, "todavía falta mucho");
+    await c.post("/ActualizarKm", { id_vehiculo: 7, km_nuevo: 66000, fecha_actualizacion: hoy(), observaciones: "" });
+    let a = await alertaDe("mantenimiento_proximo", 7);
+    assert.ok(a, "a 4.000 km del service: alerta media");
+    assert.equal(a.prioridad, "media");
+    await c.post("/ActualizarKm", { id_vehiculo: 7, km_nuevo: 69000, fecha_actualizacion: hoy(), observaciones: "" });
+    a = await alertaDe("mantenimiento_proximo", 7);
+    assert.equal(a.prioridad, "alta", "a 1.000 km: prioridad alta");
+    assert.match(a.mensaje, /Faltan solo 1000 km/);
+    assert.equal(a.leida, false);
+    // la campana (sin recargar el panel) ya lo cuenta
+    const rec = JSON.parse((await c.get("/Alertas/recientes")).texto);
+    assert.ok(rec.alertas.some((x) => x.tipo === "mantenimiento_proximo" && x.entidad_id === 7));
+    await c.post("/ActualizarKm", { id_vehiculo: 7, km_nuevo: 70500, fecha_actualizacion: hoy(), observaciones: "" });
+    a = await alertaDe("mantenimiento_vencido", 7);
+    assert.ok(a, "pasado el km: service vencido");
+    assert.equal(await alertaDe("mantenimiento_proximo", 7), null, "el aviso 'próximo' se convierte en 'vencido'");
+  });
+
+  test("service programado: alerta al acercarse y desaparece al realizarlo", async () => {
+    const c = await admin();
+    await c.post("/ActualizarKm", { id_vehiculo: 6, km_nuevo: 416000, fecha_actualizacion: hoy(), observaciones: "" });
+    await c.post("/CargaMantenimiento", { estado: "Programado", id_vehiculo: 6, tipo_servicio: "Service 420 mil", km_programado: 420000 });
+    let a = await alertaDe("mantenimiento_proximo", 6);
+    assert.ok(a, "se genera apenas se programa si ya está cerca");
+    assert.match(a.mensaje, /service programado \(420000 km\)/);
+    const m = await db.Mantenimiento.findOne({ where: { id_vehiculo: 6, estado: "Programado" } });
+    await c.post(`/Mantenimientos/${m.id_mantenimiento}/estado`, { estado: "Realizado" });
+    assert.equal(await alertaDe("mantenimiento_proximo", 6), null, "al realizarlo ya no hay alerta");
+  });
+
+  test("licencias: umbral de 30 días, hoy y vencida; se actualiza al cambiar la fecha", async () => {
+    const lic = (dias) => db.LicenciaChofer.update({ fecha_vencimiento: hoy(dias) }, { where: { id_chofer: 8 } });
+    await lic(31); await generar();
+    assert.equal(await alertaDe("licencia_proxima", 8, "Chofer"), null, "31 días: sin alerta");
+    await lic(30); await generar();
+    let a = await alertaDe("licencia_proxima", 8, "Chofer");
+    assert.ok(a, "30 días: alerta");
+    assert.match(a.mensaje, /vence en 30 días/);
+    await lic(0); await generar();
+    assert.match((await alertaDe("licencia_proxima", 8, "Chofer")).mensaje, /vence hoy/);
+    await lic(-3); await generar();
+    a = await alertaDe("licencia_vencida", 8, "Chofer");
+    assert.ok(a && a.prioridad === "alta");
+    assert.match(a.mensaje, /vencida hace 3 días/);
+    assert.equal(await alertaDe("licencia_proxima", 8, "Chofer"), null);
+    await lic(900); await generar();
+    assert.equal(await alertaDe("licencia_vencida", 8, "Chofer"), null, "renovada: sin alerta");
+  });
+
+  test("RTO y seguro: alertas independientes por vehículo, se actualizan y desaparecen", async () => {
+    const set = (rto, seg) => db.Vehiculo.update({ rto_vencimiento: hoy(rto), seguro_vencimiento: hoy(seg) }, { where: { id_vehiculo: 5 } });
+    await set(10, 400); await generar();
+    const doc = async () => (await db.Alerta.findAll({ where: { tipo: "documentacion_vencida", entidad_id: 5 } })).map((x) => x.mensaje);
+    let m = await doc();
+    assert.equal(m.length, 1);
+    assert.match(m[0], /RTO\/VTV vence en 10 días/);
+    await set(-2, 5); await generar();
+    m = await doc();
+    assert.equal(m.length, 2);
+    assert.ok(m.some((x) => /RTO\/VTV vencida hace 2 días/.test(x)));
+    assert.ok(m.some((x) => /Póliza de seguro vence en 5 días/.test(x)));
+    await set(400, 400); await generar();
+    assert.equal((await doc()).length, 0, "renovados: sin alertas");
+    // vencimientos faltantes no rompen
+    await db.Vehiculo.update({ rto_vencimiento: null, seguro_vencimiento: null }, { where: { id_vehiculo: 5 } });
+    await generar();
+    assert.equal((await doc()).length, 0);
+  });
+
+  test("al volver a vencerse algo ya leído, la alerta sigue leída hasta que cambia de gravedad", async () => {
+    await db.Vehiculo.update({ rto_vencimiento: hoy(10) }, { where: { id_vehiculo: 5 } });
+    await generar();
+    const a = await alertaDe("documentacion_vencida", 5);
+    await a.update({ leida: true });
+    await db.Vehiculo.update({ rto_vencimiento: hoy(9) }, { where: { id_vehiculo: 5 } });
+    await generar();
+    assert.equal((await db.Alerta.findByPk(a.id_alerta)).leida, true, "mismo estado: sigue leída");
+    await db.Vehiculo.update({ rto_vencimiento: hoy(-1) }, { where: { id_vehiculo: 5 } });
+    await generar();
+    const b = await db.Alerta.findByPk(a.id_alerta);
+    assert.equal(b.prioridad, "alta");
+    assert.equal(b.leida, false, "pasó a vencida: se reabre");
+    await db.Vehiculo.update({ rto_vencimiento: null }, { where: { id_vehiculo: 5 } });
+    await generar();
+  });
+
   test("'marcar como leída' se mantiene aunque se regeneren las alertas", async () => {
     const c = await admin();
     await c.get("/Alertas");

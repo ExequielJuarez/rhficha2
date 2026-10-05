@@ -138,7 +138,7 @@ const vehicleController = {
         `Cambio de estado de mantenimiento ID: ${mantenimiento.id_mantenimiento} (${anterior} → ${req.body.estado})`,
       );
 
-      alertaService.generarAlertasMantenimiento();
+      await alertaService.generarAlertasMantenimiento();
       req.flash("ok", `Orden actualizada: ${req.body.estado}.`);
     } catch (error) {
       if (!(error instanceof ErrorNegocio)) console.error(error);
@@ -161,7 +161,7 @@ const vehicleController = {
         `Alta de mantenimiento (${mantenimiento.tipo_servicio}) para vehículo ID: ${mantenimiento.id_vehiculo}`,
       );
 
-      alertaService.generarAlertasMantenimiento();
+      await alertaService.generarAlertasMantenimiento();
       req.flash("ok", "Orden de mantenimiento guardada.");
       res.redirect("/Mantenimientos");
     } catch (error) {
@@ -316,7 +316,7 @@ const vehicleController = {
         `Alta vehículo: ${nuevoVehiculo.marca} ${nuevoVehiculo.modelo} (${nuevoVehiculo.patente})`,
       );
 
-      alertaService.generarAlertasVehiculos();
+      await alertaService.generarAlertasVehiculos();
       req.flash("ok", "Vehículo registrado correctamente.");
       res.redirect("/Vehicles/" + nuevoVehiculo.id_vehiculo);
     } catch (error) {
@@ -363,7 +363,7 @@ const vehicleController = {
       if (req.files?.foto_rto) borrarImagenAnterior(resultado.fotosAnteriores.foto_rto);
 
       await alertaService.generarAlertasVehiculos();
-      alertaService.generarAlertasMantenimiento();
+      await alertaService.generarAlertasMantenimiento();
       req.flash("ok", "Vehículo actualizado correctamente.");
       res.redirect(`/Vehicles/${req.params.id}`);
     } catch (error) {
@@ -418,7 +418,7 @@ const vehicleController = {
         `Actualización de kilometraje de ${vehiculo.patente}: ${km_anterior} → ${km_nuevo} km`,
       );
 
-      alertaService.generarAlertasMantenimiento();
+      await alertaService.generarAlertasMantenimiento();
       req.flash("ok", "Kilometraje actualizado.");
       res.redirect("/Vehicles");
     } catch (error) {

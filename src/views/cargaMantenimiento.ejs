@@ -58,62 +58,92 @@
         <input type="hidden" name="costo_repuestos" id="costo_repuestos" value="0">
 
         <section class="form-section">
-          <h3>1. Datos del Vehículo y Servicio</h3>
-          
+          <h3>1. ¿Qué tipo de orden vas a cargar?</h3>
+          <div class="form-group">
+            <label>Estado de la Orden <span class="req">*</span></label>
+            <select name="estado" id="estado" required>
+              <option value="">Seleccioná el estado de la orden</option>
+              <option value="Programado">Programado (próximo service por kilometraje)</option>
+              <option value="En proceso">En proceso (el vehículo está en el taller ahora)</option>
+              <option value="Realizado">Realizado (service ya hecho / registro histórico)</option>
+            </select>
+            <span id="ayuda-estado" style="font-size:12px; color:var(--color-text-muted); margin-top:4px; display:block;">El formulario se adapta según el estado elegido.</span>
+          </div>
+        </section>
+
+        <section class="form-section bloque-estado" data-estados="Programado En proceso Realizado" style="display:none;">
+          <h3>2. Vehículo y Servicio</h3>
+
           <div class="form-row">
             <div class="form-group">
-              <label>Vehículo Afectado <span class="req">*</span></label>
+              <label>Vehículo <span class="req">*</span></label>
               <select name="id_vehiculo" id="id_vehiculo" required>
                 <option value="">Seleccione un vehículo</option>
                 <% if (typeof vehiculos !== 'undefined' && vehiculos.length > 0) { %>
                   <% vehiculos.forEach(v => { %>
                     <option value="<%= v.id_vehiculo %>" data-km="<%= v.km_actual %>" 
                       <%= (typeof id_vehiculo_preseleccionado !== 'undefined' && String(id_vehiculo_preseleccionado) === String(v.id_vehiculo)) ? 'selected' : '' %>>
-                      <%= v.patente %> - <%= v.marca %> <%= v.modelo %>
+                      <%= v.patente %> - <%= v.marca %> <%= v.modelo %> (<%= v.km_actual %> km)
                     </option>
                   <% }) %>
                 <% } %>
               </select>
+              <span id="km-actual-hint" style="font-size:13px; font-weight:700; color:#1d4ed8; margin-top:6px; display:block;"></span>
             </div>
-            <div class="form-group">
-              <label>Fecha del Servicio <span class="req">*</span></label>
-              <input type="date" name="fecha_inicio" id="fecha_inicio" required>
-            </div>
-          </div>
-
-          <div class="form-row">
             <div class="form-group">
               <label>Tipo de Servicio <span class="req">*</span></label>
               <input type="text" name="tipo_servicio" placeholder="Ej: Cambio de aceite y filtros" required>
             </div>
-            <div class="form-group">
-              <label>Estado de la Orden <span class="req">*</span></label>
-              <select name="estado" required>
-                <option value="Realizado">Realizado (Finalizado)</option>
-                <option value="En proceso">En proceso (Taller)</option>
-                <option value="Pendiente">Pendiente (Programado)</option>
-              </select>
-            </div>
           </div>
         </section>
 
-        <section class="form-section">
-          <h3>2. Seguimiento de Kilometraje</h3>
+        <!-- ───── SOLO PROGRAMADO: se maneja por kilometraje, sin fecha ───── -->
+        <section class="form-section bloque-estado" data-estados="Programado" style="display:none;">
+          <h3>3. Service Programado por Kilometraje</h3>
           <div class="form-row">
+            <div class="form-group">
+              <label>Km actual del vehículo</label>
+              <input type="text" id="km-actual-prog" readonly placeholder="Elegí un vehículo" style="background:#f8fafc; font-weight:800;">
+            </div>
+            <div class="form-group">
+              <label>Km del service programado <span class="req">*</span></label>
+              <input type="number" name="km_programado" id="km_programado" min="0" placeholder="Ej: 60000" required>
+              <span id="km-falta-hint" style="font-size:12px; color:var(--color-text-muted); margin-top:4px; display:block;"></span>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Detalle del service a realizar (opcional)</label>
+            <textarea name="descripcion" placeholder="Ej: Cambio de aceite, filtros y revisión de frenos" style="min-height: 70px;"></textarea>
+          </div>
+          <p style="font-size:12px; color:#92400e; background:#fffbeb; border:1px solid #fde68a; border-radius:6px; padding:10px 12px; margin:0;">
+            El sistema te va a avisar con una alerta cuando el vehículo se acerque a este kilometraje (a 5.000 km, y con prioridad alta a 2.000 km).
+          </p>
+        </section>
+
+        <!-- ───── EN PROCESO / REALIZADO ───── -->
+        <section class="form-section bloque-estado" data-estados="En proceso Realizado" style="display:none;">
+          <h3>3. Fecha y Seguimiento de Kilometraje</h3>
+          <div class="form-row">
+            <div class="form-group">
+              <label id="label-fecha">Fecha del Servicio <span class="req">*</span></label>
+              <input type="date" name="fecha_inicio" id="fecha_inicio" required>
+            </div>
             <div class="form-group">
               <label>Km al momento del servicio <span class="req">*</span></label>
               <input type="number" name="km_servicio" id="km_servicio" min="0" placeholder="Ej: 85000" required>
-              <span id="km-actual-hint" style="font-size:12px; color:var(--color-text-muted); margin-top:4px; display:block;"></span>
             </div>
+          </div>
+          <div class="form-row">
             <div class="form-group">
-              <label>Sugerencia Próximo Servicio (Km)</label>
+              <label>Km del próximo service (opcional)</label>
               <input type="number" name="proximo_servicio_km" id="proximo_servicio_km" min="0" placeholder="Ej: 95000">
+              <span style="font-size:12px; color:var(--color-text-muted); margin-top:4px; display:block;">Con este dato el sistema genera la alerta del próximo service.</span>
             </div>
           </div>
         </section>
 
-        <section class="form-section">
-          <h3>3. Detalle del Trabajo</h3>
+        <section class="form-section bloque-estado" data-estados="En proceso Realizado" style="display:none;">
+          <h3>4. Detalle del Trabajo</h3>
           <div class="form-group">
             <label>Descripción de tareas realizadas <span class="req">*</span></label>
             <textarea name="descripcion" placeholder="Detallá los trabajos hechos por el mecánico..." required style="min-height: 80px;"></textarea>
@@ -124,8 +154,8 @@
           </div>
         </section>
 
-        <section class="form-section">
-          <h3>4. Desglose de Costos y Repuestos</h3>
+        <section class="form-section bloque-estado" data-estados="En proceso Realizado" style="display:none;">
+          <h3>5. Desglose de Costos y Repuestos</h3>
           
           <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin-bottom: 20px;">
             
@@ -181,26 +211,66 @@
     });
 
     const fechaInput = document.getElementById('fecha_inicio');
-    if (!fechaInput.value) fechaInput.value = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().split('T')[0];
+    const hoyLocal = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().split('T')[0];
+    if (!fechaInput.value) fechaInput.value = hoyLocal;
+    fechaInput.max = hoyLocal;
 
+    const selectEstado = document.getElementById('estado');
     const selectVehiculo = document.getElementById('id_vehiculo');
     const kmServicioInput = document.getElementById('km_servicio');
+    const kmProgramadoInput = document.getElementById('km_programado');
     const kmHint = document.getElementById('km-actual-hint');
+    const kmActualProg = document.getElementById('km-actual-prog');
+    const kmFaltaHint = document.getElementById('km-falta-hint');
+
+    const kmActualSeleccionado = () => {
+      const opt = selectVehiculo.options[selectVehiculo.selectedIndex];
+      return opt && opt.value ? Number(opt.dataset.km) : null;
+    };
+
+    // Muestra sólo los bloques que corresponden al estado elegido y deshabilita el resto
+    // (los campos deshabilitados no se validan ni se envían)
+    function aplicarEstado() {
+      const estado = selectEstado.value;
+      document.querySelectorAll('.bloque-estado').forEach(bloque => {
+        const visible = estado !== '' && bloque.dataset.estados.split(' ').includes(estado);
+        bloque.style.display = visible ? '' : 'none';
+        bloque.querySelectorAll('input, select, textarea').forEach(campo => { campo.disabled = !visible; });
+      });
+      const label = document.getElementById('label-fecha');
+      if (label) label.innerHTML = (estado === 'En proceso' ? 'Fecha de ingreso al taller' : 'Fecha del Servicio') + ' <span class="req">*</span>';
+      actualizarKmHint();
+    }
 
     function actualizarKmHint() {
-      const opt = selectVehiculo.options[selectVehiculo.selectedIndex];
-      if (opt && opt.value) {
-        const kmActual = opt.dataset.km;
-        kmHint.textContent = `Km registrado en base: ${kmActual}`;
-        if(!kmServicioInput.value) kmServicioInput.value = kmActual;
-      } else {
+      const km = kmActualSeleccionado();
+      if (km === null) {
         kmHint.textContent = '';
+        kmActualProg.value = '';
+        kmFaltaHint.textContent = '';
+        return;
+      }
+      kmHint.textContent = `Km actual del vehículo: ${km.toLocaleString('es-AR')} km`;
+      kmActualProg.value = `${km.toLocaleString('es-AR')} km`;
+      kmProgramadoInput.min = km + 1;
+      if (selectEstado.value !== 'Programado' && !kmServicioInput.value) kmServicioInput.value = km;
+      actualizarFalta();
+    }
+
+    function actualizarFalta() {
+      const km = kmActualSeleccionado();
+      const prog = Number(kmProgramadoInput.value);
+      if (km !== null && kmProgramadoInput.value && prog > km) {
+        kmFaltaHint.textContent = `Faltan ${(prog - km).toLocaleString('es-AR')} km para este service.`;
+      } else {
+        kmFaltaHint.textContent = '';
       }
     }
-    if (selectVehiculo) {
-      selectVehiculo.addEventListener('change', actualizarKmHint);
-      if(selectVehiculo.value) actualizarKmHint();
-    }
+
+    selectEstado.addEventListener('change', aplicarEstado);
+    selectVehiculo.addEventListener('change', () => { kmServicioInput.value = ''; actualizarKmHint(); });
+    kmProgramadoInput.addEventListener('input', actualizarFalta);
+    aplicarEstado();
 
     // ── LÓGICA DE REPUESTOS DINÁMICOS Y SEGURA ──
     document.getElementById('btn-add-repuesto').addEventListener('click', () => {
@@ -255,15 +325,20 @@
     document.getElementById('mano_obra').addEventListener('input', calcularTotal);
 
     document.getElementById('form-mantenimiento').addEventListener('submit', function (e) {
-      const kmActual = parseFloat(selectVehiculo.options[selectVehiculo.selectedIndex]?.dataset.km) || 0;
-      const kmServicio = parseFloat(kmServicioInput.value) || 0;
-      const proximoKm = parseFloat(document.getElementById('proximo_servicio_km').value) || 0;
-      
-      let errores = [];
+      const estado = selectEstado.value;
+      const kmActual = kmActualSeleccionado() || 0;
+      const errores = [];
 
-      if (kmServicio < kmActual) errores.push(`El Km del servicio no puede ser menor al actual (${kmActual}).`);
-      if (document.getElementById('proximo_servicio_km').value && proximoKm <= kmServicio) {
-        errores.push(`El Próximo Km debe ser mayor al del servicio actual (${kmServicio}).`);
+      if (estado === 'Programado') {
+        const prog = parseFloat(kmProgramadoInput.value) || 0;
+        if (prog <= kmActual) errores.push(`El km del service programado debe ser mayor al km actual del vehículo (${kmActual}).`);
+      } else {
+        const kmServicio = parseFloat(kmServicioInput.value) || 0;
+        const proximoKm = parseFloat(document.getElementById('proximo_servicio_km').value) || 0;
+        if (kmServicio < kmActual) errores.push(`El Km del servicio no puede ser menor al actual (${kmActual}).`);
+        if (document.getElementById('proximo_servicio_km').value && proximoKm <= kmServicio) {
+          errores.push(`El Próximo Km debe ser mayor al del servicio actual (${kmServicio}).`);
+        }
       }
 
       if (errores.length > 0) {

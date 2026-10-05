@@ -336,31 +336,44 @@ const alertaService = {
         const deseadas = [];
 
         for (const v of vehiculos) {
-          // Último service realizado: de él sale el próximo km recomendado
-          const ultimoMant = await db.Mantenimiento.findOne({
+          // Objetivos de km: los services PROGRAMADOS y el "próximo service" del último service realizado
+          const objetivos = [];
+
+          const programados = await db.Mantenimiento.findAll({
+            where: { id_vehiculo: v.id_vehiculo, estado: "Programado", proximo_km: { [Op.ne]: null } },
+          });
+          programados.forEach((m) => objetivos.push({ km: m.proximo_km, origen: "programado" }));
+
+          const ultimoRealizado = await db.Mantenimiento.findOne({
             where: { id_vehiculo: v.id_vehiculo, estado: "Realizado" },
             order: [
               ["fecha_inicio", "DESC"],
               ["id_mantenimiento", "DESC"],
             ],
           });
-          if (!ultimoMant || !ultimoMant.proximo_km) continue;
+          if (ultimoRealizado && ultimoRealizado.proximo_km) {
+            objetivos.push({ km: ultimoRealizado.proximo_km, origen: "recomendado" });
+          }
+          if (!objetivos.length) continue;
 
-          const kmRestantes = ultimoMant.proximo_km - v.km_actual;
+          // Se avisa por el service más cercano (o ya vencido)
+          const objetivo = objetivos.reduce((a, b) => (a.km <= b.km ? a : b));
+          const kmRestantes = objetivo.km - v.km_actual;
+          const palabra = objetivo.origen === "programado" ? "programado" : "recomendado";
           let tipo, prioridad, mensaje;
 
           if (kmRestantes <= 0) {
             tipo = "mantenimiento_vencido";
             prioridad = "alta";
-            mensaje = `Service recomendado superado hace ${Math.abs(kmRestantes)} km (recomendado a los ${ultimoMant.proximo_km} km)`;
+            mensaje = `Service ${palabra} superado hace ${Math.abs(kmRestantes)} km (${palabra} a los ${objetivo.km} km)`;
           } else if (kmRestantes <= UMBRAL_ALTA) {
             tipo = "mantenimiento_proximo";
             prioridad = "alta";
-            mensaje = `Faltan solo ${kmRestantes} km para el service recomendado (${ultimoMant.proximo_km} km)`;
+            mensaje = `Faltan solo ${kmRestantes} km para el service ${palabra} (${objetivo.km} km)`;
           } else if (kmRestantes <= UMBRAL_MEDIA) {
             tipo = "mantenimiento_proximo";
             prioridad = "media";
-            mensaje = `Faltan ${kmRestantes} km para el service recomendado (${ultimoMant.proximo_km} km)`;
+            mensaje = `Faltan ${kmRestantes} km para el service ${palabra} (${objetivo.km} km)`;
           } else {
             continue;
           }

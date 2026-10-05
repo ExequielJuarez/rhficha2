@@ -3,8 +3,10 @@ const { Op } = require("sequelize");
 const { hoyISO, esFechaValida } = require("../utils/fechas");
 const { ErrorNegocio } = require("../utils/errores");
 
-const ESTADOS_MANTENIMIENTO = ["Pendiente", "En proceso", "Realizado"];
-const ESTADOS_ABIERTOS = ["Pendiente", "En proceso"];
+// Programado: próximo service por kilometraje (aún no se hizo). En proceso: el vehículo está en el taller.
+// Realizado: service terminado (o registro histórico cargado a mano).
+const ESTADOS_MANTENIMIENTO = ["Programado", "En proceso", "Realizado"];
+const ESTADOS_ABIERTOS = ["En proceso"]; // sólo estos mantienen al vehículo fuera de servicio
 
 const aLista = (valor) => (valor === undefined ? [] : Array.isArray(valor) ? valor : [valor]);
 
@@ -30,12 +32,51 @@ const maintenanceService = {
       const tipo = String(body.tipo_servicio || "").trim();
       if (!tipo) throw new ErrorNegocio("Indicá el tipo de servicio.");
       if (tipo.length > 100) throw new ErrorNegocio("El tipo de servicio no puede superar los 100 caracteres.");
+
+      // ───────── Service PROGRAMADO: se maneja sólo por kilometraje ─────────
+      if (estado === "Programado") {
+        const vehiculoProg = await db.Vehiculo.findByPk(body.id_vehiculo, { transaction, lock: transaction.LOCK.UPDATE });
+        if (!vehiculoProg) throw new ErrorNegocio("Seleccioná un vehículo válido.");
+        if (vehiculoProg.estado_actual === "Baja") throw new ErrorNegocio("El vehículo está dado de baja.");
+        if (!/^\d+$/.test(String(body.km_programado ?? ""))) throw new ErrorNegocio("Ingresá el kilometraje del service programado (número entero).");
+        const kmProgramado = Number(body.km_programado);
+        if (kmProgramado <= vehiculoProg.km_actual) {
+          throw new ErrorNegocio(`El km del service programado (${kmProgramado}) debe ser mayor al km actual del vehículo (${vehiculoProg.km_actual}).`);
+        }
+        const repetido = await db.Mantenimiento.findOne({
+          where: { id_vehiculo: vehiculoProg.id_vehiculo, estado: "Programado", proximo_km: kmProgramado },
+          transaction,
+        });
+        if (repetido) throw new ErrorNegocio(`Ya hay un service programado para ese vehículo a los ${kmProgramado} km.`);
+
+        const programado = await db.Mantenimiento.create(
+          {
+            id_vehiculo: vehiculoProg.id_vehiculo,
+            id_usuario,
+            fecha_inicio: hoyISO(), // fecha de carga: el service se programa por km, no por fecha
+            fecha_fin: null,
+            tipo_servicio: tipo,
+            estado: "Programado",
+            km_servicio: kmProgramado,
+            proximo_km: kmProgramado,
+            descripcion: String(body.descripcion || "").trim() || `Service programado a los ${kmProgramado} km`,
+            observaciones: String(body.observaciones || "").trim() || null,
+            costo_repuestos: 0,
+            mano_obra: 0,
+            costo_total: 0,
+          },
+          { transaction },
+        );
+        await transaction.commit();
+        return { mantenimiento: programado, lineas: [] };
+      }
+
       const descripcion = String(body.descripcion || "").trim();
       if (!descripcion) throw new ErrorNegocio("Describí las tareas realizadas.");
 
       if (!body.fecha_inicio || !esFechaValida(body.fecha_inicio)) throw new ErrorNegocio("La fecha de inicio no es válida.");
-      if (estado === "Realizado" && body.fecha_inicio > hoyISO()) {
-        throw new ErrorNegocio("Una orden con fecha futura no puede cargarse como Realizada.");
+      if (body.fecha_inicio > hoyISO()) {
+        throw new ErrorNegocio("La fecha del servicio no puede ser futura. Para un service futuro usá el estado Programado.");
       }
 
       if (!/^\d+$/.test(String(body.km_servicio ?? ""))) throw new ErrorNegocio("El kilometraje del servicio debe ser un número entero mayor o igual a 0.");
@@ -58,7 +99,7 @@ const maintenanceService = {
         throw new ErrorNegocio(`El km del servicio (${kmServicio}) no puede ser menor al actual del vehículo (${vehiculo.km_actual}).`);
       }
 
-      const abierta = ESTADOS_ABIERTOS.includes(estado);
+      const abierta = estado === "En proceso";
       if (abierta && vehiculo.estado_actual === "En uso") {
         throw new ErrorNegocio("El vehículo está en uso (asignado a un chofer): finalizá la asignación antes de enviarlo a mantenimiento.");
       }
@@ -160,7 +201,7 @@ const maintenanceService = {
     }
   },
 
-  // Cambio de estado de una orden existente
+  // Cambio de estado de una orden existente: Programado → En proceso → Realizado
   cambiarEstado: async function (id, nuevoEstado, kmServicio) {
     const transaction = await db.sequelize.transaction();
     try {
@@ -172,15 +213,37 @@ const maintenanceService = {
       const anterior = mantenimiento.estado;
       if (anterior === nuevoEstado) throw new ErrorNegocio(`La orden ya está en estado "${nuevoEstado}".`);
       if (anterior === "Realizado") throw new ErrorNegocio("Una orden Realizada no puede volver a abrirse.");
-      if (anterior === "En proceso" && nuevoEstado === "Pendiente") throw new ErrorNegocio("Una orden en proceso no puede volver a Pendiente.");
+      if (nuevoEstado === "Programado") throw new ErrorNegocio("Una orden en curso no puede volver a Programado.");
 
       const vehiculo = await db.Vehiculo.findByPk(mantenimiento.id_vehiculo, { transaction, lock: transaction.LOCK.UPDATE });
       const cambiosOrden = { estado: nuevoEstado };
       const cambiosVehiculo = {};
+      const eraProgramado = anterior === "Programado";
 
-      if (nuevoEstado === "Realizado") {
+      if (nuevoEstado === "En proceso") {
+        if (vehiculo) {
+          if (["Baja", "En siniestro"].includes(vehiculo.estado_actual)) {
+            throw new ErrorNegocio(`No se puede iniciar: el vehículo está "${vehiculo.estado_actual}".`);
+          }
+          if (vehiculo.estado_actual === "En uso") {
+            throw new ErrorNegocio("El vehículo está en uso (asignado a un chofer): finalizá la asignación antes de enviarlo al taller.");
+          }
+          if (vehiculo.estado_actual === "Disponible") cambiosVehiculo.estado_actual = "En mantenimiento";
+          cambiosOrden.km_servicio = vehiculo.km_actual; // entra al taller con el km actual
+        }
+        cambiosOrden.fecha_inicio = hoyISO();
+        cambiosOrden.proximo_km = null; // el km programado ya se cumplió
+      } else {
+        // Realizado
         cambiosOrden.fecha_fin = hoyISO();
-        const km = kmServicio !== undefined && kmServicio !== "" ? Number(kmServicio) : mantenimiento.km_servicio;
+        let km = kmServicio !== undefined && kmServicio !== "" ? Number(kmServicio) : mantenimiento.km_servicio;
+        if (eraProgramado) {
+          // Un service programado se realiza al km real del vehículo
+          km = vehiculo ? Math.max(vehiculo.km_actual, Number.isInteger(km) && kmServicio ? km : 0) : km;
+          cambiosOrden.km_servicio = km;
+          cambiosOrden.fecha_inicio = hoyISO();
+          cambiosOrden.proximo_km = null;
+        }
         if (vehiculo) {
           if (Number.isInteger(km) && km > vehiculo.km_actual) {
             cambiosVehiculo.km_actual = km;
@@ -199,8 +262,6 @@ const maintenanceService = {
             cambiosVehiculo.estado_actual = "Disponible";
           }
         }
-      } else if (vehiculo && vehiculo.estado_actual === "Disponible") {
-        cambiosVehiculo.estado_actual = "En mantenimiento";
       }
 
       await mantenimiento.update(cambiosOrden, { transaction });

@@ -101,7 +101,7 @@ const choferController = {
         `Alta de chofer: ${req.body.nombre} ${req.body.apellido}`,
       );
 
-      alertaService.generarAlertasLicencias();
+      await alertaService.generarAlertasLicencias();
       req.flash("ok", "Chofer registrado correctamente.");
       return res.redirect("/Choferes");
     } catch (error) {
@@ -239,7 +239,7 @@ const choferController = {
           (asignacionesCerradas ? ` — se cerró ${asignacionesCerradas} asignación(es) activa(s)` : ""),
       );
 
-      alertaService.generarAlertasLicencias();
+      await alertaService.generarAlertasLicencias();
       req.flash("ok", "Chofer actualizado correctamente.");
       return res.redirect("/Choferes");
     } catch (error) {
@@ -278,7 +278,7 @@ const choferController = {
         `Desactivación de chofer ID: ${chofer.id_chofer}` + (cerradas ? ` — se cerró ${cerradas} asignación(es) activa(s)` : ""),
       );
 
-      alertaService.generarAlertasLicencias();
+      await alertaService.generarAlertasLicencias();
       req.flash("ok", "Chofer desactivado.");
       return res.redirect("/Choferes");
     } catch (error) {
@@ -308,7 +308,7 @@ const choferController = {
         `Activación de chofer ID: ${chofer.id_chofer}`,
       );
 
-      alertaService.generarAlertasLicencias();
+      await alertaService.generarAlertasLicencias();
       req.flash("ok", "Chofer activado.");
       return res.redirect("/Choferes");
     } catch (error) {

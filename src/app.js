@@ -138,6 +138,9 @@ const iniciar = async () => {
     await db.sequelize.sync({ force: false });
     await sessionStore.sync();
 
+    // Migración única: el estado "Pendiente" de los mantenimientos pasó a llamarse "Programado"
+    await db.Mantenimiento.update({ estado: "Programado" }, { where: { estado: "Pendiente" } });
+
     console.log("🔔 Generando alertas iniciales...");
     await generarAlertas();
 

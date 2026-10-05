@@ -269,7 +269,7 @@
       const getEstadoMaint = (est) => {
         const e = (est || '').toLowerCase();
         if (e.includes('realizado') || e.includes('finalizado')) return 'badge--success';
-        if (e.includes('pendiente')) return 'badge--warning';
+        if (e.includes('programado') || e.includes('pendiente')) return 'badge--warning';
         if (e.includes('proceso')) return 'badge--info';
         if (e.includes('cancelado')) return 'badge--danger';
         return 'badge--info';
@@ -301,9 +301,8 @@
                             <select id="filtro-estado" style="width: 100%; padding: 6px; font-size: 12px; border-radius: 4px; border: 1px solid #cbd5e1;">
                                 <option value="">Todos los Estados</option>
                                 <option value="Realizado">Realizado</option>
-                                <option value="Pendiente">Pendiente</option>
+                                <option value="Programado">Programado</option>
                                 <option value="En proceso">En proceso</option>
-                                <option value="Cancelado">Cancelado</option>
                             </select>
                             <div style="display: flex; gap: 5px;">
                                 <button type="button" id="btn-limpiar" style="flex: 1; background: #e2e8f0; color: #475569; padding: 6px; font-size: 11px; border-radius: 4px; font-weight: 700;">Limpiar</button>
@@ -406,15 +405,17 @@
                                     </dl>
                                     <dl class="vehicle-profile__spec-group">
                                         <div class="vehicle-profile__spec-row">
-                                            <dt class="vehicle-profile__spec-label">Km al realizar servicio</dt>
+                                            <dt class="vehicle-profile__spec-label"><%= m.estado === 'Programado' ? 'Km del service programado' : 'Km al realizar servicio' %></dt>
                                             <dd class="vehicle-profile__spec-value" style="font-family: var(--font-mono);"><%= m.km_servicio || 0 %> km</dd>
                                         </div>
+                                        <% if (m.estado !== 'Programado') { %>
                                         <div class="vehicle-profile__spec-row">
                                             <dt class="vehicle-profile__spec-label">Sugerencia Próximo Servicio</dt>
                                             <dd class="vehicle-profile__spec-value" style="color: #d97706; font-weight: 700;">
                                                 <% if (m.proximo_servicio_km) { %> A los <%= m.proximo_servicio_km %> km <% } else { %> No especificado <% } %>
                                             </dd>
                                         </div>
+                                        <% } %>
                                     </dl>
                                 </div>
                             </article>
@@ -460,19 +461,28 @@
                                         </div>
                                     </section>
 
-                                    <% if (m.estado === 'En proceso' || m.estado === 'Pendiente') { %>
+                                    <% if (m.estado === 'En proceso' || m.estado === 'Programado') { %>
                                     <section class="data-card no-print">
                                         <header class="data-card__header">
                                             <svg class="data-card__icon" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
-                                            <h3 class="data-card__title">Finalizar Orden</h3>
+                                            <h3 class="data-card__title"><%= m.estado === 'Programado' ? 'Gestionar Service Programado' : 'Finalizar Orden' %></h3>
                                         </header>
-                                        <form action="/Mantenimientos/<%= m.id_mantenimiento %>/estado" method="POST" style="padding: 16px; display: flex; flex-direction: column; gap: 10px;">
+                                        <div style="padding: 16px; display: flex; flex-direction: column; gap: 10px;">
+                                        <% if (m.estado === 'Programado') { %>
+                                        <form action="/Mantenimientos/<%= m.id_mantenimiento %>/estado" method="POST" style="margin:0;">
+                                            <input type="hidden" name="estado" value="En proceso">
+                                            <button type="submit" style="width:100%; background-color: #d97706; color: white; border: none; padding: 10px; font-size: 13px; font-weight: 700; border-radius: 6px; cursor: pointer;">
+                                                 Iniciar (el vehículo entra al taller)
+                                            </button>
+                                        </form>
+                                        <% } %>
+                                        <form action="/Mantenimientos/<%= m.id_mantenimiento %>/estado" method="POST" style="margin:0;">
                                             <input type="hidden" name="estado" value="Realizado">
-
-                                            <button type="submit" style="background-color: #16a34a; color: white; border: none; padding: 10px; font-size: 13px; font-weight: 700; border-radius: 6px; cursor: pointer; transition: 0.2s;">
+                                            <button type="submit" style="width:100%; background-color: #16a34a; color: white; border: none; padding: 10px; font-size: 13px; font-weight: 700; border-radius: 6px; cursor: pointer;">
                                                  Marcar como Realizado
                                             </button>
                                         </form>
+                                        </div>
                                     </section>
                                     <% } %>
                                 </aside>

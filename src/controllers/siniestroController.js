@@ -29,7 +29,7 @@ const liberarVehiculoSiCorresponde = async (id_vehiculo, transaction) => {
   if (abiertos > 0) return;
 
   const ordenesAbiertas = await db.Mantenimiento.count({
-    where: { id_vehiculo, estado: { [Op.in]: ["Pendiente", "En proceso"] } },
+    where: { id_vehiculo, estado: "En proceso" },
     transaction,
   });
   await vehiculo.update({ estado_actual: ordenesAbiertas > 0 ? "En mantenimiento" : "Disponible" }, { transaction });

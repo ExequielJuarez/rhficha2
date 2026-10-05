@@ -35,5 +35,6 @@ mantenimientos, herramientas, siniestros, alertas, reportes). No toca la base re
 - Todo formulario/fetch de escritura lleva token CSRF (lo agrega `public/js/csrf.js`).
 - Alertas: licencias (≤30 días), RTO/seguro, service por km, préstamos vencidos y siniestros abiertos. Se recalculan al
   iniciar, cada día a las 6:00, al abrir el Panel de Alertas y tras los cambios relevantes; las que dejan de corresponder se eliminan.
+- Mantenimientos: **Programado** (próximo service por km, sin fecha; no mueve el vehículo), **En proceso** (en el taller) y **Realizado** (también para cargar services viejos). La alerta de service usa el service programado más cercano o el "próximo km" del último service realizado.
 - Estados de vehículo: `Disponible`, `En uso` (sólo vía Asignaciones), `En mantenimiento`, `En siniestro` (sólo vía Siniestros) y `Baja`.
 - Las imágenes subidas se guardan en `public/img/*` (sólo JPG/PNG/WEBP/GIF, y PDF en siniestros; máx. 5 MB) y no se versionan.

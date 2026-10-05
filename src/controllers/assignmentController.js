@@ -62,7 +62,7 @@ const assignmentController = {
         `Asignación del vehículo ${vehiculo.patente} a ${chofer.nombre} ${chofer.apellido}`,
       );
 
-      alertaService.generarAlertasMantenimiento();
+      await alertaService.generarAlertasMantenimiento();
       res.redirect("/asignaciones?success=" + encodeURIComponent("Asignación registrada correctamente"));
     } catch (error) {
       const mensaje = error instanceof ErrorNegocio ? error.message : "Error al guardar la asignación";
@@ -83,7 +83,7 @@ const assignmentController = {
         { estado: "Finalizado" },
         `Finalización de la asignación ID: ${asignacion.id_asignacion} (vehículo ID: ${asignacion.id_vehiculo})`,
       );
-      alertaService.generarAlertasMantenimiento();
+      await alertaService.generarAlertasMantenimiento();
       res.redirect("/asignaciones?success=" + encodeURIComponent("Asignación finalizada correctamente"));
     } catch (error) {
       const mensaje = error instanceof ErrorNegocio ? error.message : "Error al finalizar la asignación";

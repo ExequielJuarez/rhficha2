@@ -179,7 +179,7 @@ const toolController = {
         prestamo.toJSON(),
         `Préstamo de ${herramienta.nombre} a ${prestamo.nombre_operario} (${prestamo.sector_destino})`,
       );
-      alertaService.generarAlertasPrestamos();
+      await alertaService.generarAlertasPrestamos();
       return "Préstamo registrado.";
     },
     "No se pudo registrar el préstamo.",
@@ -201,7 +201,7 @@ const toolController = {
         { estado_prestamo: "Finalizado" },
         `Devolución de ${herramienta ? herramienta.nombre : "herramienta"} por ${prestamo.nombre_operario}`,
       );
-      alertaService.generarAlertasPrestamos();
+      await alertaService.generarAlertasPrestamos();
       return "Devolución registrada.";
     },
     "No se pudo registrar la devolución.",
