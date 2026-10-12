@@ -3,6 +3,7 @@ const router = express.Router();
 const path = require("path");
 const fs = require("fs");
 const multer = require("multer");
+const { crearUploadMixto, camposVehiculo, uploadSoloDocumentos } = require("../utils/documentos");
 
 // ───────── Subida de archivos (solo imágenes / PDF, máx. 5 MB por archivo) ─────────
 const EXTENSIONES_IMAGEN = [".jpg", ".jpeg", ".png", ".webp", ".gif"];
@@ -36,7 +37,23 @@ const crearUpload = (carpeta, prefijo, extensionesPermitidas) => {
 };
 
 const uploadVehiculo = crearUpload("vehiculos", "vehiculo", EXTENSIONES_IMAGEN);
-const upload = crearUpload("licencias", "chofer", EXTENSIONES_IMAGEN);
+
+// Alta/edición con documentación adjunta (PDF o foto) además de las fotos habituales
+const DIR_IMG = path.join(__dirname, "../../public/img");
+const subidaVehiculoAlta = crearUploadMixto({
+  carpetaImagenes: path.join(DIR_IMG, "vehiculos"),
+  prefijoImagen: "vehiculo",
+  campos: [{ name: "foto_cedula", maxCount: 1 }, { name: "foto_titulo", maxCount: 1 }, { name: "foto_rto", maxCount: 1 }, ...camposVehiculo()],
+});
+const camposChofer = [
+  { name: "imagen", maxCount: 1 },
+  { name: "foto_documento", maxCount: 1 },
+  { name: "foto_licencia", maxCount: 1 },
+  { name: "dni_archivos", maxCount: 6 },
+  { name: "carnet_frente", maxCount: 1 },
+  { name: "carnet_dorso", maxCount: 1 },
+];
+const subidaChofer = crearUploadMixto({ carpetaImagenes: path.join(DIR_IMG, "licencias"), prefijoImagen: "chofer", campos: camposChofer });
 const uploadSiniestro = crearUpload("siniestros", "siniestro", EXTENSIONES_ADJUNTO);
 
 const auditoriaController = require("../controllers/auditoriaController");
@@ -50,6 +67,8 @@ const { choferVAlidation, choferEditValidation } = require("../validations/chofe
 const alertaController = require("../controllers/alertaController");
 const reporteController = require("../controllers/reporteController");
 const siniestroController = require("../controllers/siniestroController");
+const documentoController = require("../controllers/documentoController");
+const historialController = require("../controllers/historialController");
 
 router.use((req, res, next) => {
   if (req.session && req.session.usuarioLogueado) {
@@ -88,8 +107,11 @@ router.get("/Vehicles/:id/mantenimientos", authMiddleware, vehicleController.Man
 router.get("/Vehicles/:id/siniestros", authMiddleware, vehicleController.SiniestrosDeVehiculo);
 router.get("/Vehicles/Carga", authMiddleware, (req, res) => res.redirect("/CargaVehiculo"));
 router.get("/Vehicles/:id", authMiddleware, vehicleController.getVehicleById);
+router.post("/Vehicles/:id/documentos", authMiddleware, uploadSoloDocumentos, documentoController.agregar("vehiculo"));
+router.get("/Documentos/:id", authMiddleware, documentoController.ver);
+router.post("/Documentos/:id/eliminar", authMiddleware, documentoController.eliminar);
 router.get("/CargaVehiculo", authMiddleware, vehicleController.CargaVehiculo);
-router.post("/CargaVehiculo", authMiddleware, uploadVehiculo.fields([{ name: "foto_cedula", maxCount: 1 },{ name: "foto_titulo", maxCount: 1 },{ name: "foto_rto",    maxCount: 1 }]), vehicleController.processVehicle);
+router.post("/CargaVehiculo", authMiddleware, subidaVehiculoAlta, vehicleController.processVehicle);
 router.get("/ActualizarKm", authMiddleware, vehicleController.CargaActualizarKm);
 router.post("/ActualizarKm", authMiddleware, vehicleController.processActualizarKm);
 
@@ -101,6 +123,10 @@ router.post("/Repuestos/Eliminar/:id", authMiddleware, vehicleController.deleteR
 // =========================================================
 
 router.get("/Mantenimientos", authMiddleware, vehicleController.Mantenimientos);
+router.get("/Mantenimientos/Historial", authMiddleware, historialController.ver);
+router.get("/Mantenimientos/Historial/exportar", authMiddleware, historialController.exportar);
+router.post("/Mantenimientos/Historial/importar", authMiddleware, historialController.uploadExcel, historialController.importar);
+router.post("/Mantenimientos/Historial/:id", authMiddleware, historialController.editar);
 router.post("/Mantenimientos/:id/estado", authMiddleware, vehicleController.updateEstadoMantenimiento);
 router.get("/Mantenimientos/carga/:id_vehiculo", authMiddleware, vehicleController.CargaVMantenimiento);
 router.get("/Mantenimientos/carga", authMiddleware, vehicleController.CargaVMantenimiento);
@@ -109,9 +135,10 @@ router.post("/CargaMantenimiento", authMiddleware, vehicleController.processMain
 
 router.get("/Choferes", authMiddleware, choferController.ListChoferes);
 router.get("/Choferes/Carga", authMiddleware, choferController.createChofer);
-router.post("/Choferes/Carga", authMiddleware, upload.fields([{ name: "imagen", maxCount: 1 },{ name: "foto_documento", maxCount: 1 },{ name: "foto_licencia", maxCount: 1 }]), choferVAlidation(), choferController.processChofer);
+router.post("/Choferes/Carga", authMiddleware, subidaChofer, choferVAlidation(), choferController.processChofer);
 router.get("/Choferes/:id/editar", authMiddleware, choferController.editChofer);
-router.post("/Choferes/:id/editar", authMiddleware, upload.fields([{ name: "imagen", maxCount: 1 },{ name: "foto_documento", maxCount: 1 },{ name: "foto_licencia", maxCount: 1 }]), choferEditValidation(), choferController.processEdit);
+router.post("/Choferes/:id/editar", authMiddleware, subidaChofer, choferEditValidation(), choferController.processEdit);
+router.post("/Choferes/:id/documentos", authMiddleware, uploadSoloDocumentos, documentoController.agregar("chofer"));
 router.post("/Choferes/:id/desactivar", authMiddleware, choferController.desactivarChofer);
 router.post("/Choferes/:id/activar", authMiddleware, choferController.activarChofer);
 router.get("/Choferes/api/todos", authMiddleware, choferController.getTodosJSON);

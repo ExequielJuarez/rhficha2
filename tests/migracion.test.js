@@ -60,6 +60,15 @@ test("migra una base de la versión anterior sin perder datos", async () => {
   assert.equal(perm.Default, null);
   const [[orden]] = await c.query("SELECT estado FROM mantenimiento WHERE id_mantenimiento=1");
   assert.equal(orden.estado, "Programado", "Pendiente pasó a Programado");
+  // datos administrativos del historial, carnet oficial y tabla de documentos adjuntos
+  const [colsMant] = await c.query("SHOW COLUMNS FROM mantenimiento");
+  for (const col of ["nro_remito", "nro_factura", "proveedor", "nro_pedido", "nro_expediente"]) assert.ok(colsMant.find((x) => x.Field === col), `falta mantenimiento.${col}`);
+  const [carnet] = await c.query("SHOW COLUMNS FROM chofer LIKE 'tiene_carnet_oficial'");
+  assert.equal(carnet[0].Default, "0");
+  const [tablaDocs] = await c.query("SHOW TABLES LIKE 'documento_adjunto'");
+  assert.equal(tablaDocs.length, 1);
+  const [[{ docs }]] = await c.query("SELECT COUNT(*) docs FROM documento_adjunto");
+  assert.equal(docs, 0);
 
   // ya se pueden guardar alertas de los tipos nuevos y auditoría sin usuario
   await c.query("INSERT INTO alerta (tipo, prioridad, mensaje, generada_automaticamente, createdAt, updatedAt) VALUES ('stock_bajo','media','x',1,NOW(),NOW()), ('asignacion_vencida','alta','y',1,NOW(),NOW())");

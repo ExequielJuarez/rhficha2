@@ -25,7 +25,7 @@ after(async () => {
   await c.end();
 });
 
-test("crea la base, las 19 tablas y el administrador sobre una base inexistente (y es idempotente)", async () => {
+test("crea la base, las 20 tablas y el administrador sobre una base inexistente (y es idempotente)", async () => {
   const raiz = await conectar(undefined);
   await raiz.query("DROP DATABASE IF EXISTS vehiculos_auto_test");
   await raiz.end();
@@ -35,7 +35,7 @@ test("crea la base, las 19 tablas y el administrador sobre una base inexistente 
 
   const c = await conectar("vehiculos_auto_test");
   const [tablas] = await c.query("SHOW TABLES");
-  assert.equal(tablas.length, 19);
+  assert.equal(tablas.length, 20);
   const [usuarios] = await c.query("SELECT u.nombre_usuario, u.contrasena, r.nombre rol FROM usuario u JOIN rol r USING(id_rol)");
   assert.equal(usuarios.length, 1);
   assert.equal(usuarios[0].nombre_usuario, "admin");

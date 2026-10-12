@@ -153,6 +153,16 @@
             <label>Observaciones o Diagnósticos</label>
             <textarea name="observaciones" placeholder="Notas sobre desgastes futuros, anomalías detectadas..." style="min-height: 60px;"></textarea>
           </div>
+          <h4 style="margin: 18px 0 8px; font-size: 13px; color: #475569;">Datos administrativos <span style="font-weight:400; color:#94a3b8;">(opcionales · también se completan después desde Historial Administrativo)</span></h4>
+          <div class="form-row">
+            <div class="form-group"><label>N° de Remito</label><input type="text" name="nro_remito" maxlength="50" placeholder="Ej: 0001-00004567"></div>
+            <div class="form-group"><label>N° de Factura</label><input type="text" name="nro_factura" maxlength="50" placeholder="Ej: A-0003-00012345"></div>
+          </div>
+          <div class="form-row">
+            <div class="form-group"><label>Casa proveedora</label><input type="text" name="proveedor" maxlength="150" placeholder="Ej: Repuestos del Sur S.A."></div>
+            <div class="form-group"><label>N° de Pedido</label><input type="text" name="nro_pedido" maxlength="50"></div>
+          </div>
+          <div class="form-group"><label>N° de Expediente</label><input type="text" name="nro_expediente" maxlength="50" placeholder="Ej: 4012-123456/2026"></div>
         </section>
 
         <section class="form-section bloque-estado" data-estados="En proceso Realizado" style="display:none;">

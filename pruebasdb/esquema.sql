@@ -145,6 +145,7 @@ CREATE TABLE `chofer` (
   `foto_documento` varchar(255) DEFAULT NULL,
   `imagen` varchar(255) DEFAULT NULL,
   `motivoBaja` text DEFAULT NULL,
+  `tiene_carnet_oficial` tinyint(1) NOT NULL DEFAULT 0,
   PRIMARY KEY (`id_chofer`),
   UNIQUE KEY `dni` (`dni`),
   UNIQUE KEY `uq_chofer_telefono` (`telefono`)
@@ -208,6 +209,11 @@ CREATE TABLE `mantenimiento` (
   `estado` varchar(20) NOT NULL DEFAULT 'Realizado',
   `mano_obra` decimal(12,2) DEFAULT 0.00,
   `costo_repuestos` decimal(12,2) DEFAULT 0.00,
+  `nro_remito` varchar(50) DEFAULT NULL,
+  `nro_factura` varchar(50) DEFAULT NULL,
+  `proveedor` varchar(150) DEFAULT NULL,
+  `nro_pedido` varchar(50) DEFAULT NULL,
+  `nro_expediente` varchar(50) DEFAULT NULL,
   PRIMARY KEY (`id_mantenimiento`),
   KEY `fk_mant_usuario` (`id_usuario`),
   KEY `idx_mant_vehiculo` (`id_vehiculo`),
@@ -293,6 +299,20 @@ CREATE TABLE `siniestro` (
 -- ---------------------------------------------------------------------------
 --  Alertas y auditoría
 -- ---------------------------------------------------------------------------
+CREATE TABLE `documento_adjunto` (
+  `id_documento` int(11) NOT NULL AUTO_INCREMENT,
+  `entidad` varchar(20) NOT NULL,
+  `id_entidad` int(11) NOT NULL,
+  `categoria` varchar(40) NOT NULL,
+  `archivo` varchar(255) NOT NULL,
+  `nombre_original` varchar(255) DEFAULT NULL,
+  `id_usuario` int(11) DEFAULT NULL,
+  `createdAt` datetime DEFAULT NULL,
+  `updatedAt` datetime DEFAULT NULL,
+  PRIMARY KEY (`id_documento`),
+  KEY `idx_documento_entidad` (`entidad`,`id_entidad`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
 CREATE TABLE `alerta` (
   `id_alerta` int(11) NOT NULL AUTO_INCREMENT,
   `tipo` enum('licencia_vencida','licencia_proxima','mantenimiento_pendiente','mantenimiento_finalizado','mantenimiento_proximo','mantenimiento_vencido','documentacion_vencida','vehiculo_fuera_servicio','vehiculo_en_mantenimiento','herramienta_devuelta','prestamo_vencido','asignacion_vencida','stock_bajo','siniestro_activo','critica','informativa') NOT NULL,

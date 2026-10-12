@@ -53,6 +53,12 @@ after(async () => {
       .filter((f) => f.startsWith(prefijo) && fs.statSync(path.join(carpeta, f)).mtimeMs >= inicioPruebas - 1000)
       .forEach((f) => fs.unlinkSync(path.join(carpeta, f)));
   }
+  const docs = path.join(__dirname, "../uploads/documentos");
+  if (fs.existsSync(docs)) {
+    fs.readdirSync(docs)
+      .filter((f) => f.startsWith("doc-") && fs.statSync(path.join(docs, f)).mtimeMs >= inicioPruebas - 1000)
+      .forEach((f) => fs.unlinkSync(path.join(docs, f)));
+  }
   await new Promise((ok) => servidor.close(ok));
   await db.sequelize.close();
 });
@@ -359,6 +365,7 @@ describe("Vehículos", () => {
 
 /* ───────────────────────────────── CHOFERES ───────────────────────────────── */
 describe("Choferes", () => {
+  const PNG = (nombre) => new File([Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==", "base64")], nombre, { type: "image/png" });
   const chofer = (extra = {}) => ({
     nombre: "Lucía", apellido: "Méndez", dni: "40111222", telefono: "3854555666", direccion: "Calle Falsa 123",
     fechaNacimiento: "1990-05-05", fechaIngreso: "2025-01-10", email: "Lucia.Mendez@Muni.gov", "activo-inactivo": "Activo", Turno: "Tarde/Noche",
@@ -369,6 +376,8 @@ describe("Choferes", () => {
     const c = await admin();
     const f = new FormData();
     Object.entries(chofer()).forEach(([k, v]) => f.append(k, v));
+    f.append("dni_archivos", PNG("dni-frente.png"));
+    f.append("dni_archivos", PNG("dni-dorso.png"));
     const r = await c.pedir("POST", "/Choferes/Carga", { multipart: f });
     assert.equal(r.status, 302, r.texto.slice(0, 300));
     const ch = await db.Chofer.findOne({ where: { dni: "40111222" }, include: [{ model: db.LicenciaChofer, as: "licencias" }] });
@@ -552,7 +561,7 @@ describe("Asignaciones", () => {
     const c = await admin();
     const a = await db.AsignacionVehiculo.findOne({ where: { id_vehiculo: 4, estado: "Activo" } });
     let r = await c.post(`/Asignaciones/${a.id_asignacion}/finalizar`, {});
-    assert.match(decodeURIComponent(r.location), /finalizada correctamente/);
+    assert.match(decodeURIComponent(r.location), /marcado como devuelto/);
     assert.equal((await db.Vehiculo.findByPk(4)).estado_actual, "Disponible");
     assert.ok((await db.AsignacionVehiculo.findByPk(a.id_asignacion)).fecha_devolucion);
     // el vehículo pasa a otra asignación; finalizar de nuevo la vieja NO debe liberarlo
@@ -1221,7 +1230,7 @@ describe("Reportes, auditoría y pantallas", () => {
     assert.equal(r.status, 400);
     const g = new FormData();
     Object.entries({ patente: "MM111NN", id_tipo: 1, marca: "A", modelo: "B", anio: 2020, chasis: "CH-UP", num_motor: "MO-UP", estado_actual: "Disponible", km_actual: 1, fecha_alta: "2026-01-01" }).forEach(([k, v]) => g.append(k, v));
-    g.append("foto_cedula", new Blob([Buffer.alloc(6 * 1024 * 1024)], { type: "image/png" }), "grande.png");
+    g.append("foto_cedula", new Blob([Buffer.alloc(9 * 1024 * 1024)], { type: "image/png" }), "grande.png");
     r = await c.pedir("POST", "/CargaVehiculo", { multipart: g });
     assert.equal(r.status, 400);
     assert.equal(await db.Vehiculo.count({ where: { patente: "MM111NN" } }), 0);
@@ -1239,7 +1248,7 @@ describe("Reglas de negocio e inconsistencias corregidas", () => {
     assert.equal(r.status, 302, r.texto.slice(0, 200));
     return db.Vehiculo.findOne({ where: { patente: datos.patente } });
   };
-  const asignar = (c, v, ch, extra = {}) => c.post("/Asignaciones", { id_vehiculo: v.id_vehiculo, id_chofer: ch, fecha_desde: hoy(), fecha_hasta: hoy(3), destino: "X", km_salida: v.km_actual, observaciones: "", ...extra });
+  const asignar = (c, v, ch, extra = {}) => c.post("/Asignaciones", { id_vehiculo: v.id_vehiculo, id_chofer: ch, fecha_desde: hoy(), destino: "X", km_salida: v.km_actual, observaciones: "", ...extra });
 
   test("1) no se asigna un vehículo con RTO o seguro vencidos y el formulario lo muestra deshabilitado", async () => {
     const c = await admin();
@@ -1298,24 +1307,26 @@ describe("Reglas de negocio e inconsistencias corregidas", () => {
     assert.ok(!(await c.get("/CargaVehiculo")).texto.includes('value="En mantenimiento"'));
   });
 
-  test("4) una asignación vencida genera alerta y desaparece al finalizarla", async () => {
+  test("4) la asignación no tiene fecha estimada de devolución: se marca como devuelto y ya no hay alertas de asignación vencida", async () => {
     const c = await admin();
     const v = await nuevoVehiculo(c);
-    await asignar(c, v, 8);
+    const form = await c.get("/asignaciones");
+    assert.ok(!/name="fecha_hasta"/.test(form.texto), "el formulario ya no pide fecha de fin");
+    assert.match(form.texto, /No lleva fecha de fin/);
+    assert.match(decodeURIComponent((await asignar(c, v, 8)).location), /success/);
     const a = await db.AsignacionVehiculo.findOne({ where: { id_vehiculo: v.id_vehiculo, estado: "Activo" } });
-    await a.update({ fecha_estimada_devolucion: new Date(`${hoy(-4)}T12:00:00`) });
-    await c.get("/Alertas");
-    const al = await db.Alerta.findOne({ where: { tipo: "asignacion_vencida", entidad_id: v.id_vehiculo } });
-    assert.ok(al);
-    assert.match(al.mensaje, /Asignación vencida hace 4 días/);
-    assert.equal(al.prioridad, "media");
+    assert.equal(a.fecha_estimada_devolucion, null);
+    assert.match((await c.get("/asignaciones")).texto, /Marcar como devuelto/);
+    // una asignación vieja con fecha estimada vencida ya no genera alerta, y se limpian las alertas antiguas
     await a.update({ fecha_estimada_devolucion: new Date(`${hoy(-9)}T12:00:00`) });
+    await db.Alerta.create({ tipo: "asignacion_vencida", prioridad: "alta", mensaje: "vieja", entidad_tipo: "Vehiculo", entidad_id: v.id_vehiculo, entidad_nombre: "x", generada_automaticamente: true });
     await c.get("/Alertas");
-    assert.equal((await db.Alerta.findByPk(al.id_alerta)).prioridad, "alta", "pasa a alta a los 7 días");
-    await c.post(`/Asignaciones/${a.id_asignacion}/finalizar`, {});
     assert.equal(await db.Alerta.count({ where: { tipo: "asignacion_vencida", entidad_id: v.id_vehiculo } }), 0);
-    // la vista de la alerta y el filtro existen
-    assert.match((await c.get("/Alertas")).texto, /value="asignacion_vencida"/);
+    // se marca como devuelto: el vehículo vuelve a estar disponible
+    const r = await c.post(`/Asignaciones/${a.id_asignacion}/finalizar`, {});
+    assert.match(decodeURIComponent(r.location), /marcado como devuelto/);
+    assert.equal((await db.Vehiculo.findByPk(v.id_vehiculo)).estado_actual, "Disponible");
+    assert.ok((await db.AsignacionVehiculo.findByPk(a.id_asignacion)).fecha_devolucion);
   });
 
   test("5) stock bajo: alerta, reposición desde el catálogo y baja de la alerta", async () => {
@@ -1575,5 +1586,423 @@ describe("Reglas de negocio e inconsistencias corregidas", () => {
     assert.ok(await db.TipoVehiculo.findByPk(tipo.id_tipo));
     await c.post("/Vehicles/Ajustes/Tipos", { descripcion: "Autoelevador" });
     assert.equal(await db.TipoVehiculo.count({ where: { descripcion: "Autoelevador" } }), 1);
+  });
+});
+
+/* ───────── Documentación adjunta, carnet de la provincia e historial administrativo ───────── */
+describe("Documentación adjunta, carnet de la provincia e historial administrativo", () => {
+  before(async () => {
+    // usuario con permiso solo sobre Vehículos (para comprobar que no accede a Choferes ni a Mantenimientos)
+    await db.Usuario.create({ nombre_usuario: "solo_vehiculos", contrasena: require("bcryptjs").hashSync(CLAVE, 10), nombre: "Solo", apellido: "Vehiculos", activo: true, id_rol: 3, permisos: "Vehicles" });
+  });
+  const PNG = (nombre) => new File([Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==", "base64")], nombre, { type: "image/png" });
+  const PDF = (nombre) => new File([Buffer.from("%PDF-1.4\n1 0 obj<<>>endobj\ntrailer<<>>\n%%EOF")], nombre, { type: "application/pdf" });
+  let n = 0;
+  const datosVehiculo = (extra = {}) => {
+    n++;
+    return { patente: `DC${String(n).padStart(3, "0")}XX`, id_tipo: 1, marca: "Marca", modelo: "Modelo", anio: 2022, chasis: `CH-DOC-${n}`, num_motor: `MO-DOC-${n}`, estado_actual: "Disponible", km_actual: 1000, fecha_alta: "2026-01-01", distrito: "Norte", ...extra };
+  };
+  const formulario = (datos, archivos = []) => {
+    const f = new FormData();
+    Object.entries(datos).forEach(([k, v]) => f.append(k, v));
+    archivos.forEach(([campo, archivo]) => f.append(campo, archivo));
+    return f;
+  };
+
+  test("alta de vehículo: pregunta por la documentación y la guarda (comodato, actas, PDF y fotos)", async () => {
+    const c = await admin();
+    const form = await c.get("/CargaVehiculo");
+    assert.match(form.texto, /¿Tenés documentación de este vehículo para cargar ahora\?/);
+    for (const campo of ["doc_comodato", "doc_acta_afectacion", "doc_acta_entrega", "doc_acta_desafectacion", "doc_otro"]) assert.match(form.texto, new RegExp(`name="${campo}"`));
+    assert.match(form.texto, /Acta de desafectación temporal/);
+
+    // "Sí" sin elegir archivos: se rechaza
+    let r = await c.pedir("POST", "/CargaVehiculo", { multipart: formulario(datosVehiculo({ tiene_documentacion: "si" })) });
+    assert.equal(r.status, 400);
+    assert.match(r.texto, /no elegiste ningún archivo/);
+
+    const datos = datosVehiculo({ tiene_documentacion: "si" });
+    r = await c.pedir("POST", "/CargaVehiculo", { multipart: formulario(datos, [["doc_comodato", PDF("comodato-2026.pdf")], ["doc_acta_entrega", PNG("acta-entrega.png")], ["doc_acta_entrega", PDF("acta-entrega-2.pdf")], ["doc_acta_desafectacion", PDF("desafectacion.pdf")]]) });
+    assert.equal(r.status, 302, r.texto.slice(0, 300));
+    const v = await db.Vehiculo.findOne({ where: { patente: datos.patente } });
+    const docs = await db.DocumentoAdjunto.findAll({ where: { entidad: "vehiculo", id_entidad: v.id_vehiculo } });
+    assert.equal(docs.length, 4);
+    assert.deepEqual(docs.map((d) => d.categoria).sort(), ["acta_desafectacion", "acta_entrega", "acta_entrega", "comodato"]);
+
+    // la ficha los muestra, agrupados, con visor
+    const ficha = await c.get(`/Vehicles/${v.id_vehiculo}`);
+    assert.match(ficha.texto, /Documentación adjunta/);
+    assert.match(ficha.texto, /comodato-2026\.pdf/);
+    assert.match(ficha.texto, /acta-entrega\.png/);
+    assert.match(ficha.texto, /Acta de desafectación temporal/);
+    assert.match(ficha.texto, /data-visor="\/Documentos\/\d+"/);
+
+    // "No": no se guarda nada aunque el navegador mande archivos
+    const d2 = datosVehiculo({ tiene_documentacion: "no" });
+    r = await c.pedir("POST", "/CargaVehiculo", { multipart: formulario(d2) });
+    assert.equal(r.status, 302);
+    const v2 = await db.Vehiculo.findOne({ where: { patente: d2.patente } });
+    assert.equal(await db.DocumentoAdjunto.count({ where: { entidad: "vehiculo", id_entidad: v2.id_vehiculo } }), 0);
+    assert.match((await c.get(`/Vehicles/${v2.id_vehiculo}`)).texto, /Sin archivos cargados/);
+  });
+
+  test("los documentos se ven solo con sesión y permiso, y se pueden agregar y eliminar desde la ficha", async () => {
+    const c = await admin();
+    const datos = datosVehiculo({ tiene_documentacion: "si" });
+    await c.pedir("POST", "/CargaVehiculo", { multipart: formulario(datos, [["doc_comodato", PDF("c.pdf")]]) });
+    const v = await db.Vehiculo.findOne({ where: { patente: datos.patente } });
+    const doc = await db.DocumentoAdjunto.findOne({ where: { id_entidad: v.id_vehiculo, entidad: "vehiculo" } });
+
+    const ver = await c.get(`/Documentos/${doc.id_documento}`);
+    assert.equal(ver.status, 200);
+    assert.equal(ver.headers.get("content-type"), "application/pdf");
+    assert.match(ver.headers.get("content-disposition"), /^inline/);
+    assert.ok(ver.buffer.slice(0, 4).toString() === "%PDF");
+    assert.match((await c.get(`/Documentos/${doc.id_documento}?descargar=1`)).headers.get("content-disposition"), /^attachment/);
+    // sin sesión: a iniciar sesión; sin permiso sobre Vehículos: 403
+    assert.equal((await nuevo().get(`/Documentos/${doc.id_documento}`)).status, 302);
+    assert.equal((await (await como("walter")).get(`/Documentos/${doc.id_documento}`)).status, 403);
+    assert.equal((await c.get("/Documentos/999999")).status, 404);
+    // los archivos no están en la carpeta pública
+    assert.equal((await c.get(`/img/vehiculos/${doc.archivo}`)).status, 404);
+    assert.equal((await c.get(`/uploads/documentos/${doc.archivo}`)).status, 404);
+
+    // agregar más desde la ficha
+    let r = await c.pedir("POST", `/Vehicles/${v.id_vehiculo}/documentos`, { multipart: formulario({ categoria: "acta_afectacion" }, [["archivos", PDF("afectacion.pdf")], ["archivos", PNG("afectacion.png")]]) });
+    assert.equal(r.status, 302);
+    assert.equal(await db.DocumentoAdjunto.count({ where: { id_entidad: v.id_vehiculo, entidad: "vehiculo", categoria: "acta_afectacion" } }), 2);
+    // validaciones: categoría inválida, sin archivos, extensión peligrosa
+    r = await c.pedir("POST", `/Vehicles/${v.id_vehiculo}/documentos`, { multipart: formulario({ categoria: "xxx" }, [["archivos", PDF("a.pdf")]]) });
+    assert.match((await aviso(c, `/Vehicles/${v.id_vehiculo}`)).mensaje, /Elegí el tipo de documento/);
+    r = await c.pedir("POST", `/Vehicles/${v.id_vehiculo}/documentos`, { multipart: formulario({ categoria: "comodato" }) });
+    assert.match((await aviso(c, `/Vehicles/${v.id_vehiculo}`)).mensaje, /al menos un archivo/);
+    r = await c.pedir("POST", `/Vehicles/${v.id_vehiculo}/documentos`, { multipart: formulario({ categoria: "comodato" }, [["archivos", new File(["<?php ?>"], "malo.php", { type: "text/plain" })]]) });
+    assert.equal(r.status, 400);
+    assert.match(r.texto, /Formato de archivo no permitido/);
+    assert.equal(await db.DocumentoAdjunto.count({ where: { id_entidad: v.id_vehiculo, entidad: "vehiculo" } }), 3);
+    // sin permiso sobre Vehículos no se puede agregar
+    assert.equal((await (await como("walter")).pedir("POST", `/Vehicles/${v.id_vehiculo}/documentos`, { multipart: formulario({ categoria: "comodato" }, [["archivos", PDF("a.pdf")]]) })).status, 403);
+
+    // eliminar: borra el registro y el archivo
+    const fs = require("fs");
+    const { DIR_DOCUMENTOS } = require("../src/utils/documentos");
+    const ruta = require("path").join(DIR_DOCUMENTOS, doc.archivo);
+    assert.ok(fs.existsSync(ruta));
+    r = await c.post(`/Documentos/${doc.id_documento}/eliminar`, {});
+    assert.equal(r.status, 302);
+    assert.equal(await db.DocumentoAdjunto.findByPk(doc.id_documento), null);
+    assert.ok(!fs.existsSync(ruta));
+    assert.ok(await db.Auditoria.findOne({ where: { accion: "EDITAR", descripcion: { [db.Sequelize.Op.like]: "%Se eliminó el documento%" } } }));
+  });
+
+  const datosChofer = (extra = {}) => {
+    n++;
+    return { nombre: "Doc", apellido: `Chofer${n}`, dni: `4${String(n).padStart(7, "0")}`, telefono: `38544${String(n).padStart(5, "0")}`, direccion: "Calle Falsa 123", fechaNacimiento: "1990-05-05", fechaIngreso: "2025-01-10", "activo-inactivo": "Activo", Turno: "Mañana", numero_licencia: `LIC-DOC-${String(n).padStart(4, "0")}`, categoria: "B", fecha_emision: "2024-01-01", fecha_vencimiento: "2030-01-01", ...extra };
+  };
+
+  test("chofer: el DNI exige 2 archivos y el carnet de la provincia exige frente y dorso si se marca que lo tiene", async () => {
+    const c = await admin();
+    const form = await c.get("/Choferes/Carga");
+    assert.match(form.texto, /name="dni_archivos"[^>]*multiple/);
+    assert.match(form.texto, /¿Tiene carnet oficial de la provincia\?/);
+    assert.match(form.texto, /name="carnet_frente"/);
+    assert.match(form.texto, /name="carnet_dorso"/);
+
+    // DNI: con un solo archivo se rechaza
+    let d = datosChofer();
+    let r = await c.pedir("POST", "/Choferes/Carga", { multipart: formulario(d, [["dni_archivos", PNG("dni.png")]]) });
+    assert.equal(r.status, 400);
+    assert.match(r.texto, /Cargá el DNI completo: frente y dorso/);
+    assert.equal(await db.Chofer.count({ where: { dni: d.dni } }), 0);
+
+    // Tiene carnet pero falta el dorso
+    d = datosChofer({ tiene_carnet_oficial: "si" });
+    r = await c.pedir("POST", "/Choferes/Carga", { multipart: formulario(d, [["dni_archivos", PNG("a.png")], ["dni_archivos", PDF("b.pdf")], ["carnet_frente", PNG("cf.png")]]) });
+    assert.equal(r.status, 400);
+    assert.match(r.texto, /cargá la foto o PDF del dorso/);
+    assert.equal(await db.Chofer.count({ where: { dni: d.dni } }), 0);
+
+    // Completo: DNI (foto + PDF) y carnet frente/dorso
+    r = await c.pedir("POST", "/Choferes/Carga", { multipart: formulario(d, [["dni_archivos", PNG("a.png")], ["dni_archivos", PDF("b.pdf")], ["carnet_frente", PNG("cf.png")], ["carnet_dorso", PNG("cd.png")]]) });
+    assert.equal(r.status, 302, r.texto.slice(0, 300));
+    const ch = await db.Chofer.findOne({ where: { dni: d.dni } });
+    assert.equal(ch.tiene_carnet_oficial, true);
+    const docs = await db.DocumentoAdjunto.findAll({ where: { entidad: "chofer", id_entidad: ch.id_chofer } });
+    assert.equal(docs.filter((x) => x.categoria === "dni").length, 2);
+    assert.equal(docs.filter((x) => x.categoria === "carnet_provincia").length, 2);
+
+    // Sin carnet: no se guardan archivos de carnet aunque lleguen
+    const sin = datosChofer({ tiene_carnet_oficial: "no" });
+    r = await c.pedir("POST", "/Choferes/Carga", { multipart: formulario(sin, [["dni_archivos", PNG("a.png")], ["dni_archivos", PNG("b.png")], ["carnet_frente", PNG("cf.png")]]) });
+    assert.equal(r.status, 302);
+    const ch2 = await db.Chofer.findOne({ where: { dni: sin.dni } });
+    assert.equal(ch2.tiene_carnet_oficial, false);
+    assert.equal(await db.DocumentoAdjunto.count({ where: { entidad: "chofer", id_entidad: ch2.id_chofer, categoria: "carnet_provincia" } }), 0);
+
+    // El listado muestra si tiene carnet oficial y permite ver los archivos
+    const lista = await c.get("/Choferes");
+    assert.match(lista.texto, /tiene_carnet_oficial/);
+    assert.match(lista.texto, /Carnet oficial de la provincia/);
+    const api = await c.get("/Choferes/api/todos?buscar=" + d.dni);
+    const json = JSON.parse(api.texto);
+    assert.equal(json[0].tiene_carnet_oficial, true);
+    assert.equal(json[0].documentos.length, 4);
+    // los documentos del chofer los ve quien tiene permiso sobre Choferes (walter) y no quien solo tiene Vehículos
+    assert.equal((await (await como("walter")).get(`/Documentos/${docs[0].id_documento}`)).status, 200);
+    assert.equal((await (await como("solo_vehiculos")).get(`/Documentos/${docs[0].id_documento}`)).status, 403);
+  });
+
+  test("chofer: edición del carnet (agregar, quitar) y gestión de la documentación desde la ficha de edición", async () => {
+    const c = await admin();
+    const d = datosChofer();
+    await c.pedir("POST", "/Choferes/Carga", { multipart: formulario(d, [["dni_archivos", PNG("a.png")], ["dni_archivos", PNG("b.png")]]) });
+    const ch = await db.Chofer.findOne({ where: { dni: d.dni } });
+    const edicion = (extra = {}) => ({ ...d, ...extra });
+    // marcar que tiene carnet sin cargar archivos: error
+    let r = await c.pedir("POST", `/Choferes/${ch.id_chofer}/editar`, { multipart: formulario(edicion({ tiene_carnet_oficial: "si" })) });
+    assert.equal(r.status, 400);
+    assert.match(r.texto, /cargá la foto o PDF del frente/);
+    // con frente y dorso: ok
+    r = await c.pedir("POST", `/Choferes/${ch.id_chofer}/editar`, { multipart: formulario(edicion({ tiene_carnet_oficial: "si" }), [["carnet_frente", PNG("f.png")], ["carnet_dorso", PDF("d.pdf")]]) });
+    assert.equal(r.status, 302, r.texto.slice(0, 300));
+    assert.equal((await db.Chofer.findByPk(ch.id_chofer)).tiene_carnet_oficial, true);
+    assert.equal(await db.DocumentoAdjunto.count({ where: { entidad: "chofer", id_entidad: ch.id_chofer, categoria: "carnet_provincia" } }), 2);
+    // la pantalla de edición muestra la documentación
+    const ed = await c.get(`/Choferes/${ch.id_chofer}/editar`);
+    assert.match(ed.texto, /Documentación adjunta/);
+    assert.match(ed.texto, /f\.png/);
+    // agregar otro archivo del DNI desde ahí
+    r = await c.pedir("POST", `/Choferes/${ch.id_chofer}/documentos`, { multipart: formulario({ categoria: "dni" }, [["archivos", PDF("dni-extra.pdf")]]) });
+    assert.equal(r.status, 302);
+    assert.equal(await db.DocumentoAdjunto.count({ where: { entidad: "chofer", id_entidad: ch.id_chofer, categoria: "dni" } }), 3);
+    // se marca "no tiene": se borran los archivos del carnet
+    r = await c.pedir("POST", `/Choferes/${ch.id_chofer}/editar`, { multipart: formulario(edicion({ tiene_carnet_oficial: "no" })) });
+    assert.equal(r.status, 302);
+    assert.equal((await db.Chofer.findByPk(ch.id_chofer)).tiene_carnet_oficial, false);
+    assert.equal(await db.DocumentoAdjunto.count({ where: { entidad: "chofer", id_entidad: ch.id_chofer, categoria: "carnet_provincia" } }), 0);
+    assert.equal(await db.DocumentoAdjunto.count({ where: { entidad: "chofer", id_entidad: ch.id_chofer, categoria: "dni" } }), 3);
+  });
+
+  test("historial administrativo: lista con filtros por período y vehículo, y muestra lo que falta completar", async () => {
+    const c = await admin();
+    const r = await c.get("/Mantenimientos/Historial?anios=todo");
+    assert.equal(r.status, 200);
+    for (const col of ["N° Remito", "N° Factura", "Casa proveedora", "N° Pedido", "N° Expediente", "Cant.", "Descripción", "Precio"]) assert.match(r.texto, new RegExp(col.replace(".", "\\.")));
+    assert.match(r.texto, /Cambio de aceite y filtro/);
+    assert.match(r.texto, /por completar/);
+    assert.match(r.texto, /\$86\.500,00/);
+    // filtro por vehículo
+    const v1 = await c.get("/Mantenimientos/Historial?anios=todo&vehiculo=1");
+    assert.match(v1.texto, /Cambio de aceite y filtro/);
+    assert.ok(!/Pastillas delanteras|pastillas delanteras/.test(v1.texto));
+    // por período: la orden de fixture es de 2026-07 → entra en "último año", pero una vieja no
+    await db.Mantenimiento.create({ id_vehiculo: 1, id_usuario: 1, tipo_servicio: "Servicio antiguo", fecha_inicio: "2019-01-10", fecha_fin: "2019-01-10", km_servicio: 100, costo_total: 1000, descripcion: "Orden muy antigua", estado: "Realizado", mano_obra: 1000, costo_repuestos: 0 });
+    assert.ok(!/Orden muy antigua/.test((await c.get("/Mantenimientos/Historial?anios=3")).texto));
+    assert.match((await c.get("/Mantenimientos/Historial?anios=todo")).texto, /Orden muy antigua/);
+    // las programadas / canceladas no entran al historial
+    assert.ok(!/Programado/.test((await c.get("/Mantenimientos/Historial?anios=todo")).texto.split("<tbody")[1] || ""));
+    // acceso desde el sidebar y la ficha del vehículo
+    assert.match(r.texto, /Historial Administrativo/);
+    assert.match((await c.get("/Vehicles/1")).texto, /\/Mantenimientos\/Historial\?vehiculo=1/);
+    // permisos: carlos_oficina no tiene Mantenimientos
+    assert.equal((await (await como("solo_vehiculos")).get("/Mantenimientos/Historial")).status, 403);
+  });
+
+  test("historial administrativo: editar una fila desde el cuadro actualiza el mantenimiento", async () => {
+    const c = await admin();
+    const orden = await db.Mantenimiento.findByPk(1);
+    const volver = "/Mantenimientos/Historial?vehiculo=1&anios=todo";
+    let r = await c.post(`/Mantenimientos/Historial/${orden.id_mantenimiento}`, { volver, nro_remito: "0001-00004567", nro_factura: "A-0003-00012345", proveedor: "Repuestos del Sur S.A.", nro_pedido: "P-77", nro_expediente: "4012-123/2026", descripcion: "Cambio de aceite y filtro (completo)", precio: "90000" });
+    assert.equal(r.status, 302);
+    assert.equal(r.location, volver);
+    const a = await db.Mantenimiento.findByPk(1);
+    assert.equal(a.nro_remito, "0001-00004567");
+    assert.equal(a.nro_factura, "A-0003-00012345");
+    assert.equal(a.proveedor, "Repuestos del Sur S.A.");
+    assert.equal(a.nro_pedido, "P-77");
+    assert.equal(a.nro_expediente, "4012-123/2026");
+    assert.equal(a.descripcion, "Cambio de aceite y filtro (completo)");
+    // el precio cambia el total y la diferencia con los repuestos (46.500) queda como mano de obra
+    assert.equal(Number(a.costo_total), 90000);
+    assert.equal(Number(a.mano_obra), 43500);
+    assert.equal(Number(a.costo_repuestos), 46500);
+    assert.ok(await db.Auditoria.findOne({ where: { tabla_afectada: "mantenimiento", id_registro_afectado: 1, descripcion: { [db.Sequelize.Op.like]: "%Historial administrativo%" } } }));
+    // se ve en la vista de todos los mantenimientos del vehículo
+    const lista = await c.get("/Vehicles/1/mantenimientos");
+    assert.match(lista.texto, /Repuestos del Sur S\.A\./);
+    assert.match(lista.texto, /0001-00004567/);
+    // validaciones: precio menor a los repuestos, descripción vacía, texto demasiado largo
+    await c.post("/Mantenimientos/Historial/1", { volver, descripcion: "x", precio: "1000" });
+    assert.match((await aviso(c, volver)).mensaje, /no puede ser menor al costo de los repuestos/);
+    await c.post("/Mantenimientos/Historial/1", { volver, descripcion: "   ", precio: "90000" });
+    assert.match((await aviso(c, volver)).mensaje, /descripción no puede quedar vacía/);
+    await c.post("/Mantenimientos/Historial/1", { volver, nro_remito: "x".repeat(60), descripcion: "ok", precio: "90000" });
+    assert.match((await aviso(c, volver)).mensaje, /máximo 50 caracteres/);
+    assert.equal((await db.Mantenimiento.findByPk(1)).nro_remito, "0001-00004567");
+    // se puede vaciar un dato desde el cuadro
+    await c.post("/Mantenimientos/Historial/1", { volver, nro_pedido: "", descripcion: "Cambio de aceite y filtro (completo)", precio: "90000" });
+    assert.equal((await db.Mantenimiento.findByPk(1)).nro_pedido, null);
+    // órdenes inexistentes o programadas no se editan; destinos externos se ignoran
+    await c.post("/Mantenimientos/Historial/9999", { volver, descripcion: "x", precio: "1" });
+    assert.match((await aviso(c, volver)).mensaje, /no existe/);
+    r = await c.post("/Mantenimientos/Historial/1", { volver: "https://malo.example/robo", descripcion: "Cambio de aceite y filtro (completo)", precio: "90000" });
+    assert.equal(r.location, "/Mantenimientos/Historial");
+    // restaurar para otras pruebas
+    await db.Mantenimiento.update({ costo_total: 86500, mano_obra: 40000, descripcion: "Cambio de aceite y filtro", nro_remito: null, nro_factura: null, proveedor: null, nro_pedido: null, nro_expediente: null }, { where: { id_mantenimiento: 1 } });
+  });
+
+  test("historial administrativo: el formulario de mantenimiento guarda los datos administrativos", async () => {
+    const c = await admin();
+    const form = await c.get("/Mantenimientos/carga");
+    for (const campo of ["nro_remito", "nro_factura", "proveedor", "nro_pedido", "nro_expediente"]) assert.match(form.texto, new RegExp(`name="${campo}"`));
+    const v = await db.Vehiculo.findOne({ where: { estado_actual: "Disponible" } });
+    const r = await c.post("/CargaMantenimiento", { estado: "Realizado", id_vehiculo: v.id_vehiculo, tipo_servicio: "Service con remito", fecha_inicio: hoy(-1), km_servicio: v.km_actual, descripcion: "Trabajo con papeles", mano_obra: "5000", nro_remito: " R-1 ", nro_factura: "F-2", proveedor: "Casa Perez", nro_pedido: "P-3", nro_expediente: "E-4" });
+    assert.equal(r.status, 302, r.texto.slice(0, 200));
+    const m = await db.Mantenimiento.findOne({ where: { tipo_servicio: "Service con remito" } });
+    assert.equal(m.nro_remito, "R-1");
+    assert.equal(m.proveedor, "Casa Perez");
+    assert.equal(m.nro_expediente, "E-4");
+    await db.Mantenimiento.destroy({ where: { id_mantenimiento: m.id_mantenimiento } });
+  });
+
+  const ExcelJS = require("exceljs");
+  const leerLibro = async (buffer) => {
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load(buffer);
+    return wb;
+  };
+  const excelConFilas = async (filas, { encabezados } = {}) => {
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet("Historial");
+    ws.addRow(encabezados || ["ID orden", "Patente", "Fecha", "N° Remito", "N° Factura", "Casa proveedora", "N° Pedido", "N° Expediente", "Cantidad", "Descripción", "Precio"]);
+    filas.forEach((f) => ws.addRow(f));
+    return Buffer.from(await wb.xlsx.writeBuffer());
+  };
+  const subir = (c, buffer, volver = "/Mantenimientos/Historial?anios=todo") => {
+    const f = new FormData();
+    f.append("volver", volver);
+    f.append("archivo", new File([buffer], "historial.xlsx", { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }));
+    return c.pedir("POST", "/Mantenimientos/Historial/importar", { multipart: f });
+  };
+
+  test("historial administrativo: descarga en Excel con las columnas pedidas y los datos por completar marcados", async () => {
+    const c = await admin();
+    const r = await c.get("/Mantenimientos/Historial/exportar?anios=todo");
+    assert.equal(r.status, 200);
+    assert.match(r.headers.get("content-type"), /spreadsheetml\.sheet/);
+    assert.match(r.headers.get("content-disposition"), /attachment; filename="historial-mantenimiento-flota-\d{4}-\d{2}-\d{2}\.xlsx"/);
+    const wb = await leerLibro(r.buffer);
+    const ws = wb.getWorksheet("Historial");
+    assert.deepEqual(ws.getRow(1).values.slice(1), ["ID orden", "Patente", "Fecha", "N° Remito", "N° Factura", "Casa proveedora", "N° Pedido", "N° Expediente", "Cantidad", "Descripción", "Precio"]);
+    assert.ok(ws.rowCount >= 5, "una fila por orden realizada o en proceso");
+    // la orden 1: patente, cantidad (1 + 4 repuestos) y precio
+    let fila1 = null;
+    ws.eachRow((row) => { if (row.getCell(1).value === 1) fila1 = row; });
+    assert.ok(fila1);
+    assert.equal(fila1.getCell(2).value, "AA001BB");
+    assert.equal(fila1.getCell(9).value, 5);
+    assert.equal(fila1.getCell(11).value, 86500);
+    assert.ok(fila1.getCell(3).value instanceof Date);
+    assert.equal(fila1.getCell(4).fill.fgColor.argb, "FFFEF9C3", "dato por completar resaltado");
+    assert.ok(wb.getWorksheet("Instrucciones"));
+    // por vehículo
+    const wbV = await leerLibro((await c.get("/Mantenimientos/Historial/exportar?anios=todo&vehiculo=1")).buffer);
+    wbV.getWorksheet("Historial").eachRow((row, i) => { if (i > 1) assert.equal(row.getCell(2).value, "AA001BB"); });
+    assert.match((await c.get("/Mantenimientos/Historial/exportar?vehiculo=9999")).headers.get("location") || "", /Historial/);
+    assert.equal((await (await como("solo_vehiculos")).get("/Mantenimientos/Historial/exportar")).status, 403);
+  });
+
+  test("historial administrativo: se re-carga el Excel completado y se actualizan los mantenimientos", async () => {
+    const c = await admin();
+    // ida y vuelta: se baja, se completan celdas en el Excel y se sube
+    const bajado = await leerLibro((await c.get("/Mantenimientos/Historial/exportar?anios=todo")).buffer);
+    const ws = bajado.getWorksheet("Historial");
+    ws.eachRow((row, i) => {
+      if (i === 1) return;
+      if (row.getCell(1).value === 2) { // orden 2: se completan los datos que faltaban
+        row.getCell(4).value = "0002-00000111";
+        row.getCell(5).value = 33445566; // número escrito como número
+        row.getCell(6).value = "Filtros SRL";
+        row.getCell(7).value = "PED-9";
+        row.getCell(8).value = "EXP-2026-5";
+        row.getCell(10).value = "Filtros de aire y combustible (con remito)";
+        row.getCell(11).value = 60000;
+      }
+    });
+    const buffer = Buffer.from(await bajado.xlsx.writeBuffer());
+    let r = await subir(c, buffer);
+    assert.equal(r.status, 302);
+    assert.match((await aviso(c, "/Mantenimientos/Historial?anios=todo")).mensaje, /1 orden\(es\) actualizada\(s\)/);
+    const m2 = await db.Mantenimiento.findByPk(2);
+    assert.equal(m2.nro_remito, "0002-00000111");
+    assert.equal(m2.nro_factura, "33445566");
+    assert.equal(m2.proveedor, "Filtros SRL");
+    assert.equal(m2.nro_pedido, "PED-9");
+    assert.equal(m2.nro_expediente, "EXP-2026-5");
+    assert.equal(m2.descripcion, "Filtros de aire y combustible (con remito)");
+    assert.equal(Number(m2.costo_total), 60000);
+    assert.equal(Number(m2.mano_obra), 33500); // 60.000 - 26.500 de repuestos
+    // las demás órdenes no cambiaron
+    assert.equal((await db.Mantenimiento.findByPk(1)).nro_remito, null);
+    assert.equal(Number((await db.Mantenimiento.findByPk(1)).costo_total), 86500);
+    assert.ok(await db.Auditoria.findOne({ where: { tabla_afectada: "mantenimiento", id_registro_afectado: 2, descripcion: { [db.Sequelize.Op.like]: "%carga de Excel%" } } }));
+
+    // subirlo otra vez no cambia nada
+    r = await subir(c, buffer);
+    assert.match((await aviso(c, "/Mantenimientos/Historial?anios=todo")).mensaje, /0 orden\(es\) actualizada\(s\), \d+ sin cambios/);
+
+    // celdas vacías no borran lo ya cargado
+    await subir(c, await excelConFilas([[2, "AD004EE", "", "", "", "", "", "", "", "", ""], [3, "AC003DD", "", "R-3", "", "", "", "", "", "", ""]]));
+    assert.equal((await db.Mantenimiento.findByPk(2)).proveedor, "Filtros SRL");
+    assert.equal((await db.Mantenimiento.findByPk(3)).nro_remito, "R-3");
+
+    // se aceptan encabezados alternativos ("Remito", "Factura", "Proveedor") y precio con formato argentino
+    await subir(c, await excelConFilas([[3, "AC003DD", "Remito-3b", "Fact-3", "Prov 3", "", "", "", "", "$ 65.000,00"]], { encabezados: ["ID", "Patente", "Remito", "Factura", "Proveedor", "Pedido", "Expediente", "Cantidad", "Descripción", "Precio"] }));
+    const m3 = await db.Mantenimiento.findByPk(3);
+    assert.equal(m3.nro_remito, "Remito-3b");
+    assert.equal(m3.proveedor, "Prov 3");
+    assert.equal(Number(m3.costo_total), 65000);
+  });
+
+  test("historial administrativo: si el Excel tiene un error no se guarda nada y se indica la fila", async () => {
+    const c = await admin();
+    const antes = (await db.Mantenimiento.findByPk(4)).toJSON();
+    const buffer = await excelConFilas([
+      [4, "AI009JJ", "", "R-OK", "", "", "", "", "", "", ""],
+      [9999, "ZZ999ZZ", "", "R-X", "", "", "", "", "", "", ""],
+      [1, "PATENTE-MAL", "", "R-Y", "", "", "", "", "", "", ""],
+      [4, "AI009JJ", "", "", "", "", "", "", "", "", "1000"],
+      ["abc", "", "", "R-Z", "", "", "", "", "", "", ""],
+    ]);
+    await subir(c, buffer);
+    const msg = (await aviso(c, "/Mantenimientos/Historial?anios=todo")).mensaje;
+    assert.match(msg, /No se guardó nada/);
+    assert.match(msg, /Fila 3: la orden 9999 no existe/);
+    assert.match(msg, /Fila 4: la patente PATENTE-MAL no coincide/);
+    assert.match(msg, /Fila 5: El precio \(\$1000\) no puede ser menor al costo de los repuestos/);
+    assert.match(msg, /Fila 6: falta el ID de la orden/);
+    assert.equal((await db.Mantenimiento.findByPk(4)).nro_remito, antes.nro_remito, "la fila válida tampoco se guardó");
+    // archivo inválido / sin archivo / sin encabezado / vacío
+    const f = new FormData();
+    f.append("volver", "/Mantenimientos/Historial");
+    f.append("archivo", new File(["no es un excel"], "x.xlsx"));
+    await c.pedir("POST", "/Mantenimientos/Historial/importar", { multipart: f });
+    assert.match((await aviso(c, "/Mantenimientos/Historial")).mensaje, /No se pudo leer el archivo/);
+    const g = new FormData();
+    g.append("volver", "/Mantenimientos/Historial");
+    await c.pedir("POST", "/Mantenimientos/Historial/importar", { multipart: g });
+    assert.match((await aviso(c, "/Mantenimientos/Historial")).mensaje, /Elegí el archivo Excel/);
+    const h = new FormData();
+    h.append("volver", "/Mantenimientos/Historial");
+    h.append("archivo", new File(["x"], "x.csv"));
+    const rcsv = await c.pedir("POST", "/Mantenimientos/Historial/importar", { multipart: h });
+    assert.equal(rcsv.status, 400);
+    assert.match(rcsv.texto, /Subí el archivo Excel/);
+    await subir(c, await excelConFilas([], {}));
+    assert.match((await aviso(c, "/Mantenimientos/Historial")).mensaje, /no tiene filas con datos/);
+    await subir(c, await excelConFilas([[1, "x"]], { encabezados: ["Cualquier", "Cosa"] }));
+    assert.match((await aviso(c, "/Mantenimientos/Historial")).mensaje, /No se encontró la columna "ID orden"/);
+    // sin permiso
+    assert.equal((await subir(await como("solo_vehiculos"), buffer)).status, 403);
   });
 });

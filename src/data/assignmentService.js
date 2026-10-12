@@ -137,7 +137,6 @@ const assignmentService = {
           id_vehiculo: data.id_vehiculo,
           id_chofer: data.id_chofer,
           fecha_salida: data.fecha_desde,
-          fecha_estimada_devolucion: data.fecha_hasta || null,
           destino_area: data.destino || null,
           observaciones: data.observaciones || null,
           estado: "Activo",

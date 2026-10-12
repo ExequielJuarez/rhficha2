@@ -4,6 +4,7 @@ const db = require("../model/database/models");
 const choferService = require("../data/choferService");
 const assignmentService = require("../data/assignmentService");
 const auditoriaService = require("../data/auditoriaService");
+const documentoService = require("../data/documentoService");
 const alertaService = require("../data/alertaService");
 const { validationResult } = require("express-validator");
 const { aISO } = require("../utils/fechas");
@@ -11,11 +12,35 @@ const { aISO } = require("../utils/fechas");
 const DIR_UPLOADS = path.join(__dirname, "../../public/img/licencias");
 
 // Borra archivos recién subidos (cuando la validación falla o hay un error)
-const descartarArchivos = (req) => {
-  const archivos = Object.values(req.files || {}).flat();
-  archivos.forEach((f) => {
-    fs.unlink(path.join(DIR_UPLOADS, f.filename), () => {});
-  });
+const descartarArchivos = (req) => documentoService.descartar(req.files);
+
+// Documentación obligatoria: DNI con al menos 2 archivos al dar de alta (frente y dorso) y, si el chofer
+// tiene carnet oficial de la provincia, frente y dorso del carnet (entre los ya cargados y los nuevos).
+const erroresDocumentos = (req, { alta, carnetCargados = 0 }) => {
+  const errores = {};
+  const dni = (req.files && req.files.dni_archivos) || [];
+  if (alta && dni.length < 2) {
+    errores.dni_archivos = { msg: "Cargá el DNI completo: frente y dorso (mínimo 2 archivos, fotos o PDF)." };
+  }
+  if (req.body.tiene_carnet_oficial === "si") {
+    const frente = (req.files && req.files.carnet_frente) || [];
+    const dorso = (req.files && req.files.carnet_dorso) || [];
+    if (carnetCargados + frente.length + dorso.length < 2) {
+      if (!frente.length) errores.carnet_frente = { msg: "Si tiene carnet oficial, cargá la foto o PDF del frente." };
+      if (!dorso.length) errores.carnet_dorso = { msg: "Si tiene carnet oficial, cargá la foto o PDF del dorso." };
+    }
+  }
+  return errores;
+};
+
+// Datos para mostrar la documentación adjunta del chofer (incluye la foto de DNI de versiones anteriores)
+const datosDocumentos = async (chofer) => {
+  const docs = await documentoService.listar("chofer", chofer.id_chofer);
+  return {
+    gruposDocumentos: documentoService.agrupar("chofer", docs),
+    documentosLegado: chofer.foto_documento ? [{ clave: "dni", url: `/img/licencias/${chofer.foto_documento}`, nombre: chofer.foto_documento }] : [],
+    carnetCargados: docs.filter((d) => d.categoria === "carnet_provincia").length,
+  };
 };
 
 // Borra una imagen anterior que fue reemplazada (nunca las de ejemplo sin timestamp)
@@ -79,11 +104,12 @@ const choferController = {
   processChofer: async (req, res) => {
     try {
       const errors = validationResult(req);
+      const mapeados = { ...errors.mapped(), ...erroresDocumentos(req, { alta: true }) };
 
-      if (!errors.isEmpty()) {
+      if (Object.keys(mapeados).length > 0) {
         descartarArchivos(req);
         return res.status(400).render("cargaChofer", {
-          errors: errors.mapped(),
+          errors: mapeados,
           old: req.body,
           chofer: {},
         });
@@ -141,8 +167,10 @@ const choferController = {
           categoria: licencia.categoria || "",
           fecha_emision: aISO(licencia.fecha_emision),
           fecha_vencimiento: aISO(licencia.fecha_vencimiento),
+          tiene_carnet_oficial: chofer.tiene_carnet_oficial ? "si" : "no",
         },
         chofer,
+        ...(await datosDocumentos(chofer)),
       });
     } catch (error) {
       console.log(error);
@@ -162,12 +190,17 @@ const choferController = {
         return res.redirect("/Choferes");
       }
 
-      if (!errors.isEmpty()) {
+      const datosDocs = await datosDocumentos(chofer);
+      const tieneCarnet = req.body.tiene_carnet_oficial === "si";
+      const mapeados = { ...errors.mapped(), ...erroresDocumentos(req, { alta: false, carnetCargados: datosDocs.carnetCargados }) };
+
+      if (Object.keys(mapeados).length > 0) {
         descartarArchivos(req);
         return res.status(400).render("EditarChofer", {
-          errors: errors.mapped(),
+          errors: mapeados,
           chofer,
           old: req.body,
+          ...datosDocs,
         });
       }
 
@@ -198,11 +231,15 @@ const choferController = {
         fechaNacimiento: body.fechaNacimiento || null,
         fechaIngreso: body.fechaIngreso || null,
         turno: body.Turno || null,
+        tiene_carnet_oficial: tieneCarnet,
         ...(fotoDocumento && { foto_documento: fotoDocumento }),
         ...(fotoPerfil && { imagen: fotoPerfil }),
         motivoBaja: nuevoEstado === "Inactivo" ? body.motivoBaja || null : null,
       });
       if (fotoDocumento) borrarImagenAnterior(chofer.foto_documento);
+      // Documentación: DNI adicional y carnet de la provincia
+      await choferService.guardarDocumentos(chofer.id_chofer, req);
+      if (!tieneCarnet) await documentoService.eliminarDeEntidad("chofer", chofer.id_chofer, "carnet_provincia");
       if (fotoPerfil) borrarImagenAnterior(chofer.imagen);
 
       const datosLicencia = {
@@ -334,6 +371,7 @@ const choferController = {
         include: [
           { model: db.LicenciaChofer, as: "licencias" },
           { model: db.AsignacionVehiculo, as: "asignaciones", required: false, where: { estado: "Activo" }, include: [{ model: db.Vehiculo, as: "vehiculo", required: false }] },
+          { model: db.DocumentoAdjunto, as: "documentos", required: false, attributes: ["id_documento", "categoria", "nombre_original", "archivo"] },
         ],
         order: [
           ["apellido", "ASC"],

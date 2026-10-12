@@ -21,8 +21,28 @@ const ordenesAbiertas = (id_vehiculo, transaction, excluirId = null) => {
   return db.Mantenimiento.count({ where, transaction });
 };
 
+// Datos administrativos del historial (todos opcionales): remito, factura, proveedor, pedido y expediente
+const CAMPOS_ADMIN = [
+  ["nro_remito", "N° de remito", 50],
+  ["nro_factura", "N° de factura", 50],
+  ["proveedor", "Casa proveedora", 150],
+  ["nro_pedido", "N° de pedido", 50],
+  ["nro_expediente", "N° de expediente", 50],
+];
+const datosAdministrativos = (body) => {
+  const datos = {};
+  for (const [campo, etiqueta, max] of CAMPOS_ADMIN) {
+    const valor = String(body[campo] ?? "").trim();
+    if (valor.length > max) throw new ErrorNegocio(`${etiqueta}: máximo ${max} caracteres.`);
+    datos[campo] = valor || null;
+  }
+  return datos;
+};
+
 const maintenanceService = {
   ESTADOS_MANTENIMIENTO,
+  CAMPOS_ADMIN,
+  datosAdministrativos,
 
   // Un service programado a X km deja de tener sentido cuando ya se realizó otro a X km o más:
   // se cancela solo (queda registrado en sus observaciones).
@@ -181,6 +201,7 @@ const maintenanceService = {
           costo_repuestos: costoRepuestos,
           mano_obra: redondear(manoObra),
           costo_total: costoTotal,
+          ...datosAdministrativos(body),
         },
         { transaction },
       );

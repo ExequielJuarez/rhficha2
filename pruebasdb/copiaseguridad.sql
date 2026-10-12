@@ -160,6 +160,7 @@ CREATE TABLE `chofer` (
   `foto_documento` varchar(255) DEFAULT NULL,
   `imagen` varchar(255) DEFAULT NULL,
   `motivoBaja` text DEFAULT NULL,
+  `tiene_carnet_oficial` tinyint(1) NOT NULL DEFAULT 0,
   PRIMARY KEY (`id_chofer`),
   UNIQUE KEY `dni` (`dni`),
   UNIQUE KEY `uq_chofer_telefono` (`telefono`)
@@ -223,6 +224,11 @@ CREATE TABLE `mantenimiento` (
   `estado` varchar(20) NOT NULL DEFAULT 'Realizado',
   `mano_obra` decimal(12,2) DEFAULT 0.00,
   `costo_repuestos` decimal(12,2) DEFAULT 0.00,
+  `nro_remito` varchar(50) DEFAULT NULL,
+  `nro_factura` varchar(50) DEFAULT NULL,
+  `proveedor` varchar(150) DEFAULT NULL,
+  `nro_pedido` varchar(50) DEFAULT NULL,
+  `nro_expediente` varchar(50) DEFAULT NULL,
   PRIMARY KEY (`id_mantenimiento`),
   KEY `fk_mant_usuario` (`id_usuario`),
   KEY `idx_mant_vehiculo` (`id_vehiculo`),
@@ -308,6 +314,20 @@ CREATE TABLE `siniestro` (
 -- ---------------------------------------------------------------------------
 --  Alertas y auditoría
 -- ---------------------------------------------------------------------------
+CREATE TABLE `documento_adjunto` (
+  `id_documento` int(11) NOT NULL AUTO_INCREMENT,
+  `entidad` varchar(20) NOT NULL,
+  `id_entidad` int(11) NOT NULL,
+  `categoria` varchar(40) NOT NULL,
+  `archivo` varchar(255) NOT NULL,
+  `nombre_original` varchar(255) DEFAULT NULL,
+  `id_usuario` int(11) DEFAULT NULL,
+  `createdAt` datetime DEFAULT NULL,
+  `updatedAt` datetime DEFAULT NULL,
+  PRIMARY KEY (`id_documento`),
+  KEY `idx_documento_entidad` (`entidad`,`id_entidad`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
 CREATE TABLE `alerta` (
   `id_alerta` int(11) NOT NULL AUTO_INCREMENT,
   `tipo` enum('licencia_vencida','licencia_proxima','mantenimiento_pendiente','mantenimiento_finalizado','mantenimiento_proximo','mantenimiento_vencido','documentacion_vencida','vehiculo_fuera_servicio','vehiculo_en_mantenimiento','herramienta_devuelta','prestamo_vencido','asignacion_vencida','stock_bajo','siniestro_activo','critica','informativa') NOT NULL,
@@ -366,6 +386,12 @@ SET FOREIGN_KEY_CHECKS = 1;
 --      inactivos con motivo y en licencia médica; 4 con vehículo asignado.
 --    · Mantenimientos: programados por km, en proceso y realizados (historial de
 --      varios años) con repuestos; services cercanos y vencidos por km.
+--    · Mantenimientos con datos administrativos (remito, factura, proveedor, pedido,
+--      expediente): algunos completos y otros por completar (Historial Administrativo).
+--    · Documentación adjunta: comodatos, actas de afectación/entrega/desafectación en
+--      vehículos; DNI (frente y dorso) y carnet de la provincia en choferes (los PDF de
+--      ejemplo los genera el cargador en uploads/documentos).
+--    · Asignaciones sin fecha estimada (se marcan como devueltas a mano).
 --    · Herramientas y préstamos: stock parcial y total, vencidos, en reparación, de baja.
 --    · Siniestros abiertos, resueltos y cerrados. Auditoría y alertas informativas.
 --
@@ -443,23 +469,23 @@ INSERT INTO `vehiculo` (`id_vehiculo`,`patente`,`legajo`,`marca`,`modelo`,`anio`
  (18,'AQ017RR',NULL,'Ford','F-100',2005,1,'CHS-018','MOT-018','Diésel','Manual',250000,'CED-018','Municipalidad Capital','La Segunda',(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) + INTERVAL 5 DAY),(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) + INTERVAL 3 DAY),'Disponible','Sur',NULL,'Seguro y RTO a punto de vencer',NULL,(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 3000 DAY),NULL,'cedula.jpg',NULL,NULL);
 
 -- Choferes: licencia vigente, por vencer (30/12/0 días), vencida, inactivos y en licencia médica
-INSERT INTO `chofer` (`id_chofer`,`nombre`,`apellido`,`dni`,`telefono`,`direccion`,`estado`,`fechaNacimiento`,`fechaIngreso`,`email`,`turno`,`createdAt`,`updatedAt`,`foto_documento`,`imagen`,`motivoBaja`) VALUES
- (1,'Carlos','Rodríguez','28111222','3854100001','Av. Libertad 123, Capital','Activo','1985-03-12',(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 2400 DAY),'carlos@muni.gov','Mañana',(UTC_TIMESTAMP() - INTERVAL 2400 DAY - INTERVAL 0 HOUR),(UTC_TIMESTAMP() - INTERVAL 1 DAY - INTERVAL 0 HOUR),'dni.jpg',NULL,NULL),
- (2,'Sergio','Villalba','30222333','3854100002','San Martín 456, Capital','Activo','1988-07-24',(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 2000 DAY),'sergio@muni.gov','Tarde',(UTC_TIMESTAMP() - INTERVAL 2000 DAY - INTERVAL 0 HOUR),(UTC_TIMESTAMP() - INTERVAL 1 DAY - INTERVAL 0 HOUR),NULL,NULL,NULL),
- (3,'Marcelo','Paz','32333444','3854100003','Belgrano 789, Banda','Activo','1990-11-05',(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 1700 DAY),'marcelo@muni.gov','Mañana',(UTC_TIMESTAMP() - INTERVAL 1700 DAY - INTERVAL 0 HOUR),(UTC_TIMESTAMP() - INTERVAL 1 DAY - INTERVAL 0 HOUR),NULL,NULL,NULL),
- (4,'Diego','Herrera','25444555','3854100004','Rivadavia 321, Capital','Activo','1982-01-30',(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 2600 DAY),'diego@muni.gov','Mañana',(UTC_TIMESTAMP() - INTERVAL 2600 DAY - INTERVAL 0 HOUR),(UTC_TIMESTAMP() - INTERVAL 1 DAY - INTERVAL 0 HOUR),NULL,NULL,NULL),
- (5,'Roberto','Leiva','35555666','3854100005','Sarmiento 654, Banda','Activo','1992-05-18',(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 1500 DAY),'roberto@muni.gov','Tarde',(UTC_TIMESTAMP() - INTERVAL 1500 DAY - INTERVAL 0 HOUR),(UTC_TIMESTAMP() - INTERVAL 1 DAY - INTERVAL 0 HOUR),NULL,NULL,NULL),
- (6,'Fernando','Gutiérrez','27666777','3854100006','Tucumán 987, Capital','Activo','1983-09-07',(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 3000 DAY),'fernando@muni.gov','Mañana',(UTC_TIMESTAMP() - INTERVAL 3000 DAY - INTERVAL 0 HOUR),(UTC_TIMESTAMP() - INTERVAL 1 DAY - INTERVAL 0 HOUR),NULL,NULL,NULL),
- (7,'Pablo','Soria','38777888','3854100007','Córdoba 147, Capital','Licencia Vacaciones/Medica','1995-02-14',(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 1200 DAY),'pablo@muni.gov','Tarde',(UTC_TIMESTAMP() - INTERVAL 1200 DAY - INTERVAL 0 HOUR),(UTC_TIMESTAMP() - INTERVAL 1 DAY - INTERVAL 0 HOUR),NULL,NULL,NULL),
- (8,'Alejandro','Medina','31888999','3854100008','Mitre 258, Banda','Activo','1987-06-22',(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 2200 DAY),'alejandro@muni.gov','Mañana',(UTC_TIMESTAMP() - INTERVAL 2200 DAY - INTERVAL 0 HOUR),(UTC_TIMESTAMP() - INTERVAL 1 DAY - INTERVAL 0 HOUR),NULL,NULL,NULL),
- (9,'Gustavo','Ríos','29999000','3854100009','Independencia 369, Capital','Activo','1984-10-03',(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 3300 DAY),'gustavo@muni.gov','Tarde',(UTC_TIMESTAMP() - INTERVAL 3300 DAY - INTERVAL 0 HOUR),(UTC_TIMESTAMP() - INTERVAL 1 DAY - INTERVAL 0 HOUR),NULL,NULL,NULL),
- (10,'Raúl','Cabrera','33000111','3854100010','Las Heras 741, Capital','Inactivo','1979-12-28',(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 4200 DAY),'raul@muni.gov','Mañana',(UTC_TIMESTAMP() - INTERVAL 4200 DAY - INTERVAL 0 HOUR),(UTC_TIMESTAMP() - INTERVAL 1 DAY - INTERVAL 0 HOUR),NULL,NULL,'Baja por jubilación'),
- (11,'Exequiel','Juarez','39367819','3789173829','mzn a lote 6','Activo','2002-01-01',(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 90 DAY),'ejemplo@gmail.com','Tarde/Noche',(UTC_TIMESTAMP() - INTERVAL 90 DAY - INTERVAL 0 HOUR),(UTC_TIMESTAMP() - INTERVAL 1 DAY - INTERVAL 0 HOUR),'dni.jpg',NULL,NULL),
- (12,'Lucía','Fernández','36111222','3854100012','Catamarca 55, Capital','Activo','1991-04-09',(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 800 DAY),'lucia@muni.gov','Mañana',(UTC_TIMESTAMP() - INTERVAL 800 DAY - INTERVAL 0 HOUR),(UTC_TIMESTAMP() - INTERVAL 1 DAY - INTERVAL 0 HOUR),NULL,NULL,NULL),
- (13,'Martín','Acosta','34222333','3854100013','Salta 920, Banda','Activo','1989-08-15',(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 1900 DAY),'martin@muni.gov','Tarde/Noche',(UTC_TIMESTAMP() - INTERVAL 1900 DAY - INTERVAL 0 HOUR),(UTC_TIMESTAMP() - INTERVAL 1 DAY - INTERVAL 0 HOUR),NULL,NULL,NULL),
- (14,'Valeria','Núñez','37333444','3854100014','Jujuy 410, Capital','Activo','1994-12-02',(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 700 DAY),'valeria@muni.gov','Mañana',(UTC_TIMESTAMP() - INTERVAL 700 DAY - INTERVAL 0 HOUR),(UTC_TIMESTAMP() - INTERVAL 1 DAY - INTERVAL 0 HOUR),NULL,NULL,NULL),
- (15,'Hugo','Benítez','26444555','3854100015','Alsina 88, Capital','Inactivo','1981-02-27',(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 3600 DAY),'hugo@muni.gov','Noche',(UTC_TIMESTAMP() - INTERVAL 3600 DAY - INTERVAL 0 HOUR),(UTC_TIMESTAMP() - INTERVAL 1 DAY - INTERVAL 0 HOUR),NULL,NULL,'Renuncia'),
- (16,'Natalia','Ibarra','38444555','3854100016','Chacabuco 301, Banda','Activo','1996-06-30',(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 400 DAY),'natalia@muni.gov','Mañana',(UTC_TIMESTAMP() - INTERVAL 400 DAY - INTERVAL 0 HOUR),(UTC_TIMESTAMP() - INTERVAL 1 DAY - INTERVAL 0 HOUR),NULL,NULL,NULL);
+INSERT INTO `chofer` (`id_chofer`,`nombre`,`apellido`,`dni`,`telefono`,`direccion`,`estado`,`fechaNacimiento`,`fechaIngreso`,`email`,`turno`,`createdAt`,`updatedAt`,`foto_documento`,`imagen`,`motivoBaja`,`tiene_carnet_oficial`) VALUES
+ (1,'Carlos','Rodríguez','28111222','3854100001','Av. Libertad 123, Capital','Activo','1985-03-12',(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 2400 DAY),'carlos@muni.gov','Mañana',(UTC_TIMESTAMP() - INTERVAL 2400 DAY - INTERVAL 0 HOUR),(UTC_TIMESTAMP() - INTERVAL 1 DAY - INTERVAL 0 HOUR),NULL,NULL,NULL,1),
+ (2,'Sergio','Villalba','30222333','3854100002','San Martín 456, Capital','Activo','1988-07-24',(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 2000 DAY),'sergio@muni.gov','Tarde',(UTC_TIMESTAMP() - INTERVAL 2000 DAY - INTERVAL 0 HOUR),(UTC_TIMESTAMP() - INTERVAL 1 DAY - INTERVAL 0 HOUR),NULL,NULL,NULL,0),
+ (3,'Marcelo','Paz','32333444','3854100003','Belgrano 789, Banda','Activo','1990-11-05',(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 1700 DAY),'marcelo@muni.gov','Mañana',(UTC_TIMESTAMP() - INTERVAL 1700 DAY - INTERVAL 0 HOUR),(UTC_TIMESTAMP() - INTERVAL 1 DAY - INTERVAL 0 HOUR),NULL,NULL,NULL,1),
+ (4,'Diego','Herrera','25444555','3854100004','Rivadavia 321, Capital','Activo','1982-01-30',(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 2600 DAY),'diego@muni.gov','Mañana',(UTC_TIMESTAMP() - INTERVAL 2600 DAY - INTERVAL 0 HOUR),(UTC_TIMESTAMP() - INTERVAL 1 DAY - INTERVAL 0 HOUR),NULL,NULL,NULL,1),
+ (5,'Roberto','Leiva','35555666','3854100005','Sarmiento 654, Banda','Activo','1992-05-18',(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 1500 DAY),'roberto@muni.gov','Tarde',(UTC_TIMESTAMP() - INTERVAL 1500 DAY - INTERVAL 0 HOUR),(UTC_TIMESTAMP() - INTERVAL 1 DAY - INTERVAL 0 HOUR),NULL,NULL,NULL,0),
+ (6,'Fernando','Gutiérrez','27666777','3854100006','Tucumán 987, Capital','Activo','1983-09-07',(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 3000 DAY),'fernando@muni.gov','Mañana',(UTC_TIMESTAMP() - INTERVAL 3000 DAY - INTERVAL 0 HOUR),(UTC_TIMESTAMP() - INTERVAL 1 DAY - INTERVAL 0 HOUR),NULL,NULL,NULL,1),
+ (7,'Pablo','Soria','38777888','3854100007','Córdoba 147, Capital','Licencia Vacaciones/Medica','1995-02-14',(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 1200 DAY),'pablo@muni.gov','Tarde',(UTC_TIMESTAMP() - INTERVAL 1200 DAY - INTERVAL 0 HOUR),(UTC_TIMESTAMP() - INTERVAL 1 DAY - INTERVAL 0 HOUR),NULL,NULL,NULL,0),
+ (8,'Alejandro','Medina','31888999','3854100008','Mitre 258, Banda','Activo','1987-06-22',(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 2200 DAY),'alejandro@muni.gov','Mañana',(UTC_TIMESTAMP() - INTERVAL 2200 DAY - INTERVAL 0 HOUR),(UTC_TIMESTAMP() - INTERVAL 1 DAY - INTERVAL 0 HOUR),NULL,NULL,NULL,0),
+ (9,'Gustavo','Ríos','29999000','3854100009','Independencia 369, Capital','Activo','1984-10-03',(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 3300 DAY),'gustavo@muni.gov','Tarde',(UTC_TIMESTAMP() - INTERVAL 3300 DAY - INTERVAL 0 HOUR),(UTC_TIMESTAMP() - INTERVAL 1 DAY - INTERVAL 0 HOUR),NULL,NULL,NULL,1),
+ (10,'Raúl','Cabrera','33000111','3854100010','Las Heras 741, Capital','Inactivo','1979-12-28',(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 4200 DAY),'raul@muni.gov','Mañana',(UTC_TIMESTAMP() - INTERVAL 4200 DAY - INTERVAL 0 HOUR),(UTC_TIMESTAMP() - INTERVAL 1 DAY - INTERVAL 0 HOUR),NULL,NULL,'Baja por jubilación',0),
+ (11,'Exequiel','Juarez','39367819','3789173829','mzn a lote 6','Activo','2002-01-01',(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 90 DAY),'ejemplo@gmail.com','Tarde/Noche',(UTC_TIMESTAMP() - INTERVAL 90 DAY - INTERVAL 0 HOUR),(UTC_TIMESTAMP() - INTERVAL 1 DAY - INTERVAL 0 HOUR),NULL,NULL,NULL,0),
+ (12,'Lucía','Fernández','36111222','3854100012','Catamarca 55, Capital','Activo','1991-04-09',(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 800 DAY),'lucia@muni.gov','Mañana',(UTC_TIMESTAMP() - INTERVAL 800 DAY - INTERVAL 0 HOUR),(UTC_TIMESTAMP() - INTERVAL 1 DAY - INTERVAL 0 HOUR),NULL,NULL,NULL,1),
+ (13,'Martín','Acosta','34222333','3854100013','Salta 920, Banda','Activo','1989-08-15',(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 1900 DAY),'martin@muni.gov','Tarde/Noche',(UTC_TIMESTAMP() - INTERVAL 1900 DAY - INTERVAL 0 HOUR),(UTC_TIMESTAMP() - INTERVAL 1 DAY - INTERVAL 0 HOUR),NULL,NULL,NULL,1),
+ (14,'Valeria','Núñez','37333444','3854100014','Jujuy 410, Capital','Activo','1994-12-02',(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 700 DAY),'valeria@muni.gov','Mañana',(UTC_TIMESTAMP() - INTERVAL 700 DAY - INTERVAL 0 HOUR),(UTC_TIMESTAMP() - INTERVAL 1 DAY - INTERVAL 0 HOUR),NULL,NULL,NULL,0),
+ (15,'Hugo','Benítez','26444555','3854100015','Alsina 88, Capital','Inactivo','1981-02-27',(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 3600 DAY),'hugo@muni.gov','Noche',(UTC_TIMESTAMP() - INTERVAL 3600 DAY - INTERVAL 0 HOUR),(UTC_TIMESTAMP() - INTERVAL 1 DAY - INTERVAL 0 HOUR),NULL,NULL,'Renuncia',0),
+ (16,'Natalia','Ibarra','38444555','3854100016','Chacabuco 301, Banda','Activo','1996-06-30',(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 400 DAY),'natalia@muni.gov','Mañana',(UTC_TIMESTAMP() - INTERVAL 400 DAY - INTERVAL 0 HOUR),(UTC_TIMESTAMP() - INTERVAL 1 DAY - INTERVAL 0 HOUR),NULL,NULL,NULL,0);
 
 INSERT INTO `licencia_chofer` (`id_licencia`,`id_chofer`,`numero`,`categoria`,`fecha_emision`,`fecha_vencimiento`,`imagen`) VALUES
  (1,1,'LIC-00001','C',(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 925 DAY),(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) + INTERVAL 900 DAY),'licencia.jpg'),
@@ -479,18 +505,18 @@ INSERT INTO `licencia_chofer` (`id_licencia`,`id_chofer`,`numero`,`categoria`,`f
  (15,15,'LIC-00015','D',(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 1525 DAY),(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) + INTERVAL 300 DAY),'licencia.jpg'),
  (16,16,'LIC-00016','B1',(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 1125 DAY),(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) + INTERVAL 700 DAY),'licencia.jpg');
 
--- Asignaciones (4 activas, una de ellas vencida, y un historial finalizado)
+-- Asignaciones (4 activas, sin fecha estimada: se marcan como devueltas a mano, y un historial finalizado)
 INSERT INTO `asignacion_vehiculo` (`id_asignacion`,`id_vehiculo`,`id_chofer`,`fecha_salida`,`fecha_estimada_devolucion`,`fecha_devolucion`,`destino_area`,`observaciones`,`estado`) VALUES
- (1,1,1,(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 3 DAY + INTERVAL 3 HOUR),(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) + INTERVAL 12 DAY + INTERVAL 3 HOUR),NULL,'Norte','Sale en buenas condiciones','Activo'),
- (2,7,4,(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 2 DAY + INTERVAL 3 HOUR),(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) + INTERVAL 5 DAY + INTERVAL 3 HOUR),NULL,'Centro','Traslado de materiales','Activo'),
- (3,13,9,(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 10 DAY + INTERVAL 3 HOUR),(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 3 DAY + INTERVAL 3 HOUR),NULL,'Oeste','Asignación vencida: debía volver hace 3 días','Activo'),
- (4,14,14,(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 1 DAY + INTERVAL 3 HOUR),(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) + INTERVAL 7 DAY + INTERVAL 3 HOUR),NULL,'Centro','Recorrida de inspecciones','Activo'),
- (5,5,5,(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 70 DAY + INTERVAL 3 HOUR),(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 60 DAY + INTERVAL 3 HOUR),(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 61 DAY + INTERVAL 3 HOUR + INTERVAL 14 HOUR),'Norte','Traslado de materiales','Finalizado'),
- (6,3,8,(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 45 DAY + INTERVAL 3 HOUR),(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 40 DAY + INTERVAL 3 HOUR),(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 41 DAY + INTERVAL 3 HOUR + INTERVAL 14 HOUR),'Sur','Comisión inter-distrital','Finalizado'),
- (7,1,3,(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 120 DAY + INTERVAL 3 HOUR),(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 110 DAY + INTERVAL 3 HOUR),(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 112 DAY + INTERVAL 3 HOUR + INTERVAL 14 HOUR),'Este','Obra vial','Finalizado'),
- (8,4,2,(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 150 DAY + INTERVAL 3 HOUR),(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 140 DAY + INTERVAL 3 HOUR),(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 139 DAY + INTERVAL 3 HOUR + INTERVAL 14 HOUR),'Centro','Relevamiento','Finalizado'),
- (9,9,16,(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 30 DAY + INTERVAL 3 HOUR),(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 25 DAY + INTERVAL 3 HOUR),(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 26 DAY + INTERVAL 3 HOUR + INTERVAL 14 HOUR),'Sur','Reparto de insumos','Finalizado'),
- (10,12,6,(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 20 DAY + INTERVAL 3 HOUR),(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 15 DAY + INTERVAL 3 HOUR),(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 15 DAY + INTERVAL 3 HOUR + INTERVAL 14 HOUR),'Este','Visita a escuelas','Finalizado');
+ (1,1,1,(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 3 DAY + INTERVAL 3 HOUR),NULL,NULL,'Norte','Sale en buenas condiciones','Activo'),
+ (2,7,4,(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 2 DAY + INTERVAL 3 HOUR),NULL,NULL,'Centro','Traslado de materiales','Activo'),
+ (3,13,9,(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 10 DAY + INTERVAL 3 HOUR),NULL,NULL,'Oeste','Lleva 10 días asignada: pendiente de marcar como devuelta','Activo'),
+ (4,14,14,(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 1 DAY + INTERVAL 3 HOUR),NULL,NULL,'Centro','Recorrida de inspecciones','Activo'),
+ (5,5,5,(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 70 DAY + INTERVAL 3 HOUR),NULL,(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 61 DAY + INTERVAL 3 HOUR + INTERVAL 14 HOUR),'Norte','Traslado de materiales','Finalizado'),
+ (6,3,8,(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 45 DAY + INTERVAL 3 HOUR),NULL,(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 41 DAY + INTERVAL 3 HOUR + INTERVAL 14 HOUR),'Sur','Comisión inter-distrital','Finalizado'),
+ (7,1,3,(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 120 DAY + INTERVAL 3 HOUR),NULL,(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 112 DAY + INTERVAL 3 HOUR + INTERVAL 14 HOUR),'Este','Obra vial','Finalizado'),
+ (8,4,2,(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 150 DAY + INTERVAL 3 HOUR),NULL,(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 139 DAY + INTERVAL 3 HOUR + INTERVAL 14 HOUR),'Centro','Relevamiento','Finalizado'),
+ (9,9,16,(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 30 DAY + INTERVAL 3 HOUR),NULL,(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 26 DAY + INTERVAL 3 HOUR + INTERVAL 14 HOUR),'Sur','Reparto de insumos','Finalizado'),
+ (10,12,6,(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 20 DAY + INTERVAL 3 HOUR),NULL,(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 15 DAY + INTERVAL 3 HOUR + INTERVAL 14 HOUR),'Este','Visita a escuelas','Finalizado');
 
 -- Repuestos (hay uno sin stock y varios con stock bajo)
 INSERT INTO `repuestos` (`id_repuesto`,`nombre`,`stock`,`stock_minimo`,`costo_unitario`) VALUES
@@ -517,30 +543,30 @@ INSERT INTO `repuestos` (`id_repuesto`,`nombre`,`stock`,`stock_minimo`,`costo_un
  (21,'Correa Poly-V',2,3,22000),
  (22,'Bomba de Freno',5,3,85000);
 
--- Mantenimientos (programados, en proceso y realizados) con sus repuestos
-INSERT INTO `mantenimiento` (`id_mantenimiento`,`id_vehiculo`,`id_usuario`,`tipo_servicio`,`fecha_inicio`,`fecha_fin`,`km_servicio`,`costo_total`,`descripcion`,`observaciones`,`proximo_km`,`proxima_fecha`,`estado`,`mano_obra`,`costo_repuestos`) VALUES
- (1,1,1,'Cambio de aceite',(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 300 DAY),(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 300 DAY),70000,86500,'Cambio de aceite y filtro','Aceite en mal estado',78000,NULL,'Realizado',40000,46500),
- (2,1,1,'Cambio de aceite',(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 200 DAY),(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 200 DAY),78000,86500,'Cambio de aceite y filtro',NULL,85000,NULL,'Realizado',40000,46500),
- (3,1,3,'Frenos',(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 120 DAY),(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 119 DAY),83000,65000,'Cambio de pastillas delanteras','Discos con desgaste leve',NULL,NULL,'Realizado',30000,35000),
- (4,1,3,'Cambio de aceite',(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 40 DAY),(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 40 DAY),85500,86500,'Cambio de aceite y filtro',NULL,95000,NULL,'Realizado',40000,46500),
- (5,3,1,'Cambio de aceite',(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 90 DAY),(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 90 DAY),45000,81500,'Service de los 45.000 km',NULL,55000,NULL,'Realizado',35000,46500),
- (6,3,1,'Service 50.000 km',(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) + INTERVAL 0 DAY),NULL,50000,0,'Service programado a los 50000 km',NULL,50000,NULL,'Programado',0,0),
- (7,4,1,'Cambio de filtros',(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 250 DAY),(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 250 DAY),190000,56500,'Filtros de aire y combustible',NULL,198000,NULL,'Realizado',30000,26500),
- (8,4,3,'Cambio de aceite',(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 100 DAY),(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 100 DAY),198000,86500,'Cambio de aceite y filtro','Próximo service a los 205.000 km',205000,NULL,'Realizado',40000,46500),
- (9,5,1,'Suspensión',(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 60 DAY),(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 58 DAY),312000,245000,'Reemplazo de amortiguadores delanteros',NULL,NULL,NULL,'Realizado',60000,185000),
- (10,5,3,'Cambio de aceite',(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 330 DAY),(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 330 DAY),295000,149000,'Cambio de aceite y filtros',NULL,310000,NULL,'Realizado',50000,99000),
- (11,6,1,'Cambio de embrague',(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 5 DAY),NULL,415000,410000,'Reemplazo de kit de embrague completo','Vehículo en taller',NULL,NULL,'En proceso',90000,320000),
- (12,6,3,'Cambio de aceite',(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 400 DAY),(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 400 DAY),390000,154000,'Cambio de aceite y filtros',NULL,405000,NULL,'Realizado',55000,99000),
- (13,7,1,'Cambio de aceite',(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 180 DAY),(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 180 DAY),52000,86500,'Cambio de aceite y filtro','Próximo service a los 60.000 km',60000,NULL,'Realizado',40000,46500),
- (14,8,3,'Cambio de aceite',(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 20 DAY),(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 20 DAY),72000,86500,'Cambio de aceite y filtro',NULL,82000,NULL,'Realizado',40000,46500),
- (15,9,1,'Batería',(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 500 DAY),(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 500 DAY),40000,135000,'Reemplazo de batería',NULL,NULL,NULL,'Realizado',15000,120000),
- (16,15,1,'Service 9.000 hs/km',(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) + INTERVAL 0 DAY),NULL,9000,0,'Service programado a los 9000 km',NULL,9000,NULL,'Programado',0,0),
- (17,16,1,'Cambio de aceite',(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 200 DAY),(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 200 DAY),96000,86500,'Último service antes de la baja',NULL,105000,NULL,'Realizado',40000,46500),
- (18,2,1,'Frenos',(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 400 DAY),(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 399 DAY),110000,136000,'Cambio de pastillas y bomba de freno',NULL,NULL,NULL,'Realizado',35000,101000),
- (19,12,3,'Cambio de aceite',(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 60 DAY),(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 60 DAY),30000,73500,'Service de los 30.000 km',NULL,40000,NULL,'Realizado',35000,38500),
- (20,18,1,'Cambio de aceite',(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 30 DAY),(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 30 DAY),249000,86500,'Cambio de aceite y filtro','Próximo service a los 255.000 km',255000,NULL,'Realizado',40000,46500),
- (21,13,3,'Revisión de garantía',(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 150 DAY),(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 150 DAY),5000,0,'Revisión de garantía de concesionaria',NULL,15000,NULL,'Realizado',0,0),
- (22,14,1,'Service 10.000 km',(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 20 DAY),NULL,10000,0,'Service programado a los 10000 km','Cancelado manualmente.',10000,NULL,'Cancelado',0,0);
+-- Mantenimientos (programados, en proceso y realizados) con sus repuestos y datos administrativos (algunos por completar)
+INSERT INTO `mantenimiento` (`id_mantenimiento`,`id_vehiculo`,`id_usuario`,`tipo_servicio`,`fecha_inicio`,`fecha_fin`,`km_servicio`,`costo_total`,`descripcion`,`observaciones`,`proximo_km`,`proxima_fecha`,`estado`,`mano_obra`,`costo_repuestos`,`nro_remito`,`nro_factura`,`proveedor`,`nro_pedido`,`nro_expediente`) VALUES
+ (1,1,1,'Cambio de aceite',(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 300 DAY),(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 300 DAY),70000,86500,'Cambio de aceite y filtro','Aceite en mal estado',78000,NULL,'Realizado',40000,46500,'0001-00004510','A-0003-00011201','Lubricentro del Centro S.A.','PED-2025-031','EXP-4012-221/2025'),
+ (2,1,1,'Cambio de aceite',(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 200 DAY),(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 200 DAY),78000,86500,'Cambio de aceite y filtro',NULL,85000,NULL,'Realizado',40000,46500,'0001-00004877','A-0003-00011988','Lubricentro del Centro S.A.','PED-2025-058','EXP-4012-398/2025'),
+ (3,1,3,'Frenos',(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 120 DAY),(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 119 DAY),83000,65000,'Cambio de pastillas delanteras','Discos con desgaste leve',NULL,NULL,'Realizado',30000,35000,'0007-00001203','B-0001-00000977','Frenos y Suspensiones Norte','PED-2026-004',NULL),
+ (4,1,3,'Cambio de aceite',(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 40 DAY),(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 40 DAY),85500,86500,'Cambio de aceite y filtro',NULL,95000,NULL,'Realizado',40000,46500,'0001-00005302',NULL,'Lubricentro del Centro S.A.','PED-2026-019',NULL),
+ (5,3,1,'Cambio de aceite',(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 90 DAY),(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 90 DAY),45000,81500,'Service de los 45.000 km',NULL,55000,NULL,'Realizado',35000,46500,'0003-00020045','A-0002-00045123','Repuestos del Sur S.R.L.','PED-2026-007','EXP-4012-088/2026'),
+ (6,3,1,'Service 50.000 km',(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) + INTERVAL 0 DAY),NULL,50000,0,'Service programado a los 50000 km',NULL,50000,NULL,'Programado',0,0,NULL,NULL,NULL,NULL,NULL),
+ (7,4,1,'Cambio de filtros',(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 250 DAY),(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 250 DAY),190000,56500,'Filtros de aire y combustible',NULL,198000,NULL,'Realizado',30000,26500,'0003-00018830','A-0002-00043210','Repuestos del Sur S.R.L.','PED-2025-044','EXP-4012-301/2025'),
+ (8,4,3,'Cambio de aceite',(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 100 DAY),(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 100 DAY),198000,86500,'Cambio de aceite y filtro','Próximo service a los 205.000 km',205000,NULL,'Realizado',40000,46500,NULL,NULL,NULL,NULL,NULL),
+ (9,5,1,'Suspensión',(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 60 DAY),(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 58 DAY),312000,245000,'Reemplazo de amortiguadores delanteros',NULL,NULL,NULL,'Realizado',60000,185000,'0010-00000456','A-0005-00001234','Suspensiones Tucumán',NULL,NULL),
+ (10,5,3,'Cambio de aceite',(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 330 DAY),(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 330 DAY),295000,149000,'Cambio de aceite y filtros',NULL,310000,NULL,'Realizado',50000,99000,NULL,NULL,NULL,NULL,NULL),
+ (11,6,1,'Cambio de embrague',(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 5 DAY),NULL,415000,410000,'Reemplazo de kit de embrague completo','Vehículo en taller',NULL,NULL,'En proceso',90000,320000,NULL,NULL,NULL,NULL,NULL),
+ (12,6,3,'Cambio de aceite',(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 400 DAY),(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 400 DAY),390000,154000,'Cambio de aceite y filtros',NULL,405000,NULL,'Realizado',55000,99000,NULL,NULL,NULL,NULL,NULL),
+ (13,7,1,'Cambio de aceite',(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 180 DAY),(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 180 DAY),52000,86500,'Cambio de aceite y filtro','Próximo service a los 60.000 km',60000,NULL,'Realizado',40000,46500,NULL,NULL,NULL,NULL,NULL),
+ (14,8,3,'Cambio de aceite',(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 20 DAY),(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 20 DAY),72000,86500,'Cambio de aceite y filtro',NULL,82000,NULL,'Realizado',40000,46500,NULL,NULL,NULL,NULL,NULL),
+ (15,9,1,'Batería',(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 500 DAY),(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 500 DAY),40000,135000,'Reemplazo de batería',NULL,NULL,NULL,'Realizado',15000,120000,NULL,NULL,NULL,NULL,NULL),
+ (16,15,1,'Service 9.000 hs/km',(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) + INTERVAL 0 DAY),NULL,9000,0,'Service programado a los 9000 km',NULL,9000,NULL,'Programado',0,0,NULL,NULL,NULL,NULL,NULL),
+ (17,16,1,'Cambio de aceite',(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 200 DAY),(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 200 DAY),96000,86500,'Último service antes de la baja',NULL,105000,NULL,'Realizado',40000,46500,NULL,NULL,NULL,NULL,NULL),
+ (18,2,1,'Frenos',(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 400 DAY),(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 399 DAY),110000,136000,'Cambio de pastillas y bomba de freno',NULL,NULL,NULL,'Realizado',35000,101000,NULL,NULL,NULL,NULL,NULL),
+ (19,12,3,'Cambio de aceite',(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 60 DAY),(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 60 DAY),30000,73500,'Service de los 30.000 km',NULL,40000,NULL,'Realizado',35000,38500,NULL,NULL,NULL,NULL,NULL),
+ (20,18,1,'Cambio de aceite',(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 30 DAY),(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 30 DAY),249000,86500,'Cambio de aceite y filtro','Próximo service a los 255.000 km',255000,NULL,'Realizado',40000,46500,NULL,NULL,NULL,NULL,NULL),
+ (21,13,3,'Revisión de garantía',(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 150 DAY),(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 150 DAY),5000,0,'Revisión de garantía de concesionaria',NULL,15000,NULL,'Realizado',0,0,NULL,NULL,NULL,NULL,NULL),
+ (22,14,1,'Service 10.000 km',(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 20 DAY),NULL,10000,0,'Service programado a los 10000 km','Cancelado manualmente.',10000,NULL,'Cancelado',0,0,NULL,NULL,NULL,NULL,NULL);
 
 INSERT INTO `detalle_mantenimiento` (`id_detalle`,`id_mantenimiento`,`id_repuesto`,`cantidad`,`costo_unitario`) VALUES
  (1,1,6,1,8500),
@@ -655,6 +681,61 @@ INSERT INTO `siniestro` (`id_siniestro`,`id_vehiculo`,`id_chofer`,`chofer_involu
  (3,1,3,'Marcelo Paz',(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 250 DAY),'Calle Mitre 400','Roce lateral al estacionar.','Espejo y puerta derecha',NULL,NULL,NULL,NULL,'CERRADO','',(UTC_TIMESTAMP() - INTERVAL 250 DAY - INTERVAL 0 HOUR),(UTC_TIMESTAMP() - INTERVAL 250 DAY - INTERVAL 0 HOUR)),
  (4,4,NULL,NULL,(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 60 DAY),'Playa de maniobras municipal','Daño encontrado al devolver la unidad; no se identificó al responsable.','Faro izquierdo',NULL,NULL,NULL,NULL,'RESUELTO','',(UTC_TIMESTAMP() - INTERVAL 60 DAY - INTERVAL 0 HOUR),(UTC_TIMESTAMP() - INTERVAL 60 DAY - INTERVAL 0 HOUR)),
  (5,10,2,'Sergio Villalba',(DATE(UTC_TIMESTAMP() - INTERVAL 3 HOUR) - INTERVAL 220 DAY),'Ruta 34 km 12','Vuelco sin heridos por pérdida de tracción.','Carrocería',NULL,NULL,NULL,NULL,'RESUELTO','',(UTC_TIMESTAMP() - INTERVAL 220 DAY - INTERVAL 0 HOUR),(UTC_TIMESTAMP() - INTERVAL 220 DAY - INTERVAL 0 HOUR));
+
+-- Documentación adjunta (comodatos, actas, DNI y carnet de la provincia)
+INSERT INTO `documento_adjunto` (`id_documento`,`entidad`,`id_entidad`,`categoria`,`archivo`,`nombre_original`,`id_usuario`,`createdAt`,`updatedAt`) VALUES
+ (1,'vehiculo',1,'comodato','demo-vehiculo-1-comodato-1.pdf','Comodato AA001BB.pdf',1,(UTC_TIMESTAMP() - INTERVAL 30 DAY - INTERVAL 0 HOUR),(UTC_TIMESTAMP() - INTERVAL 30 DAY - INTERVAL 0 HOUR)),
+ (2,'vehiculo',1,'acta_afectacion','demo-vehiculo-1-acta_afectacion-1.pdf','Acta de afectación AA001BB.pdf',1,(UTC_TIMESTAMP() - INTERVAL 30 DAY - INTERVAL 0 HOUR),(UTC_TIMESTAMP() - INTERVAL 30 DAY - INTERVAL 0 HOUR)),
+ (3,'vehiculo',1,'acta_entrega','demo-vehiculo-1-acta_entrega-1.pdf','Acta de entrega AA001BB.pdf',1,(UTC_TIMESTAMP() - INTERVAL 30 DAY - INTERVAL 0 HOUR),(UTC_TIMESTAMP() - INTERVAL 30 DAY - INTERVAL 0 HOUR)),
+ (4,'vehiculo',3,'acta_afectacion','demo-vehiculo-3-acta_afectacion-1.pdf','Acta de afectación AC003DD.pdf',1,(UTC_TIMESTAMP() - INTERVAL 30 DAY - INTERVAL 0 HOUR),(UTC_TIMESTAMP() - INTERVAL 30 DAY - INTERVAL 0 HOUR)),
+ (5,'vehiculo',3,'acta_entrega','demo-vehiculo-3-acta_entrega-1.pdf','Acta de entrega AC003DD.pdf',1,(UTC_TIMESTAMP() - INTERVAL 30 DAY - INTERVAL 0 HOUR),(UTC_TIMESTAMP() - INTERVAL 30 DAY - INTERVAL 0 HOUR)),
+ (6,'vehiculo',4,'acta_desafectacion','demo-vehiculo-4-acta_desafectacion-1.pdf','Acta de desafectación temporal AD004EE.pdf',1,(UTC_TIMESTAMP() - INTERVAL 30 DAY - INTERVAL 0 HOUR),(UTC_TIMESTAMP() - INTERVAL 30 DAY - INTERVAL 0 HOUR)),
+ (7,'vehiculo',5,'comodato','demo-vehiculo-5-comodato-1.pdf','Comodato AE005FF.pdf',1,(UTC_TIMESTAMP() - INTERVAL 30 DAY - INTERVAL 0 HOUR),(UTC_TIMESTAMP() - INTERVAL 30 DAY - INTERVAL 0 HOUR)),
+ (8,'vehiculo',7,'acta_afectacion','demo-vehiculo-7-acta_afectacion-1.pdf','Acta de afectación AG007HH.pdf',1,(UTC_TIMESTAMP() - INTERVAL 30 DAY - INTERVAL 0 HOUR),(UTC_TIMESTAMP() - INTERVAL 30 DAY - INTERVAL 0 HOUR)),
+ (9,'vehiculo',12,'comodato','demo-vehiculo-12-comodato-1.pdf','Comodato AK011LL.pdf',1,(UTC_TIMESTAMP() - INTERVAL 30 DAY - INTERVAL 0 HOUR),(UTC_TIMESTAMP() - INTERVAL 30 DAY - INTERVAL 0 HOUR)),
+ (10,'vehiculo',12,'acta_entrega','demo-vehiculo-12-acta_entrega-1.pdf','Acta de entrega AK011LL.pdf',1,(UTC_TIMESTAMP() - INTERVAL 30 DAY - INTERVAL 0 HOUR),(UTC_TIMESTAMP() - INTERVAL 30 DAY - INTERVAL 0 HOUR)),
+ (11,'chofer',1,'dni','demo-chofer-1-dni-1.pdf','DNI Carlos Rodríguez (frente).pdf',1,(UTC_TIMESTAMP() - INTERVAL 30 DAY - INTERVAL 0 HOUR),(UTC_TIMESTAMP() - INTERVAL 30 DAY - INTERVAL 0 HOUR)),
+ (12,'chofer',1,'dni','demo-chofer-1-dni-2.pdf','DNI Carlos Rodríguez (dorso).pdf',1,(UTC_TIMESTAMP() - INTERVAL 30 DAY - INTERVAL 0 HOUR),(UTC_TIMESTAMP() - INTERVAL 30 DAY - INTERVAL 0 HOUR)),
+ (13,'chofer',1,'carnet_provincia','demo-chofer-1-carnet_provincia-1.pdf','Carnet provincia Carlos Rodríguez (frente).pdf',1,(UTC_TIMESTAMP() - INTERVAL 30 DAY - INTERVAL 0 HOUR),(UTC_TIMESTAMP() - INTERVAL 30 DAY - INTERVAL 0 HOUR)),
+ (14,'chofer',1,'carnet_provincia','demo-chofer-1-carnet_provincia-2.pdf','Carnet provincia Carlos Rodríguez (dorso).pdf',1,(UTC_TIMESTAMP() - INTERVAL 30 DAY - INTERVAL 0 HOUR),(UTC_TIMESTAMP() - INTERVAL 30 DAY - INTERVAL 0 HOUR)),
+ (15,'chofer',2,'dni','demo-chofer-2-dni-1.pdf','DNI Sergio Villalba (frente).pdf',1,(UTC_TIMESTAMP() - INTERVAL 30 DAY - INTERVAL 0 HOUR),(UTC_TIMESTAMP() - INTERVAL 30 DAY - INTERVAL 0 HOUR)),
+ (16,'chofer',2,'dni','demo-chofer-2-dni-2.pdf','DNI Sergio Villalba (dorso).pdf',1,(UTC_TIMESTAMP() - INTERVAL 30 DAY - INTERVAL 0 HOUR),(UTC_TIMESTAMP() - INTERVAL 30 DAY - INTERVAL 0 HOUR)),
+ (17,'chofer',3,'dni','demo-chofer-3-dni-1.pdf','DNI Marcelo Paz (frente).pdf',1,(UTC_TIMESTAMP() - INTERVAL 30 DAY - INTERVAL 0 HOUR),(UTC_TIMESTAMP() - INTERVAL 30 DAY - INTERVAL 0 HOUR)),
+ (18,'chofer',3,'dni','demo-chofer-3-dni-2.pdf','DNI Marcelo Paz (dorso).pdf',1,(UTC_TIMESTAMP() - INTERVAL 30 DAY - INTERVAL 0 HOUR),(UTC_TIMESTAMP() - INTERVAL 30 DAY - INTERVAL 0 HOUR)),
+ (19,'chofer',3,'carnet_provincia','demo-chofer-3-carnet_provincia-1.pdf','Carnet provincia Marcelo Paz (frente).pdf',1,(UTC_TIMESTAMP() - INTERVAL 30 DAY - INTERVAL 0 HOUR),(UTC_TIMESTAMP() - INTERVAL 30 DAY - INTERVAL 0 HOUR)),
+ (20,'chofer',3,'carnet_provincia','demo-chofer-3-carnet_provincia-2.pdf','Carnet provincia Marcelo Paz (dorso).pdf',1,(UTC_TIMESTAMP() - INTERVAL 30 DAY - INTERVAL 0 HOUR),(UTC_TIMESTAMP() - INTERVAL 30 DAY - INTERVAL 0 HOUR)),
+ (21,'chofer',4,'dni','demo-chofer-4-dni-1.pdf','DNI Diego Herrera (frente).pdf',1,(UTC_TIMESTAMP() - INTERVAL 30 DAY - INTERVAL 0 HOUR),(UTC_TIMESTAMP() - INTERVAL 30 DAY - INTERVAL 0 HOUR)),
+ (22,'chofer',4,'dni','demo-chofer-4-dni-2.pdf','DNI Diego Herrera (dorso).pdf',1,(UTC_TIMESTAMP() - INTERVAL 30 DAY - INTERVAL 0 HOUR),(UTC_TIMESTAMP() - INTERVAL 30 DAY - INTERVAL 0 HOUR)),
+ (23,'chofer',4,'carnet_provincia','demo-chofer-4-carnet_provincia-1.pdf','Carnet provincia Diego Herrera (frente).pdf',1,(UTC_TIMESTAMP() - INTERVAL 30 DAY - INTERVAL 0 HOUR),(UTC_TIMESTAMP() - INTERVAL 30 DAY - INTERVAL 0 HOUR)),
+ (24,'chofer',4,'carnet_provincia','demo-chofer-4-carnet_provincia-2.pdf','Carnet provincia Diego Herrera (dorso).pdf',1,(UTC_TIMESTAMP() - INTERVAL 30 DAY - INTERVAL 0 HOUR),(UTC_TIMESTAMP() - INTERVAL 30 DAY - INTERVAL 0 HOUR)),
+ (25,'chofer',5,'dni','demo-chofer-5-dni-1.pdf','DNI Roberto Leiva (frente).pdf',1,(UTC_TIMESTAMP() - INTERVAL 30 DAY - INTERVAL 0 HOUR),(UTC_TIMESTAMP() - INTERVAL 30 DAY - INTERVAL 0 HOUR)),
+ (26,'chofer',5,'dni','demo-chofer-5-dni-2.pdf','DNI Roberto Leiva (dorso).pdf',1,(UTC_TIMESTAMP() - INTERVAL 30 DAY - INTERVAL 0 HOUR),(UTC_TIMESTAMP() - INTERVAL 30 DAY - INTERVAL 0 HOUR)),
+ (27,'chofer',6,'dni','demo-chofer-6-dni-1.pdf','DNI Fernando Gutiérrez (frente).pdf',1,(UTC_TIMESTAMP() - INTERVAL 30 DAY - INTERVAL 0 HOUR),(UTC_TIMESTAMP() - INTERVAL 30 DAY - INTERVAL 0 HOUR)),
+ (28,'chofer',6,'dni','demo-chofer-6-dni-2.pdf','DNI Fernando Gutiérrez (dorso).pdf',1,(UTC_TIMESTAMP() - INTERVAL 30 DAY - INTERVAL 0 HOUR),(UTC_TIMESTAMP() - INTERVAL 30 DAY - INTERVAL 0 HOUR)),
+ (29,'chofer',6,'carnet_provincia','demo-chofer-6-carnet_provincia-1.pdf','Carnet provincia Fernando Gutiérrez (frente).pdf',1,(UTC_TIMESTAMP() - INTERVAL 30 DAY - INTERVAL 0 HOUR),(UTC_TIMESTAMP() - INTERVAL 30 DAY - INTERVAL 0 HOUR)),
+ (30,'chofer',6,'carnet_provincia','demo-chofer-6-carnet_provincia-2.pdf','Carnet provincia Fernando Gutiérrez (dorso).pdf',1,(UTC_TIMESTAMP() - INTERVAL 30 DAY - INTERVAL 0 HOUR),(UTC_TIMESTAMP() - INTERVAL 30 DAY - INTERVAL 0 HOUR)),
+ (31,'chofer',7,'dni','demo-chofer-7-dni-1.pdf','DNI Pablo Soria (frente).pdf',1,(UTC_TIMESTAMP() - INTERVAL 30 DAY - INTERVAL 0 HOUR),(UTC_TIMESTAMP() - INTERVAL 30 DAY - INTERVAL 0 HOUR)),
+ (32,'chofer',7,'dni','demo-chofer-7-dni-2.pdf','DNI Pablo Soria (dorso).pdf',1,(UTC_TIMESTAMP() - INTERVAL 30 DAY - INTERVAL 0 HOUR),(UTC_TIMESTAMP() - INTERVAL 30 DAY - INTERVAL 0 HOUR)),
+ (33,'chofer',8,'dni','demo-chofer-8-dni-1.pdf','DNI Alejandro Medina (frente).pdf',1,(UTC_TIMESTAMP() - INTERVAL 30 DAY - INTERVAL 0 HOUR),(UTC_TIMESTAMP() - INTERVAL 30 DAY - INTERVAL 0 HOUR)),
+ (34,'chofer',8,'dni','demo-chofer-8-dni-2.pdf','DNI Alejandro Medina (dorso).pdf',1,(UTC_TIMESTAMP() - INTERVAL 30 DAY - INTERVAL 0 HOUR),(UTC_TIMESTAMP() - INTERVAL 30 DAY - INTERVAL 0 HOUR)),
+ (35,'chofer',9,'dni','demo-chofer-9-dni-1.pdf','DNI Gustavo Ríos (frente).pdf',1,(UTC_TIMESTAMP() - INTERVAL 30 DAY - INTERVAL 0 HOUR),(UTC_TIMESTAMP() - INTERVAL 30 DAY - INTERVAL 0 HOUR)),
+ (36,'chofer',9,'dni','demo-chofer-9-dni-2.pdf','DNI Gustavo Ríos (dorso).pdf',1,(UTC_TIMESTAMP() - INTERVAL 30 DAY - INTERVAL 0 HOUR),(UTC_TIMESTAMP() - INTERVAL 30 DAY - INTERVAL 0 HOUR)),
+ (37,'chofer',9,'carnet_provincia','demo-chofer-9-carnet_provincia-1.pdf','Carnet provincia Gustavo Ríos (frente).pdf',1,(UTC_TIMESTAMP() - INTERVAL 30 DAY - INTERVAL 0 HOUR),(UTC_TIMESTAMP() - INTERVAL 30 DAY - INTERVAL 0 HOUR)),
+ (38,'chofer',9,'carnet_provincia','demo-chofer-9-carnet_provincia-2.pdf','Carnet provincia Gustavo Ríos (dorso).pdf',1,(UTC_TIMESTAMP() - INTERVAL 30 DAY - INTERVAL 0 HOUR),(UTC_TIMESTAMP() - INTERVAL 30 DAY - INTERVAL 0 HOUR)),
+ (39,'chofer',11,'dni','demo-chofer-11-dni-1.pdf','DNI Exequiel Juarez (frente).pdf',1,(UTC_TIMESTAMP() - INTERVAL 30 DAY - INTERVAL 0 HOUR),(UTC_TIMESTAMP() - INTERVAL 30 DAY - INTERVAL 0 HOUR)),
+ (40,'chofer',11,'dni','demo-chofer-11-dni-2.pdf','DNI Exequiel Juarez (dorso).pdf',1,(UTC_TIMESTAMP() - INTERVAL 30 DAY - INTERVAL 0 HOUR),(UTC_TIMESTAMP() - INTERVAL 30 DAY - INTERVAL 0 HOUR)),
+ (41,'chofer',12,'dni','demo-chofer-12-dni-1.pdf','DNI Lucía Fernández (frente).pdf',1,(UTC_TIMESTAMP() - INTERVAL 30 DAY - INTERVAL 0 HOUR),(UTC_TIMESTAMP() - INTERVAL 30 DAY - INTERVAL 0 HOUR)),
+ (42,'chofer',12,'dni','demo-chofer-12-dni-2.pdf','DNI Lucía Fernández (dorso).pdf',1,(UTC_TIMESTAMP() - INTERVAL 30 DAY - INTERVAL 0 HOUR),(UTC_TIMESTAMP() - INTERVAL 30 DAY - INTERVAL 0 HOUR)),
+ (43,'chofer',12,'carnet_provincia','demo-chofer-12-carnet_provincia-1.pdf','Carnet provincia Lucía Fernández (frente).pdf',1,(UTC_TIMESTAMP() - INTERVAL 30 DAY - INTERVAL 0 HOUR),(UTC_TIMESTAMP() - INTERVAL 30 DAY - INTERVAL 0 HOUR)),
+ (44,'chofer',12,'carnet_provincia','demo-chofer-12-carnet_provincia-2.pdf','Carnet provincia Lucía Fernández (dorso).pdf',1,(UTC_TIMESTAMP() - INTERVAL 30 DAY - INTERVAL 0 HOUR),(UTC_TIMESTAMP() - INTERVAL 30 DAY - INTERVAL 0 HOUR)),
+ (45,'chofer',13,'dni','demo-chofer-13-dni-1.pdf','DNI Martín Acosta (frente).pdf',1,(UTC_TIMESTAMP() - INTERVAL 30 DAY - INTERVAL 0 HOUR),(UTC_TIMESTAMP() - INTERVAL 30 DAY - INTERVAL 0 HOUR)),
+ (46,'chofer',13,'dni','demo-chofer-13-dni-2.pdf','DNI Martín Acosta (dorso).pdf',1,(UTC_TIMESTAMP() - INTERVAL 30 DAY - INTERVAL 0 HOUR),(UTC_TIMESTAMP() - INTERVAL 30 DAY - INTERVAL 0 HOUR)),
+ (47,'chofer',13,'carnet_provincia','demo-chofer-13-carnet_provincia-1.pdf','Carnet provincia Martín Acosta (frente).pdf',1,(UTC_TIMESTAMP() - INTERVAL 30 DAY - INTERVAL 0 HOUR),(UTC_TIMESTAMP() - INTERVAL 30 DAY - INTERVAL 0 HOUR)),
+ (48,'chofer',13,'carnet_provincia','demo-chofer-13-carnet_provincia-2.pdf','Carnet provincia Martín Acosta (dorso).pdf',1,(UTC_TIMESTAMP() - INTERVAL 30 DAY - INTERVAL 0 HOUR),(UTC_TIMESTAMP() - INTERVAL 30 DAY - INTERVAL 0 HOUR)),
+ (49,'chofer',14,'dni','demo-chofer-14-dni-1.pdf','DNI Valeria Núñez (frente).pdf',1,(UTC_TIMESTAMP() - INTERVAL 30 DAY - INTERVAL 0 HOUR),(UTC_TIMESTAMP() - INTERVAL 30 DAY - INTERVAL 0 HOUR)),
+ (50,'chofer',14,'dni','demo-chofer-14-dni-2.pdf','DNI Valeria Núñez (dorso).pdf',1,(UTC_TIMESTAMP() - INTERVAL 30 DAY - INTERVAL 0 HOUR),(UTC_TIMESTAMP() - INTERVAL 30 DAY - INTERVAL 0 HOUR)),
+ (51,'chofer',16,'dni','demo-chofer-16-dni-1.pdf','DNI Natalia Ibarra (frente).pdf',1,(UTC_TIMESTAMP() - INTERVAL 30 DAY - INTERVAL 0 HOUR),(UTC_TIMESTAMP() - INTERVAL 30 DAY - INTERVAL 0 HOUR)),
+ (52,'chofer',16,'dni','demo-chofer-16-dni-2.pdf','DNI Natalia Ibarra (dorso).pdf',1,(UTC_TIMESTAMP() - INTERVAL 30 DAY - INTERVAL 0 HOUR),(UTC_TIMESTAMP() - INTERVAL 30 DAY - INTERVAL 0 HOUR));
 
 -- Alertas informativas (las automáticas las genera la aplicación al iniciar)
 INSERT INTO `alerta` (`tipo`,`prioridad`,`mensaje`,`entidad_tipo`,`entidad_id`,`entidad_nombre`,`leida`,`generada_automaticamente`,`createdAt`,`updatedAt`) VALUES

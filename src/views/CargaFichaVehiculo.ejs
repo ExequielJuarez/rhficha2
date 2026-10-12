@@ -244,6 +244,31 @@
           </div>
         </section>
       
+        <section class="form-section">
+          <h3>Documentación Adjunta (Opcional)</h3>
+          <div class="form-group">
+            <label style="font-size:13px; font-weight:600; color:#374151;">¿Tenés documentación de este vehículo para cargar ahora?</label>
+            <span style="display:block; font-size:12px; color: var(--color-text-muted); margin: 4px 0 8px;">Comodatos, actas de afectación, actas de entrega, actas de desafectación temporal (si el vehículo se queda sin chofer), fotocopias, etc. También podés cargarla después desde la ficha del vehículo.</span>
+            <div style="display:flex; gap:20px;">
+              <label style="display:inline-flex; align-items:center; gap:8px; font-weight:600; cursor:pointer; white-space:nowrap; margin:0; width:auto;"><input type="radio" style="width:auto; height:auto; padding:0; margin:0; flex:none; box-shadow:none;" name="tiene_documentacion" value="no" checked> No, por ahora no</label>
+              <label style="display:inline-flex; align-items:center; gap:8px; font-weight:600; cursor:pointer; white-space:nowrap; margin:0; width:auto;"><input type="radio" style="width:auto; height:auto; padding:0; margin:0; flex:none; box-shadow:none;" name="tiene_documentacion" value="si"> Sí, tengo archivos para cargar</label>
+            </div>
+          </div>
+          <div id="bloque-documentacion" style="display:none; margin-top: 8px; flex-direction: column; gap: 16px;">
+            <% [['comodato','Comodato'],['acta_afectacion','Acta de afectación'],['acta_entrega','Acta de entrega'],['acta_desafectacion','Acta de desafectación temporal'],['otro','Otra documentación (fotocopias, etc.)']].forEach(([clave, etiqueta]) => { %>
+            <div class="form-group">
+              <label style="font-size:13px; font-weight:600; color:#374151;"><%= etiqueta %> <span style="font-weight:400;color:#94a3b8;">(PDF o foto, podés elegir varios)</span></label>
+              <div class="upload-box" style="margin-top: 8px;">
+                <label for="doc_<%= clave %>">Haga clic aquí para subir: <%= etiqueta.toLowerCase() %></label>
+                <span style="font-size: 12px; color: var(--color-text-muted);">Formatos aceptados: PDF, JPG, PNG, WEBP · hasta 8 MB cada archivo</span>
+                <input type="file" id="doc_<%= clave %>" name="doc_<%= clave %>" accept=".pdf,.jpg,.jpeg,.png,.webp" multiple disabled>
+              </div>
+              <div id="preview-doc_<%= clave %>" style="font-size:13px;color:var(--color-text-muted);margin-top:6px;">Sin archivos seleccionados</div>
+            </div>
+            <% }) %>
+          </div>
+        </section>
+
         <div class="acciones">
           <button type="button" class="boton-secundario" onclick="history.back()">Cancelar</button>
           <button type="submit" class="boton-primario">Guardar Vehículo</button>
@@ -361,6 +386,35 @@
       }
     });
   });
+
+  // Documentación adjunta: se pregunta si hay archivos para cargar
+  (function () {
+    const bloque = document.getElementById('bloque-documentacion');
+    const radios = document.querySelectorAll('input[name="tiene_documentacion"]');
+    const inputs = bloque ? bloque.querySelectorAll('input[type=file]') : [];
+    function alternar() {
+      const si = document.querySelector('input[name="tiene_documentacion"]:checked').value === 'si';
+      bloque.style.display = si ? 'flex' : 'none';
+      inputs.forEach(i => { i.disabled = !si; if (!si) i.value = ''; });
+      if (!si) bloque.querySelectorAll('[id^="preview-doc_"]').forEach(p => { p.textContent = 'Sin archivos seleccionados'; });
+    }
+    radios.forEach(r => r.addEventListener('change', alternar));
+    inputs.forEach(i => i.addEventListener('change', function () {
+      const p = document.getElementById('preview-' + i.id);
+      const nombres = Array.from(i.files).map(f => f.name.replace(/[<>&"']/g, ''));
+      p.innerHTML = nombres.length ? 'Seleccionado: <strong>' + nombres.join(', ') + '</strong>' : 'Sin archivos seleccionados';
+      p.style.color = nombres.length ? 'var(--color-blue)' : 'var(--color-text-muted)';
+    }));
+    alternar();
+    // Si dijo "Sí" pero no eligió ningún archivo, se avisa antes de enviar
+    document.getElementById('form-vehiculo').addEventListener('submit', function (e) {
+      const si = document.querySelector('input[name="tiene_documentacion"]:checked').value === 'si';
+      if (si && !Array.from(inputs).some(i => i.files.length)) {
+        e.preventDefault(); e.stopImmediatePropagation();
+        alert('Indicaste que tenés documentación para cargar. Elegí al menos un archivo o marcá "No".');
+      }
+    }, true);
+  })();
 </script>
 </body>
 </html>

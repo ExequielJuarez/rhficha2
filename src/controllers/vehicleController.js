@@ -7,17 +7,15 @@ const maintenanceService = require("../data/maintenanceService");
 const db = require("../model/database/models");
 const alertaService = require("../data/alertaService");
 const auditoriaService = require("../data/auditoriaService");
+const documentoService = require("../data/documentoService");
+const { CATEGORIAS } = require("../utils/documentos");
 const { ErrorNegocio } = require("../utils/errores");
 const { escapeHtml } = require("../utils/html");
 const { hoyISO } = require("../utils/fechas");
 
 const DIR_VEHICULOS = path.join(__dirname, "../../public/img/vehiculos");
 
-const descartarArchivos = (req) => {
-  Object.values(req.files || {})
-    .flat()
-    .forEach((f) => fs.unlink(path.join(DIR_VEHICULOS, f.filename), () => {}));
-};
+const descartarArchivos = (req) => documentoService.descartar(req.files);
 
 const borrarImagenAnterior = (nombre) => {
   if (nombre && /^vehiculo-\d+\./.test(nombre)) fs.unlink(path.join(DIR_VEHICULOS, nombre), () => {});
@@ -246,9 +244,12 @@ const vehicleController = {
         (a, b) => (orden[a.prioridad] ?? 3) - (orden[b.prioridad] ?? 3) || b.id_alerta - a.id_alerta,
       );
 
+      const gruposDocumentos = documentoService.agrupar("vehiculo", await documentoService.listar("vehiculo", vehiculo.id_vehiculo));
+
       res.render("listadoVehiculos", {
         vehiculos,
         vehiculoSeleccionado: vehiculo,
+        gruposDocumentos,
         alertasVehiculo,
         ultimosMantenimientos,
         totalMantenimientos,
@@ -441,12 +442,35 @@ const vehicleController = {
   processVehicle: async (req, res) => {
     try {
       const errores = await vehicleService.validarAlta(req.body);
+      // Documentación adjunta (comodato, actas...): campos doc_<categoria>
+      const documentos = Object.keys(CATEGORIAS.vehiculo)
+        .map((categoria) => ({ categoria, files: (req.files && req.files[`doc_${categoria}`]) || [] }))
+        .filter((d) => d.files.length > 0);
+      if (req.body.tiene_documentacion === "si" && documentos.length === 0) {
+        errores.push('Indicaste que tenés documentación para cargar, pero no elegiste ningún archivo. Elegí los archivos o marcá "No".');
+      }
       if (errores.length > 0) {
         descartarArchivos(req);
         return res.status(400).send(paginaErrores(errores));
       }
 
       const nuevoVehiculo = await vehicleService.create(req);
+
+      let avisoDocumentos = "";
+      if (documentos.length) {
+        try {
+          let total = 0;
+          for (const d of documentos) {
+            const creados = await documentoService.guardar({ entidad: "vehiculo", id: nuevoVehiculo.id_vehiculo, categoria: d.categoria, files: d.files, idUsuario: req.session.usuarioLogueado.id });
+            total += creados.length;
+          }
+          avisoDocumentos = ` Se cargaron ${total} documento(s).`;
+        } catch (e) {
+          console.log("Error guardando documentación del vehículo:", e);
+          documentoService.descartar(documentos.flatMap((d) => d.files));
+          avisoDocumentos = " Atención: no se pudo guardar la documentación adjunta; cargala desde la ficha.";
+        }
+      }
 
       await auditoriaService.desdeRequest(
         req,
@@ -459,7 +483,7 @@ const vehicleController = {
       );
 
       await alertaService.generarAlertasVehiculos();
-      req.flash("ok", "Vehículo registrado correctamente.");
+      req.flash("ok", "Vehículo registrado correctamente." + avisoDocumentos);
       res.redirect("/Vehicles/" + nuevoVehiculo.id_vehiculo);
     } catch (error) {
       descartarArchivos(req);

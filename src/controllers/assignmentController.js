@@ -28,16 +28,13 @@ const assignmentController = {
 
   create: async (req, res) => {
     try {
-      const { id_vehiculo, id_chofer, fecha_desde, fecha_hasta } = req.body;
+      const { id_vehiculo, id_chofer, fecha_desde } = req.body;
 
-      if (!id_vehiculo || !id_chofer || !fecha_desde || !fecha_hasta) {
+      if (!id_vehiculo || !id_chofer || !fecha_desde) {
         return res.redirect("/asignaciones?error=" + encodeURIComponent("Completá todos los campos obligatorios"));
       }
-      if (!esFechaValida(fecha_desde) || !esFechaValida(fecha_hasta)) {
-        return res.redirect("/asignaciones?error=" + encodeURIComponent("Las fechas ingresadas no son válidas"));
-      }
-      if (new Date(fecha_hasta) < new Date(fecha_desde)) {
-        return res.redirect("/asignaciones?error=" + encodeURIComponent("La fecha de fin debe ser posterior a la de inicio"));
+      if (!esFechaValida(fecha_desde)) {
+        return res.redirect("/asignaciones?error=" + encodeURIComponent("La fecha de inicio ingresada no es válida"));
       }
       if (req.body.km_salida === undefined || req.body.km_salida === "") {
         return res.redirect("/asignaciones?error=" + encodeURIComponent("Ingresá el kilometraje de salida"));
@@ -57,14 +54,12 @@ const assignmentController = {
           id_chofer: chofer.id_chofer,
           chofer: `${chofer.nombre} ${chofer.apellido}`,
           fecha_salida: fecha_desde,
-          fecha_estimada_devolucion: fecha_hasta,
           destino: req.body.destino || null,
         },
         `Asignación del vehículo ${vehiculo.patente} a ${chofer.nombre} ${chofer.apellido}`,
       );
 
       await alertaService.generarAlertasMantenimiento();
-      await alertaService.generarAlertasAsignaciones();
       res.redirect("/asignaciones?success=" + encodeURIComponent("Asignación registrada correctamente"));
     } catch (error) {
       const mensaje = error instanceof ErrorNegocio ? error.message : "Error al guardar la asignación";
@@ -83,11 +78,10 @@ const assignmentController = {
         "EDITAR",
         { estado: "Activo" },
         { estado: "Finalizado" },
-        `Finalización de la asignación ID: ${asignacion.id_asignacion} (vehículo ID: ${asignacion.id_vehiculo})`,
+        `Vehículo devuelto: se finalizó la asignación ID: ${asignacion.id_asignacion} (vehículo ID: ${asignacion.id_vehiculo})`,
       );
       await alertaService.generarAlertasMantenimiento();
-      await alertaService.generarAlertasAsignaciones();
-      res.redirect("/asignaciones?success=" + encodeURIComponent("Asignación finalizada correctamente"));
+      res.redirect("/asignaciones?success=" + encodeURIComponent("Vehículo marcado como devuelto. Ya está disponible."));
     } catch (error) {
       const mensaje = error instanceof ErrorNegocio ? error.message : "Error al finalizar la asignación";
       if (!(error instanceof ErrorNegocio)) console.log(error);

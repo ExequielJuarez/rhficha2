@@ -110,16 +110,19 @@
           </div>
 
           <div class="form-section" style="margin-top: 16px;">
-            <label style="font-size:13px; font-weight:600; color:#374151;">Foto del Documento (DNI)</label>
+            <label style="font-size:13px; font-weight:600; color:#374151;">Fotocopia / fotos del DNI <span style="font-weight:400;color:#94a3b8;">(obligatorio: frente y dorso, mínimo 2 archivos)</span></label>
             <div class="upload-box" style="margin-top: 8px;">
-              <label for="foto_documento">Haga clic aquí para subir foto del DNI</label>
-              <span style="font-size: 12px; color: var(--color-text-muted);">Formatos aceptados: JPG, PNG</span>
-              <input type="file" id="foto_documento" name="foto_documento" accept="image/*">
+              <label for="dni_archivos">Haga clic aquí para subir el DNI (elegí los 2 archivos juntos)</label>
+              <span style="font-size: 12px; color: var(--color-text-muted);">PDF, JPG, PNG o WEBP · hasta 8 MB cada uno · podés elegir varios a la vez</span>
+              <input type="file" id="dni_archivos" name="dni_archivos" accept=".pdf,.jpg,.jpeg,.png,.webp" multiple>
             </div>
-            <div id="preview-documento" style="font-size:13px; color:var(--color-text-muted); margin-top:6px;">Sin imagen seleccionada</div>
+            <div id="preview-documento" style="font-size:13px; color:var(--color-text-muted); margin-top:6px;">Sin archivos seleccionados</div>
+            <% if (errors?.dni_archivos) { %><span class="error"><%= errors.dni_archivos.msg %></span><% } %>
           </div>
 
         </section>
+
+        <%- include('./partials/carnetChofer', { old, errors, carnetCargados: 0 }) %>
 
         <section class="form-section">
           <h3>Datos Laborales</h3>
@@ -238,13 +241,15 @@
   <script src="/js/sidebar.js"></script>
   <script>
 
-document.getElementById('foto_documento').addEventListener('change', function(e) {
+document.getElementById('dni_archivos').addEventListener('change', function(e) {
   const p = document.getElementById('preview-documento');
-  if (e.target.files.length > 0) {
-    p.innerHTML = `Archivo seleccionado: <strong>${e.target.files[0].name.replace(/[<>&"']/g, '')}</strong>`;
-    p.style.color = 'var(--color-blue)';
+  const nombres = Array.from(e.target.files).map(f => f.name.replace(/[<>&"']/g, ''));
+  if (nombres.length > 0) {
+    p.innerHTML = `Seleccionados (${nombres.length}): <strong>${nombres.join(', ')}</strong>`;
+    p.style.color = nombres.length >= 2 ? 'var(--color-blue)' : '#dc2626';
+    if (nombres.length < 2) p.innerHTML += ' — falta al menos un archivo más (frente y dorso).';
   } else {
-    p.innerHTML = 'Sin imagen seleccionada';
+    p.innerHTML = 'Sin archivos seleccionados';
     p.style.color = 'var(--color-text-muted)';
   }
 });

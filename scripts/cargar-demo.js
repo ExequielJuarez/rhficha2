@@ -25,7 +25,9 @@ const mysql = require("mysql2/promise");
     .replace(/`vehiculos_db`/g, "`" + base.replace(/[^A-Za-z0-9_]/g, "") + "`");
   await conexion.query(sql);
   await conexion.end();
-  console.log(`✅ Base "${base}" recreada con los datos de ejemplo. Usuario: admin · contraseña: Ficha2026!`);
+  const { generarDocumentosDemo } = require("./documentos-demo");
+  const pdfs = generarDocumentosDemo();
+  console.log(`✅ Base "${base}" recreada con los datos de ejemplo (${pdfs} documentos PDF de muestra en uploads/documentos). Usuario: admin · contraseña: Ficha2026!`);
 })().catch((e) => {
   console.error("Error:", e.message);
   process.exit(1);

@@ -125,7 +125,13 @@ test("el set de datos cubre todos los escenarios para probar", async () => {
     "repuesto sin stock": [`SELECT COUNT(*) n FROM repuestos WHERE stock=0`, 1],
     "service cancelado": [`SELECT COUNT(*) n FROM mantenimiento WHERE estado='Cancelado'`, 1],
     "repuestos con stock bajo o sin stock": [`SELECT COUNT(*) n FROM repuestos WHERE stock <= stock_minimo`, 3],
-    "asignación vencida": [`SELECT COUNT(*) n FROM asignacion_vehiculo WHERE estado='Activo' AND fecha_estimada_devolucion < UTC_TIMESTAMP()`, 1],
+    "asignaciones activas sin fecha estimada": [`SELECT COUNT(*) n FROM asignacion_vehiculo WHERE estado='Activo' AND fecha_estimada_devolucion IS NULL`, 4],
+    "choferes con carnet oficial de la provincia": [`SELECT COUNT(*) n FROM chofer WHERE tiene_carnet_oficial=1`, 5],
+    "choferes sin carnet oficial": [`SELECT COUNT(*) n FROM chofer WHERE tiene_carnet_oficial=0`, 5],
+    "mantenimientos con datos administrativos completos": [`SELECT COUNT(*) n FROM mantenimiento WHERE nro_remito IS NOT NULL AND nro_factura IS NOT NULL AND proveedor IS NOT NULL AND nro_pedido IS NOT NULL AND nro_expediente IS NOT NULL`, 3],
+    "mantenimientos con datos administrativos por completar": [`SELECT COUNT(*) n FROM mantenimiento WHERE estado='Realizado' AND (nro_remito IS NULL OR nro_factura IS NULL OR proveedor IS NULL OR nro_pedido IS NULL OR nro_expediente IS NULL)`, 5],
+    "documentos de vehículos (comodato, actas)": [`SELECT COUNT(DISTINCT categoria) n FROM documento_adjunto WHERE entidad='vehiculo'`, 4],
+    "documentos de choferes (DNI y carnet)": [`SELECT COUNT(DISTINCT categoria) n FROM documento_adjunto WHERE entidad='chofer'`, 2],
     "usuario que hereda los permisos del rol": [`SELECT COUNT(*) n FROM usuario WHERE permisos IS NULL AND id_rol<>1`, 1],
     "intentos de login fallidos auditados": [`SELECT COUNT(*) n FROM auditoria WHERE accion='LOGIN_FALLIDO'`, 2],
     "usuario bloqueado": [`SELECT COUNT(*) n FROM usuario WHERE activo=0`, 1],
@@ -133,4 +139,24 @@ test("el set de datos cubre todos los escenarios para probar", async () => {
   for (const [nombre, [sql, minimo]] of Object.entries(casos)) {
     assert.ok((await cuenta(sql)) >= minimo, `faltan datos de ejemplo: ${nombre}`);
   }
+});
+
+test("documentación adjunta, carnet e historial administrativo: datos coherentes", async () => {
+  const fs = require("fs");
+  const path = require("path");
+  const { DIR_DOCUMENTOS, CATEGORIAS } = require("../src/utils/documentos");
+  await sinFilas("documento de un vehículo que no existe", `SELECT d.id_documento FROM documento_adjunto d WHERE d.entidad='vehiculo' AND NOT EXISTS (SELECT 1 FROM vehiculo v WHERE v.id_vehiculo=d.id_entidad)`);
+  await sinFilas("documento de un chofer que no existe", `SELECT d.id_documento FROM documento_adjunto d WHERE d.entidad='chofer' AND NOT EXISTS (SELECT 1 FROM chofer c WHERE c.id_chofer=d.id_entidad)`);
+  await sinFilas("entidad desconocida", `SELECT id_documento FROM documento_adjunto WHERE entidad NOT IN ('vehiculo','chofer')`);
+  const docs = await filas("SELECT entidad, categoria, archivo FROM documento_adjunto");
+  for (const d of docs) {
+    assert.ok(CATEGORIAS[d.entidad][d.categoria], `categoría inválida: ${d.entidad}/${d.categoria}`);
+    assert.ok(fs.existsSync(path.join(DIR_DOCUMENTOS, d.archivo)), `falta el PDF de ejemplo ${d.archivo}`);
+  }
+  assert.equal(new Set(docs.map((d) => d.archivo)).size, docs.length, "cada documento tiene su propio archivo (borrar uno no afecta a otro)");
+  await sinFilas("chofer con carnet oficial sin frente y dorso", `SELECT c.id_chofer FROM chofer c WHERE c.tiene_carnet_oficial=1 AND (SELECT COUNT(*) FROM documento_adjunto d WHERE d.entidad='chofer' AND d.id_entidad=c.id_chofer AND d.categoria='carnet_provincia')<2`);
+  await sinFilas("archivos de carnet en un chofer que no tiene carnet oficial", `SELECT c.id_chofer FROM chofer c WHERE c.tiene_carnet_oficial=0 AND EXISTS (SELECT 1 FROM documento_adjunto d WHERE d.entidad='chofer' AND d.id_entidad=c.id_chofer AND d.categoria='carnet_provincia')`);
+  await sinFilas("chofer activo con DNI incompleto (menos de 2 archivos)", `SELECT c.id_chofer FROM chofer c WHERE c.estado<>'Inactivo' AND (SELECT COUNT(*) FROM documento_adjunto d WHERE d.entidad='chofer' AND d.id_entidad=c.id_chofer AND d.categoria='dni')<2`);
+  await sinFilas("datos administrativos en un service programado o cancelado", `SELECT id_mantenimiento FROM mantenimiento WHERE estado IN ('Programado','Cancelado') AND (nro_remito IS NOT NULL OR nro_factura IS NOT NULL OR proveedor IS NOT NULL OR nro_pedido IS NOT NULL OR nro_expediente IS NOT NULL)`);
+  await sinFilas("asignación con fecha estimada de devolución", `SELECT id_asignacion FROM asignacion_vehiculo WHERE fecha_estimada_devolucion IS NOT NULL`);
 });

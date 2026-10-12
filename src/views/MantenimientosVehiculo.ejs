@@ -66,6 +66,7 @@
                 </div>
                 <div style="display: flex; gap: 8px; flex-wrap: wrap;">
                     <a href="/Vehicles/<%= vehiculo.id_vehiculo %>" style="background-color: #f1f5f9; color: #334155; border: 1px solid #cbd5e1; padding: 8px 14px; font-size: 12px; font-weight: 700; border-radius: 6px; text-decoration: none;">← Volver a la ficha</a>
+                    <a href="/Mantenimientos/Historial?vehiculo=<%= vehiculo.id_vehiculo %>" style="background-color: #f8fafc; color: #475569; border: 1px solid #cbd5e1; padding: 8px 14px; font-size: 12px; font-weight: 700; border-radius: 6px; text-decoration: none;">Historial administrativo</a>
                     <a href="/Mantenimientos/carga/<%= vehiculo.id_vehiculo %>" style="background-color: #ecfdf5; color: #059669; border: 1px solid #a7f3d0; padding: 8px 14px; font-size: 12px; font-weight: 700; border-radius: 6px; text-decoration: none;">+ Mantenimiento</a>
                 </div>
             </div>
@@ -112,6 +113,11 @@
                             <div><span class="mv-dato__label"><%= esProg(m) ? (u === 'hs' ? 'Horas programadas' : 'Km programado') : (u === 'hs' ? 'Horas del servicio' : 'Km del servicio') %></span><span class="mv-dato__valor"><%= fmtUso(m.km_servicio, vehiculo) %></span></div>
                             <% if (!esProg(m)) { %>
                             <div><span class="mv-dato__label">Próximo service sugerido</span><span class="mv-dato__valor"><%= m.proximo_km ? 'A los ' + fmtUso(m.proximo_km, vehiculo) : 'No especificado' %></span></div>
+                            <% } %>
+                            <% if (m.nro_remito || m.nro_factura || m.proveedor || m.nro_pedido || m.nro_expediente) { %>
+                            <div><span class="mv-dato__label">Casa proveedora</span><span class="mv-dato__valor"><%= m.proveedor || '—' %></span></div>
+                            <div><span class="mv-dato__label">N° remito / factura</span><span class="mv-dato__valor"><%= m.nro_remito || '—' %> / <%= m.nro_factura || '—' %></span></div>
+                            <div><span class="mv-dato__label">N° pedido / expediente</span><span class="mv-dato__valor"><%= m.nro_pedido || '—' %> / <%= m.nro_expediente || '—' %></span></div>
                             <% } %>
                             <div><span class="mv-dato__label">Cargado por</span><span class="mv-dato__valor"><%= m.usuario ? m.usuario.nombre + ' ' + m.usuario.apellido : '—' %></span></div>
                         </div>

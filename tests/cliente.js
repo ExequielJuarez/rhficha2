@@ -44,10 +44,11 @@ class Cliente {
     }
     const res = await fetch(url, opts);
     this._guardarCookies(res);
-    const texto = await res.text();
+    const buffer = Buffer.from(await res.arrayBuffer());
+    const texto = buffer.toString("utf8");
     const m = texto.match(/window\.CSRF_TOKEN = "([a-f0-9]+)"/);
     if (m) this.csrf = m[1];
-    return { status: res.status, location: res.headers.get("location"), texto, headers: res.headers };
+    return { status: res.status, location: res.headers.get("location"), texto, buffer, headers: res.headers };
   }
 
   get(ruta, o) { return this.pedir("GET", ruta, o); }

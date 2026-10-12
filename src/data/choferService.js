@@ -1,5 +1,6 @@
 const db = require("../model/database/models");
 const { Op } = require("sequelize");
+const documentoService = require("./documentoService");
 
 const choferService = {
   getAll: async function (filtros = {}) {
@@ -60,7 +61,7 @@ const choferService = {
 
       const { count, rows } = await db.Chofer.findAndCountAll({
         where,
-        include: [includeLicencias, includeAsignaciones],
+        include: [includeLicencias, includeAsignaciones, { model: db.DocumentoAdjunto, as: "documentos", required: false, attributes: ["id_documento", "categoria", "nombre_original", "archivo"] }],
         order: [
           ["apellido", "ASC"],
           ["nombre", "ASC"],
@@ -131,6 +132,7 @@ const choferService = {
           fechaIngreso: body.fechaIngreso || null,
           turno: body.Turno || null,
           motivoBaja: estado === "Inactivo" ? body.motivoBaja || null : null,
+          tiene_carnet_oficial: body.tiene_carnet_oficial === "si",
           foto_documento: fotoDocumento,
           imagen,
         },
@@ -149,12 +151,29 @@ const choferService = {
         { transaction },
       );
 
+      await choferService.guardarDocumentos(newChofer.id_chofer, req, transaction);
+
       await transaction.commit();
       return newChofer;
     } catch (error) {
       await transaction.rollback();
       console.log(error);
       throw error;
+    }
+  },
+
+  // Guarda el DNI (varios archivos) y, si corresponde, el frente y dorso del carnet de la provincia
+  guardarDocumentos: async function (id_chofer, req, transaction) {
+    const files = req.files || {};
+    const idUsuario = req.session && req.session.usuarioLogueado ? req.session.usuarioLogueado.id : null;
+    if ((files.dni_archivos || []).length) {
+      await documentoService.guardar({ entidad: "chofer", id: id_chofer, categoria: "dni", files: files.dni_archivos, idUsuario, transaction });
+    }
+    if (req.body.tiene_carnet_oficial === "si") {
+      const carnet = [...(files.carnet_frente || []), ...(files.carnet_dorso || [])];
+      if (carnet.length) await documentoService.guardar({ entidad: "chofer", id: id_chofer, categoria: "carnet_provincia", files: carnet, idUsuario, transaction });
+    } else {
+      documentoService.descartar([...(files.carnet_frente || []), ...(files.carnet_dorso || [])]);
     }
   },
 

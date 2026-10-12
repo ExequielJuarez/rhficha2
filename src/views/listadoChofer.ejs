@@ -264,6 +264,8 @@
     turno: c.turno || '',
     estado: c.estado,
     foto_documento: c.foto_documento || null,
+    tiene_carnet_oficial: !!c.tiene_carnet_oficial,
+    documentos: (c.documentos || []).map(d => ({ id: d.id_documento, categoria: d.categoria, nombre: d.nombre_original || d.archivo })),
     imagen: c.imagen || null,
     motivoBaja: c.motivoBaja || '',
     licencia: c.licencias && c.licencias.length > 0 ? {
@@ -322,6 +324,7 @@
           <div style="display:flex;align-items:center;gap:6px;">
             <span class="badge ${v.cls}" style="font-size:9px;padding:2px 6px;">Lic. ${esc(c.licencia?.categoria || 'N/A')}</span>
             <span style="font-size:11px;color:${v.colorText};font-weight:600;">Venc: ${v.format}</span>
+            ${c.tiene_carnet_oficial ? '<span class="badge badge--info" style="font-size:9px;padding:2px 6px;margin-left:auto;">Carnet oficial</span>' : ''}
           </div>
         </li>`;
     }).join('');
@@ -339,6 +342,21 @@
         }
       });
     });
+  }
+
+  // Archivos del DNI (los nuevos + la foto única de versiones anteriores) y botones para verlos
+  function dniArchivos(c) {
+    const lista = (c.documentos || []).filter(d => d.categoria === 'dni').map(d => ({ url: '/Documentos/' + d.id, nombre: d.nombre }));
+    if (c.foto_documento) lista.unshift({ url: '/img/licencias/' + c.foto_documento, nombre: c.foto_documento });
+    return lista;
+  }
+  function botonesDocumentos(c) {
+    const estilo = 'background:#f1f5f9;border:1px solid #cbd5e1;border-radius:6px;padding:7px 14px;font-size:12px;font-weight:700;color:#2563eb;cursor:pointer;';
+    const boton = (url, nombre, rotulo) => `<button type="button" data-visor="${esc(url)}" data-nombre="${esc(nombre)}" style="${estilo}">${rotulo}</button>`;
+    const dni = dniArchivos(c).map((d, i) => boton(d.url, d.nombre, '📄 DNI ' + (i + 1)));
+    const carnet = (c.documentos || []).filter(d => d.categoria === 'carnet_provincia').map((d, i) => boton('/Documentos/' + d.id, d.nombre, '🪪 Carnet ' + (i + 1)));
+    const todos = dni.concat(carnet);
+    return todos.length ? todos.join('') : '<span style="font-size:11px;color:#94a3b8;padding:7px 0;">Sin documentos de DNI</span>';
   }
 
   /* ── RENDER DETALLE ── */
@@ -421,17 +439,25 @@
               <dd class="vehicle-profile__spec-value" style="font-weight:800;color:#2563eb;">${esc(c.licencia?.categoria || '—')}</dd>
             </div>
           </dl>
+          <dl class="vehicle-profile__spec-group">
+            <div class="vehicle-profile__spec-row">
+              <dt class="vehicle-profile__spec-label">Carnet oficial de la provincia</dt>
+              <dd class="vehicle-profile__spec-value"><span class="badge ${c.tiene_carnet_oficial ? 'badge--success' : 'badge--warning'}">${c.tiene_carnet_oficial ? 'Sí, tiene carnet' : 'No tiene'}</span></dd>
+            </div>
+            <div class="vehicle-profile__spec-row">
+              <dt class="vehicle-profile__spec-label">DNI cargado</dt>
+              <dd class="vehicle-profile__spec-value"><span class="badge ${dniArchivos(c).length >= 2 ? 'badge--success' : 'badge--danger'}">${dniArchivos(c).length >= 2 ? dniArchivos(c).length + ' archivos' : 'Incompleto (' + dniArchivos(c).length + ' de 2)'}</span></dd>
+            </div>
+          </dl>
         </div>
 
-        <div style="display:flex;gap:10px;margin-top:16px;flex-wrap:wrap;">
-          ${c.foto_documento
-            ? `<button onclick="abrirFoto('/img/licencias/${esc(c.foto_documento)}')" style="background:#f1f5f9;border:1px solid #cbd5e1;border-radius:6px;padding:7px 14px;font-size:12px;font-weight:700;color:#2563eb;cursor:pointer;">📄 Ver foto DNI</button>`
-            : `<span style="font-size:11px;color:#94a3b8;padding:7px 0;">Sin foto de DNI</span>`
-          }
+        <div style="display:flex;gap:10px;margin-top:16px;flex-wrap:wrap;align-items:center;">
+          ${botonesDocumentos(c)}
           ${c.licencia?.imagen
             ? `<button onclick="abrirFoto('/img/licencias/${esc(c.licencia.imagen)}')" style="background:#f1f5f9;border:1px solid #cbd5e1;border-radius:6px;padding:7px 14px;font-size:12px;font-weight:700;color:#2563eb;cursor:pointer;">🪪 Ver foto Licencia</button>`
             : `<span style="font-size:11px;color:#94a3b8;padding:7px 0;">Sin foto de Licencia</span>`
           }
+          <a href="/Choferes/${c.id_chofer}/editar#documentacion" style="font-size:12px;font-weight:700;color:#2563eb;text-decoration:none;">Gestionar documentación →</a>
         </div>
       </article>
 
@@ -485,6 +511,8 @@
         turno: c.turno || '',
         estado: c.estado,
         foto_documento: c.foto_documento || null,
+        tiene_carnet_oficial: !!c.tiene_carnet_oficial,
+        documentos: (c.documentos || []).map(d => ({ id: d.id_documento, categoria: d.categoria, nombre: d.nombre_original || d.archivo })),
         imagen: c.imagen || null,
         motivoBaja: c.motivoBaja || '',
         licencia: c.licencias && c.licencias.length > 0 ? {
@@ -535,5 +563,6 @@
   renderLista(todosLosChoferes);
 </script>
 
+<%- include('./partials/visor') %>
 </body>
 </html>

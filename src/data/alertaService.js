@@ -446,36 +446,15 @@ const alertaService = {
     });
   },
 
-  // Asignaciones que debían haber vuelto y siguen activas
+  // Las asignaciones ya no tienen fecha estimada de devolución: se marcan como devueltas a mano.
+  // Esta tarea solo limpia las alertas de "asignación vencida" que pudieran quedar de versiones anteriores.
   generarAlertasAsignaciones: function () {
     return serializar(async () => {
       try {
-        const activas = await db.AsignacionVehiculo.findAll({
-          where: { estado: "Activo", fecha_estimada_devolucion: { [Op.ne]: null } },
-          include: [{ association: "vehiculo" }, { association: "Chofer" }],
-        });
-
-        const deseadas = [];
-        for (const a of activas) {
-          const dias = diasHasta(a.fecha_estimada_devolucion);
-          if (dias === null || dias >= 0 || !a.vehiculo) continue;
-          const atraso = Math.abs(dias);
-          const chofer = a.Chofer ? `${a.Chofer.nombre} ${a.Chofer.apellido}` : "chofer desconocido";
-          deseadas.push({
-            clave: String(a.id_vehiculo),
-            tipo: "asignacion_vencida",
-            prioridad: atraso >= 7 ? "alta" : "media",
-            mensaje: `Asignación vencida hace ${atraso} días: ${a.vehiculo.patente} sigue con ${chofer}`,
-            entidad_tipo: "Vehiculo",
-            entidad_id: a.id_vehiculo,
-            entidad_nombre: `${a.vehiculo.marca} ${a.vehiculo.modelo} (${a.vehiculo.patente})`,
-          });
-        }
-
         const existentes = await db.Alerta.findAll({ where: { tipo: "asignacion_vencida", entidad_tipo: "Vehiculo" } });
-        await sincronizarGrupo(deseadas, existentes, (al) => String(al.entidad_id));
+        await sincronizarGrupo([], existentes, (al) => String(al.entidad_id));
       } catch (error) {
-        console.log("Error generando alertas de asignaciones:", error);
+        console.log("Error limpiando alertas de asignaciones:", error);
       }
     });
   },

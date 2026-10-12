@@ -208,6 +208,8 @@
           </div>
         </section>
 
+        <%- include('./partials/carnetChofer', { old, errors, carnetCargados: typeof carnetCargados !== 'undefined' ? carnetCargados : 0 }) %>
+
         <section class="form-section">
           <h3>Imágen de Perfil (Opcional al editar)</h3>
 
@@ -227,6 +229,10 @@
         </div>
 
       </form>
+
+      <% if (typeof gruposDocumentos !== 'undefined') { %>
+        <%- include('./partials/documentos', { entidad: 'chofer', idEntidad: chofer.id_chofer, gruposDocumentos, documentosLegado: typeof documentosLegado !== 'undefined' ? documentosLegado : [] }) %>
+      <% } %>
 
     </main>
 

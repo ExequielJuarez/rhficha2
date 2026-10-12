@@ -66,7 +66,7 @@
 
       <div class="page-header">
         <h2 class="page-title">Asignación de Vehículo</h2>
-        <p class="page-subtitle">Asociá un vehículo a un chofer y definí el período de uso autorizado.</p>
+        <p class="page-subtitle">Asociá un vehículo a un chofer. Cuando el vehículo vuelva, marcalo como devuelto desde "Asignaciones en Curso".</p>
       </div>
 
       <% if (typeof error !== 'undefined' && error) { %>
@@ -145,16 +145,12 @@
         </section>
 
         <section class="form-section">
-          <h3>2. Período de Uso</h3>
+          <h3>2. Inicio del Uso</h3>
           <div class="form-row">
             <div class="form-group">
               <label for="fecha-desde">Fecha de inicio <span class="req">*</span></label>
               <input type="date" id="fecha-desde" name="fecha_desde" required />
-            </div>
-            <div class="form-group">
-              <label for="fecha-hasta">Fecha de fin estimada <span class="req">*</span></label>
-              <input type="date" id="fecha-hasta" name="fecha_hasta" required />
-              <span id="duracion-hint" style="display:block; font-size:12px; margin-top:6px; font-weight:600;"></span>
+              <span style="display:block; font-size:12px; margin-top:6px; color:#64748b;">No lleva fecha de fin: cuando el vehículo vuelva, lo marcás como devuelto desde "Asignaciones en Curso".</span>
             </div>
           </div>
         </section>
@@ -209,9 +205,9 @@
                       <td class="data-table__td"><%= new Date(a.fecha_salida).toLocaleDateString('es-AR') %></td>
                       <td class="data-table__td"><%= a.destino_area || '—' %></td>
                       <td class="data-table__td">
-                        <form action="/Asignaciones/<%= a.id_asignacion %>/finalizar" method="POST" onsubmit="return confirm('¿Finalizar esta asignación?')">
+                        <form action="/Asignaciones/<%= a.id_asignacion %>/finalizar" method="POST" onsubmit="return confirm('¿Marcar este vehículo como devuelto?')">
                           <button type="submit" style="background: #fef2f2; color: #dc2626; border: 1px solid #fecaca; padding: 6px 12px; border-radius: 6px; font-size: 12px; font-weight: 700; cursor: pointer;">
-                            Terminar Uso
+                            ✓ Marcar como devuelto
                           </button>
                         </form>
                       </td>
@@ -297,33 +293,12 @@
         });
     }
 
-    /* Fechas */
+    /* Fecha de inicio */
     const fechaDesde = document.getElementById('fecha-desde');
-    const fechaHasta = document.getElementById('fecha-hasta');
-    const durHint    = document.getElementById('duracion-hint');
-
-    function calcDuracion() {
-      if (!fechaDesde || !fechaHasta || !fechaDesde.value || !fechaHasta.value) { if(durHint) durHint.textContent = ''; return; }
-      const diff = Math.round((new Date(fechaHasta.value) - new Date(fechaDesde.value)) / 86400000);
-      if (durHint) {
-          if (diff < 0) {
-            durHint.textContent = '⚠ La fecha de fin debe ser posterior a la de inicio.';
-            durHint.style.color = 'var(--color-red)';
-          } else {
-            durHint.textContent = `Tiempo asignado: ${diff} día${diff !== 1 ? 's' : ''}.`;
-            durHint.style.color = '#059669'; // Verde
-          }
-      }
-    }
-
-    if (fechaDesde && fechaHasta) {
-        fechaDesde.addEventListener('change', calcDuracion);
-        fechaHasta.addEventListener('change', calcDuracion);
-
+    if (fechaDesde) {
         const hoy = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().split('T')[0];
         fechaDesde.min   = hoy;
         fechaDesde.value = hoy;
-        fechaHasta.min   = hoy;
     }
 
     /* Envío y pre-selección */

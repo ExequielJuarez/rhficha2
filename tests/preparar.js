@@ -34,6 +34,7 @@ async function reiniciarBase(opciones = {}) {
   });
   await conexion.query(sql);
   await conexion.end();
+  if (opciones.demo) require("../scripts/documentos-demo").generarDocumentosDemo();
 }
 
 module.exports = { reiniciarBase };

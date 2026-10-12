@@ -67,6 +67,11 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: false,
       defaultValue: 'Activo'
     },
+    tiene_carnet_oficial: {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false
+    },
   }, {
     tableName: 'chofer',
     timestamps: true
@@ -76,6 +81,12 @@ module.exports = (sequelize, DataTypes) => {
     Chofer.hasMany(models.LicenciaChofer, {
       foreignKey: 'id_chofer',
       as: 'licencias'
+    });
+    Chofer.hasMany(models.DocumentoAdjunto, {
+      foreignKey: 'id_entidad',
+      constraints: false,
+      scope: { entidad: 'chofer' },
+      as: 'documentos'
     });
     Chofer.hasMany(models.AsignacionVehiculo, {
       foreignKey: 'id_chofer',

@@ -64,6 +64,33 @@ async function migrar(conexion) {
     await conexion.query("ALTER TABLE usuario MODIFY permisos VARCHAR(255) NULL DEFAULT NULL");
   }
 
+  // Mantenimientos: datos administrativos del historial (remito, factura, proveedor, pedido, expediente)
+  if (!(await existeColumna("mantenimiento", "nro_remito"))) {
+    await conexion.query(
+      "ALTER TABLE mantenimiento ADD COLUMN nro_remito VARCHAR(50) NULL, ADD COLUMN nro_factura VARCHAR(50) NULL, ADD COLUMN proveedor VARCHAR(150) NULL, ADD COLUMN nro_pedido VARCHAR(50) NULL, ADD COLUMN nro_expediente VARCHAR(50) NULL",
+    );
+  }
+
+  // Choferes: carnet oficial de la provincia (sí/no)
+  if (!(await existeColumna("chofer", "tiene_carnet_oficial"))) {
+    await conexion.query("ALTER TABLE chofer ADD COLUMN tiene_carnet_oficial TINYINT(1) NOT NULL DEFAULT 0");
+  }
+
+  // Documentación adjunta (PDF / fotos) de vehículos y choferes
+  await conexion.query(`CREATE TABLE IF NOT EXISTS documento_adjunto (
+    id_documento INT NOT NULL AUTO_INCREMENT,
+    entidad VARCHAR(20) NOT NULL,
+    id_entidad INT NOT NULL,
+    categoria VARCHAR(40) NOT NULL,
+    archivo VARCHAR(255) NOT NULL,
+    nombre_original VARCHAR(255) NULL,
+    id_usuario INT NULL,
+    createdAt DATETIME NULL,
+    updatedAt DATETIME NULL,
+    PRIMARY KEY (id_documento),
+    KEY idx_documento_entidad (entidad, id_entidad)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci`);
+
   // Mantenimientos: "Pendiente" pasó a llamarse "Programado"
   await conexion.query("UPDATE mantenimiento SET estado='Programado' WHERE estado='Pendiente'");
 }
