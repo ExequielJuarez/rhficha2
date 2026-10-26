@@ -46,6 +46,14 @@ Las contraseñas se pueden cambiar con `ADMIN_PASSWORD` / `USUARIO_PASSWORD` en 
 crea lo que falte sin tocar contraseñas existentes; `node scripts/crear-usuarios.js --resetear` las vuelve a dejar por defecto.
 Las pruebas (`npm test`) solo corren contra un MySQL local, para no tocar jamás una base remota.
 
+### Versión portable (sin instalar nada)
+
+`npm run portable` (con internet) arma **`dist/FichaTecnicaPortable.zip`**: una carpeta con Node.js, MariaDB y el sistema, igual que la del
+kiosko. Quien la reciba la descomprime en `C:\FichaTecnica` y hace doble clic en **`iniciar.bat`** (no necesita Node ni MySQL). Trae también
+`detener.bat` (copia de seguridad + apagado), `respaldo.bat`, `restaurar.bat`, `limpiar-datos.bat` y `LEEME.txt`. La base de datos
+queda en `datos\`, los documentos en `datos\archivos` y las copias en `respaldos\`. Usa el puerto 3000 (web) y 3307 (base). Si falla la descarga
+automática, bajá los .zip a mano a `portable/descargas/` (el aviso indica cuáles).
+
 **Arranque limpio:** el `.bat` no carga datos de ejemplo: los vehículos y choferes quedan vacíos (solo se cargan los usuarios base y los
 tipos de vehículo, que el alta necesita). Para vaciar una base que ya tenga datos: **`Limpiar-Datos.bat`** (pide confirmar escribiendo SI) o
 `npm run db:limpiar` (muestra el aviso; con `node scripts/limpiar-datos.js --confirmar` borra). Borra vehículos, choferes y todo lo asociado
