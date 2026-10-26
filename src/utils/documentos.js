@@ -29,6 +29,9 @@ const CATEGORIAS = {
 // Campos de formulario → categoría. Los de vehículo son "doc_<categoria>".
 const camposVehiculo = () => Object.keys(CATEGORIAS.vehiculo).map((c) => ({ name: `doc_${c}`, maxCount: 10 }));
 
+// Fotos de documentos que se guardan junto a las imágenes de cada módulo (cédula, título, seguro, licencia): aceptan también PDF
+const CAMPOS_FOTO_DOCUMENTO = ["foto_cedula", "foto_titulo", "foto_rto", "foto_licencia", "foto_documento"];
+
 const PERMISO_POR_ENTIDAD = { vehiculo: "Vehicles", chofer: "Choferes" };
 
 const esCampoDocumento = (campo) => /^(doc_|dni_archivos$|carnet_frente$|carnet_dorso$)/.test(campo);
@@ -54,7 +57,7 @@ const crearUploadMixto = ({ carpetaImagenes, prefijoImagen, campos }) => {
     storage,
     limits: { fileSize: 8 * 1024 * 1024, files: 40 },
     fileFilter: (req, file, cb) => {
-      const permitidas = esCampoDocumento(file.fieldname) ? EXT_DOCUMENTO : EXT_IMAGEN;
+      const permitidas = esCampoDocumento(file.fieldname) || CAMPOS_FOTO_DOCUMENTO.includes(file.fieldname) ? EXT_DOCUMENTO : EXT_IMAGEN;
       const ext = path.extname(file.originalname).toLowerCase();
       if (!permitidas.includes(ext)) {
         const error = new Error("Formato de archivo no permitido. Usá " + permitidas.join(", ") + ".");

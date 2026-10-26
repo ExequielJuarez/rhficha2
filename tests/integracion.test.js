@@ -1700,6 +1700,44 @@ describe("Documentación adjunta, carnet de la provincia e historial administrat
     return { nombre: "Doc", apellido: `Chofer${n}`, dni: `4${String(n).padStart(7, "0")}`, telefono: `38544${String(n).padStart(5, "0")}`, direccion: "Calle Falsa 123", fechaNacimiento: "1990-05-05", fechaIngreso: "2025-01-10", "activo-inactivo": "Activo", Turno: "Mañana", numero_licencia: `LIC-DOC-${String(n).padStart(4, "0")}`, categoria: "B", fecha_emision: "2024-01-01", fecha_vencimiento: "2030-01-01", ...extra };
   };
 
+  test("cédula, título, seguro y licencia aceptan también PDF (la foto de perfil sigue siendo solo imagen)", async () => {
+    const c = await admin();
+    const form = await c.get("/CargaVehiculo");
+    for (const campo of ["foto_cedula", "foto_titulo", "foto_rto"]) assert.match(form.texto, new RegExp(`name="${campo}" accept="\\.pdf,`));
+    assert.match((await c.get("/Choferes/Carga")).texto, /name="foto_licencia" accept="\.pdf,/);
+
+    // vehículo: cédula en PDF, título en foto, seguro en PDF
+    const datos = datosVehiculo();
+    let r = await c.pedir("POST", "/CargaVehiculo", { multipart: formulario(datos, [["foto_cedula", PDF("cedula.pdf")], ["foto_titulo", PNG("titulo.png")], ["foto_rto", PDF("seguro.pdf")]]) });
+    assert.equal(r.status, 302, r.texto.slice(0, 300));
+    const v = await db.Vehiculo.findOne({ where: { patente: datos.patente } });
+    assert.match(v.foto_cedula, /^vehiculo-\d+\.pdf$/);
+    assert.match(v.foto_titulo, /^vehiculo-\d+\.png$/);
+    assert.match(v.foto_rto, /^vehiculo-\d+\.pdf$/);
+    const ficha = await c.get(`/Vehicles/${v.id_vehiculo}`);
+    assert.match(ficha.texto, new RegExp(`abrirFotoVehiculo\\('/img/vehiculos/${v.foto_cedula}'\\)`));
+    const archivo = await c.get(`/img/vehiculos/${v.foto_cedula}`);
+    assert.equal(archivo.status, 200);
+    assert.equal(archivo.headers.get("content-type"), "application/pdf");
+    // una extensión peligrosa sigue rechazada en esos campos
+    r = await c.pedir("POST", "/CargaVehiculo", { multipart: formulario(datosVehiculo(), [["foto_cedula", new File(["<script>"], "x.html", { type: "text/html" })]]) });
+    assert.equal(r.status, 400);
+
+    // chofer: licencia en PDF; la foto de perfil (imagen) solo admite imágenes
+    const d = datosChofer();
+    r = await c.pedir("POST", "/Choferes/Carga", { multipart: formulario(d, [["dni_archivos", PNG("a.png")], ["dni_archivos", PNG("b.png")], ["foto_licencia", PDF("licencia.pdf")]]) });
+    assert.equal(r.status, 302, r.texto.slice(0, 300));
+    const ch = await db.Chofer.findOne({ where: { dni: d.dni }, include: [{ model: db.LicenciaChofer, as: "licencias" }] });
+    assert.match(ch.licencias[0].imagen, /^chofer-\d+\.pdf$/);
+    const d2 = datosChofer();
+    r = await c.pedir("POST", "/Choferes/Carga", { multipart: formulario(d2, [["dni_archivos", PNG("a.png")], ["dni_archivos", PNG("b.png")], ["imagen", PDF("perfil.pdf")]]) });
+    assert.equal(r.status, 400);
+    assert.match(r.texto, /Formato de archivo no permitido/);
+    assert.equal(await db.Chofer.count({ where: { dni: d2.dni } }), 0);
+    // el listado abre los PDF en otra pestaña
+    assert.match((await c.get("/Choferes")).texto, /\.pdf\$\/i\.test\(src\)/);
+  });
+
   test("chofer: el DNI exige 2 archivos y el carnet de la provincia exige frente y dorso si se marca que lo tiene", async () => {
     const c = await admin();
     const form = await c.get("/Choferes/Carga");

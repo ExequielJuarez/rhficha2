@@ -532,6 +532,7 @@
     });
 
     function abrirFotoVehiculo(src) {
+      if (/\.pdf$/i.test(src)) { window.open(src, '_blank', 'noopener'); return; } // PDF: se abre en otra pestaña
       document.getElementById('modal-vehiculo-img').src = src;
       modalVehiculo.style.display = 'flex';
     }

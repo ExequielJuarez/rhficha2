@@ -36,7 +36,8 @@ const crearUpload = (carpeta, prefijo, extensionesPermitidas) => {
   });
 };
 
-const uploadVehiculo = crearUpload("vehiculos", "vehiculo", EXTENSIONES_IMAGEN);
+// Cédula, título y seguro del vehículo: foto o PDF
+const uploadVehiculo = crearUpload("vehiculos", "vehiculo", EXTENSIONES_ADJUNTO);
 
 // Alta/edición con documentación adjunta (PDF o foto) además de las fotos habituales
 const DIR_IMG = path.join(__dirname, "../../public/img");

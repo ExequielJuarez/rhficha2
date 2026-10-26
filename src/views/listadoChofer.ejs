@@ -247,6 +247,7 @@
   });
 
   function abrirFoto(src) {
+    if (/\.pdf$/i.test(src)) { window.open(src, '_blank', 'noopener'); return; } // PDF: se abre en otra pestaña
     document.getElementById('foto-modal-img').src = src;
     modalOverlay.style.display = 'flex';
   }
@@ -378,11 +379,11 @@
          </form>`;
 
     const fotoDNIBtn = c.foto_documento
-      ? `<button onclick="abrirFoto('/img/licencias/${esc(c.foto_documento)}')" style="margin-top:6px;background:#f1f5f9;border:1px solid #cbd5e1;border-radius:6px;padding:5px 10px;font-size:11px;font-weight:700;color:#2563eb;cursor:pointer;">📄 Ver foto DNI</button>`
+      ? `<button onclick="abrirFoto('/img/licencias/${esc(c.foto_documento)}')" style="margin-top:6px;background:#f1f5f9;border:1px solid #cbd5e1;border-radius:6px;padding:5px 10px;font-size:11px;font-weight:700;color:#2563eb;cursor:pointer;">📄 Ver DNI</button>`
       : `<span style="font-size:11px;color:#94a3b8;">Sin foto</span>`;
 
     const fotoLicBtn = c.licencia?.imagen
-      ? `<button onclick="abrirFoto('/img/licencias/${esc(c.licencia.imagen)}')" style="margin-top:6px;background:#f1f5f9;border:1px solid #cbd5e1;border-radius:6px;padding:5px 10px;font-size:11px;font-weight:700;color:#2563eb;cursor:pointer;">🪪 Ver foto Licencia</button>`
+      ? `<button onclick="abrirFoto('/img/licencias/${esc(c.licencia.imagen)}')" style="margin-top:6px;background:#f1f5f9;border:1px solid #cbd5e1;border-radius:6px;padding:5px 10px;font-size:11px;font-weight:700;color:#2563eb;cursor:pointer;">🪪 Ver Licencia</button>`
       : `<span style="font-size:11px;color:#94a3b8;">Sin foto</span>`;
 
     const asigHTML = c.asignacion
@@ -454,7 +455,7 @@
         <div style="display:flex;gap:10px;margin-top:16px;flex-wrap:wrap;align-items:center;">
           ${botonesDocumentos(c)}
           ${c.licencia?.imagen
-            ? `<button onclick="abrirFoto('/img/licencias/${esc(c.licencia.imagen)}')" style="background:#f1f5f9;border:1px solid #cbd5e1;border-radius:6px;padding:7px 14px;font-size:12px;font-weight:700;color:#2563eb;cursor:pointer;">🪪 Ver foto Licencia</button>`
+            ? `<button onclick="abrirFoto('/img/licencias/${esc(c.licencia.imagen)}')" style="background:#f1f5f9;border:1px solid #cbd5e1;border-radius:6px;padding:7px 14px;font-size:12px;font-weight:700;color:#2563eb;cursor:pointer;">🪪 Ver Licencia</button>`
             : `<span style="font-size:11px;color:#94a3b8;padding:7px 0;">Sin foto de Licencia</span>`
           }
           <a href="/Choferes/${c.id_chofer}/editar#documentacion" style="font-size:12px;font-weight:700;color:#2563eb;text-decoration:none;">Gestionar documentación →</a>
