@@ -1,4 +1,9 @@
 @echo off
+rem --- Se ejecuta dentro de una ventana que NUNCA se cierra sola (cmd /k): asi siempre se puede leer cualquier mensaje o error
+if /i not "%~1"=="dentro" (
+  cmd /k ""%~f0" dentro"
+  exit /b
+)
 setlocal EnableExtensions
 title Ficha Tecnica de Vehiculos - NO CERRAR mientras se usa
 cd /d "%~dp0"
