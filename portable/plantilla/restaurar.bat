@@ -3,7 +3,7 @@ setlocal EnableExtensions
 cd /d "%~dp0"
 set "RAIZ=%~dp0"
 set "BIN=%RAIZ%mariadb\bin"
-set "PUERTO_DB=3307"
+set "PUERTO_DB=3308"
 title Restaurar copia de seguridad
 
 if "%~1"=="" (

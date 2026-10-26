@@ -51,7 +51,7 @@ Las pruebas (`npm test`) solo corren contra un MySQL local, para no tocar jamás
 `npm run portable` (con internet) arma **`dist/FichaTecnicaPortable.zip`**: una carpeta con Node.js, MariaDB y el sistema, igual que la del
 kiosko. Quien la reciba la descomprime en `C:\FichaTecnica` y hace doble clic en **`iniciar.bat`** (no necesita Node ni MySQL). Trae también
 `detener.bat` (copia de seguridad + apagado), `respaldo.bat`, `restaurar.bat`, `limpiar-datos.bat` y `LEEME.txt`. La base de datos
-queda en `datos\`, los documentos en `datos\archivos` y las copias en `respaldos\`. Usa el puerto 3000 (web) y 3307 (base). Si falla la descarga
+queda en `datos\`, los documentos en `datos\archivos` y las copias en `respaldos\`. Usa el puerto 3100 (web) y 3308 (base), distintos de los del kiosko para que puedan convivir en la misma PC. Si falla la descarga
 automática, bajá los .zip a mano a `portable/descargas/` (el aviso indica cuáles).
 
 **Arranque limpio:** el `.bat` no carga datos de ejemplo: los vehículos y choferes quedan vacíos (solo se cargan los usuarios base y los

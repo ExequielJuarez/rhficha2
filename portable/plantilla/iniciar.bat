@@ -2,12 +2,20 @@
 setlocal EnableExtensions
 title Ficha Tecnica de Vehiculos - NO CERRAR mientras se usa
 cd /d "%~dp0"
+echo.
+echo  Iniciando Ficha Tecnica de Vehiculos...
+echo  Carpeta: %~dp0
 set "RAIZ=%~dp0"
+echo %~dp0 | findstr /I "\\Temp\\" >nul && (
+  echo  [ERROR] Estas ejecutando el programa desde dentro del ZIP. Descomprimi primero la carpeta completa en C:\FichaTecnica.
+  pause
+  exit /b 1
+)
 set "NODE=%RAIZ%node\node.exe"
 set "BIN=%RAIZ%mariadb\bin"
 set "DATOS=%RAIZ%datos\mysql"
-set "PUERTO_DB=3307"
-set "PUERTO_WEB=3000"
+set "PUERTO_DB=3308"
+set "PUERTO_WEB=3100"
 
 if not exist "%NODE%" goto falta
 if not exist "%BIN%\mariadbd.exe" goto falta
@@ -15,9 +23,12 @@ if not exist "%BIN%\mariadbd.exe" goto falta
 rem --- Si el sistema ya esta abierto, solo abrimos el navegador
 netstat -ano | findstr ":%PUERTO_WEB% " | findstr "LISTENING" >nul 2>&1
 if not errorlevel 1 (
-  echo El sistema ya esta funcionando. Abriendo el navegador...
+  echo.
+  echo  Ya hay algo funcionando en el puerto %PUERTO_WEB%: probablemente este mismo sistema ya esta abierto.
+  echo  Abriendo el navegador en http://localhost:%PUERTO_WEB% ...
+  echo  Si no aparece la Ficha Tecnica, abri detener.bat y volve a probar.
   start "" "http://localhost:%PUERTO_WEB%"
-  timeout /t 3 >nul
+  pause
   exit /b 0
 )
 
@@ -80,6 +91,16 @@ echo.
 start "" cmd /c "timeout /t 4 /nobreak >nul & start http://localhost:%PUERTO_WEB%"
 
 "%NODE%" src\app.js
+set "ERROR_APP=%errorlevel%"
+if not "%ERROR_APP%"=="0" (
+  echo.
+  echo ============================================================
+  echo   EL SISTEMA SE CERRO CON UN ERROR ^(codigo %ERROR_APP%^)
+  echo   Lee el mensaje de arriba. Si dice "EADDRINUSE", otro programa usa el puerto %PUERTO_WEB%.
+  echo   Saca una foto o copia ese mensaje y enviaselo a quien te dio el sistema.
+  echo ============================================================
+  pause
+)
 
 rem --- Al terminar: copia de seguridad y apagado ordenado de la base
 echo.

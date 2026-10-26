@@ -23,7 +23,7 @@ USO DIARIO
 
 USAR DESDE OTRA PC O CELULAR
   - Deben estar conectados a la misma red que esta PC.
-  - En el navegador escriba la direccion que aparece en la ventana negra, por ejemplo  http://192.168.1.20:3000
+  - En el navegador escriba la direccion que aparece en la ventana negra, por ejemplo  http://192.168.1.20:3100
   - La PC debe estar encendida con el sistema abierto.
 
 COPIAS DE SEGURIDAD
@@ -39,6 +39,8 @@ PASAR EL SISTEMA A OTRA PC
   Cierre con detener.bat y copie la carpeta completa (o solo "datos", "respaldos" y "app\public\img" a una carpeta nueva).
 
 PROBLEMAS FRECUENTES
+  - La ventana negra se abre y se cierra sola / no pasa nada: ejecute iniciar.bat de nuevo; ahora la ventana queda abierta y muestra el
+    motivo. Verifique que descomprimio TODA la carpeta (no abrirlo desde dentro del ZIP) y que no hay otro sistema usando el puerto 3100.
   - "VCRUNTIME140.dll no se encuentra": instale "Microsoft Visual C++ Redistributable 2015-2022 (x64)" desde la web de Microsoft.
   - El navegador dice "no se puede conectar": espere unos segundos y actualice la pagina; si sigue igual, cierre todo con
     detener.bat y abra de nuevo.

@@ -3,7 +3,7 @@ setlocal EnableExtensions
 cd /d "%~dp0"
 set "RAIZ=%~dp0"
 set "BIN=%RAIZ%mariadb\bin"
-set "PUERTO_DB=3307"
+set "PUERTO_DB=3308"
 
 "%BIN%\mariadb-admin.exe" --protocol=tcp --host=127.0.0.1 --port=%PUERTO_DB% -uroot ping >nul 2>&1
 if errorlevel 1 (
