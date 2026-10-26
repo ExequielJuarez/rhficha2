@@ -2,7 +2,7 @@
 const { test, after } = require("node:test");
 const assert = require("node:assert/strict");
 
-require("dotenv").config({ quiet: true });
+require("./guardia");
 process.env.DB_NAME = "vehiculos_auto_test";
 process.env.NODE_ENV = "test";
 process.env.ADMIN_PASSWORD = "ClaveInicial123";

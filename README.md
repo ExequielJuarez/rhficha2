@@ -31,6 +31,21 @@ Archivos de `pruebasdb/`: `esquema.sql` (tablas + roles), `datos_demo.sql` (dato
 (los dos anteriores + recrear la base; se regenera con `npm run db:armar`). `datos_demo.sql` lo genera
 `python3 scripts/generar_datos_demo.py > pruebasdb/datos_demo.sql` (también escribe `documentos_demo.json`).
 
+### Windows: ejecutable `.bat`
+
+Con Node.js y MySQL instalados (por ejemplo XAMPP), alcanza con **hacer doble clic en `Iniciar-Ficha-Tecnica.bat`**. La primera vez
+instala las dependencias, crea el `.env` (MySQL local: usuario `root`, sin contraseña; si tu MySQL tiene contraseña, completá `DB_PASSWORD`),
+crea la base y las tablas, deja listos los dos usuarios base, abre el navegador y arranca el sistema en http://localhost:3000.
+
+| Usuario | Contraseña inicial | Qué ve |
+|---|---|---|
+| `admin` | `Ficha2026!` | **Todo**: incluye Reportes (gastos), Auditoría, Usuarios y Roles |
+| `usuario` | `Usuario2026!` | Solo lo operativo: Vehículos, Choferes, Asignaciones, Mantenimientos, Herramientas, Alertas y Siniestros. **No** ve Reportes, Auditoría, Usuarios ni Roles |
+
+Las contraseñas se pueden cambiar con `ADMIN_PASSWORD` / `USUARIO_PASSWORD` en el `.env` (antes de la primera ejecución). `npm run usuarios`
+crea lo que falte sin tocar contraseñas existentes; `node scripts/crear-usuarios.js --resetear` las vuelve a dejar por defecto.
+Las pruebas (`npm test`) solo corren contra un MySQL local, para no tocar jamás una base remota.
+
 ### Producción
 
 - `NODE_ENV=production` exige `SESSION_SECRET` y las variables `DB_*` (no hay credenciales en el código).

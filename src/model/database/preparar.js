@@ -149,4 +149,4 @@ async function prepararBaseDeDatos() {
   }
 }
 
-module.exports = { prepararBaseDeDatos };
+module.exports = { prepararBaseDeDatos, credenciales };

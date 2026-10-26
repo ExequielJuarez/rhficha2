@@ -1,4 +1,4 @@
-require("dotenv").config({ quiet: true });
+require("./guardia");
 // Prepara una base de datos de PRUEBA (vehiculos_test) a partir de pruebasdb/copiaseguridad.sql.
 // Nunca toca la base real: fuerza el nombre de la base antes de cargar la aplicación.
 const fs = require("fs");
