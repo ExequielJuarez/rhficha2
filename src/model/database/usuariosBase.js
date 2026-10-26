@@ -55,4 +55,27 @@ async function asegurarUsuarios({ adminPassword, usuarioPassword, resetear = fal
   }
 }
 
-module.exports = { asegurarUsuarios, ROL_USUARIO, PERMISOS_USUARIO };
+// Tipos de vehículo base (sin datos de ejemplo): el alta de vehículos los necesita y las reglas de licencia
+// por categoría se basan en estos nombres. Solo se cargan si la tabla está vacía; después se editan en Ajustes.
+const TIPOS_BASE = [
+  ["Camioneta", "km"],
+  ["Camión", "km"],
+  ["Maquinaria Pesada", "hs"],
+  ["Utilitario", "km"],
+  ["Auto", "km"],
+  ["Motocicleta", "km"],
+];
+
+async function asegurarTiposBase() {
+  const conexion = await mysql.createConnection(credenciales());
+  try {
+    const [[{ n }]] = await conexion.query("SELECT COUNT(*) n FROM tipo_vehiculo");
+    if (n > 0) return 0;
+    for (const [descripcion, unidad] of TIPOS_BASE) await conexion.query("INSERT INTO tipo_vehiculo (descripcion, unidad) VALUES (?, ?)", [descripcion, unidad]);
+    return TIPOS_BASE.length;
+  } finally {
+    await conexion.end();
+  }
+}
+
+module.exports = { asegurarUsuarios, asegurarTiposBase, ROL_USUARIO, PERMISOS_USUARIO, TIPOS_BASE };

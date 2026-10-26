@@ -8,7 +8,8 @@
     "db:armar": "node scripts/armar-copiaseguridad.js",
     "db:demo": "node scripts/cargar-demo.js",
     "test": "node --test --test-concurrency=1 tests/*.test.js",
-    "usuarios": "node scripts/crear-usuarios.js"
+    "usuarios": "node scripts/crear-usuarios.js",
+    "db:limpiar": "node scripts/limpiar-datos.js"
   },
   "keywords": [],
   "author": "",

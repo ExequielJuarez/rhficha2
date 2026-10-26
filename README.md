@@ -46,6 +46,12 @@ Las contraseñas se pueden cambiar con `ADMIN_PASSWORD` / `USUARIO_PASSWORD` en 
 crea lo que falte sin tocar contraseñas existentes; `node scripts/crear-usuarios.js --resetear` las vuelve a dejar por defecto.
 Las pruebas (`npm test`) solo corren contra un MySQL local, para no tocar jamás una base remota.
 
+**Arranque limpio:** el `.bat` no carga datos de ejemplo: los vehículos y choferes quedan vacíos (solo se cargan los usuarios base y los
+tipos de vehículo, que el alta necesita). Para vaciar una base que ya tenga datos: **`Limpiar-Datos.bat`** (pide confirmar escribiendo SI) o
+`npm run db:limpiar` (muestra el aviso; con `node scripts/limpiar-datos.js --confirmar` borra). Borra vehículos, choferes y todo lo asociado
+(asignaciones, mantenimientos, repuestos, herramientas, siniestros, documentos, alertas, auditoría) y conserva usuarios, roles y tipos de
+vehículo; con `--catalogos` también vacía distritos, sectores y operarios.
+
 ### Producción
 
 - `NODE_ENV=production` exige `SESSION_SECRET` y las variables `DB_*` (no hay credenciales en el código).
