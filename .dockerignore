@@ -1,0 +1,23 @@
+# Lo que NO se copia a la imagen (más rápida, más chica y sin secretos)
+node_modules
+npm-debug.log
+.git
+.gitignore
+.gitattributes
+.env
+.env.*
+!.env.example
+dist
+portable
+tests
+uploads
+respaldos
+*.bat
+*.md
+Dockerfile
+docker-compose*.yml
+.dockerignore
+# Fotos subidas durante el desarrollo (las de ejemplo sin marca de tiempo sí viajan)
+public/img/licencias/chofer-*
+public/img/vehiculos/vehiculo-*
+public/img/siniestros/siniestro-*

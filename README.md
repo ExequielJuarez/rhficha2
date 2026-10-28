@@ -60,6 +60,31 @@ tipos de vehículo, que el alta necesita). Para vaciar una base que ya tenga dat
 (asignaciones, mantenimientos, repuestos, herramientas, siniestros, documentos, alertas, auditoría) y conserva usuarios, roles y tipos de
 vehículo; con `--catalogos` también vacía distritos, sectores y operarios.
 
+### Docker (todo el sistema en contenedores)
+
+Requiere solo **Docker Desktop** (Windows/Mac) o Docker Engine (Linux). No hace falta Node ni MySQL.
+
+```
+docker compose up -d --build      # construye y arranca (primera vez: unos minutos) → http://localhost:3000
+docker compose logs -f app        # ver lo que hace el sistema
+docker compose down               # apaga; los datos SE CONSERVAN
+docker compose down -v            # apaga y BORRA todos los datos (¡cuidado!)
+```
+En Windows: doble clic en `Iniciar-Docker.bat` (y `Detener-Docker.bat`, `Respaldo-Docker.bat`, `Restaurar-Docker.bat`).
+
+- **Dos contenedores:** `app` (Node.js + Express, usuario sin privilegios, con chequeo de salud) y `db` (MariaDB 10.11, compatible con MySQL).
+  La base **no se publica hacia afuera**: solo la app la ve por una red interna. La app se conecta con un usuario limitado (`ficha`), no con root.
+- **Arranca sola:** crea las tablas, los usuarios `admin` / `usuario` y los tipos de vehículo (el sistema queda vacío). Es idempotente.
+- **Datos persistentes** en volúmenes: `db_data` (base), `uploads` (documentos adjuntos) y `img_vehiculos`, `img_licencias`, `img_siniestros` (fotos de formularios).
+- **Configuración opcional:** copiá `.env.docker.example` a `.env` para cambiar puerto, contraseñas o la clave de sesiones. Sin `.env` funciona con valores por
+  defecto (cambiá las contraseñas si lo vas a exponer). `FICHA_COOKIE_SECURE=true` solo si se publica detrás de HTTPS.
+- **Copia de seguridad de la base:** `Respaldo-Docker.bat` o
+  `docker compose exec -T db sh -c 'mariadb-dump -u$MARIADB_USER -p$MARIADB_PASSWORD --databases $MARIADB_DATABASE' > respaldo.sql`.
+  Restaurar: `docker compose exec -T db sh -c 'mariadb -uroot -p$MARIADB_ROOT_PASSWORD' < respaldo.sql`.
+- **Copia de los archivos subidos:**
+  `docker run --rm -v ficha-tecnica_uploads:/d -v "$PWD":/b alpine tar czf /b/archivos.tgz -C /d .` (y lo mismo con los volúmenes `img_*`).
+- **Otra PC de la red:** entrar por `http://IP-de-la-PC:3000` (abrir el puerto en el firewall de Windows).
+
 ### Producción
 
 - `NODE_ENV=production` exige `SESSION_SECRET` y las variables `DB_*` (no hay credenciales en el código).

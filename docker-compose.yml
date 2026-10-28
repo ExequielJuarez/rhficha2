@@ -1,0 +1,83 @@
+# ──────────────────────────────────────────────────────────────────────────────
+#  Ficha Técnica de Vehículos · todo el sistema en Docker
+#
+#    docker compose up -d --build        → construye y arranca (http://localhost:3000)
+#    docker compose logs -f app          → ver lo que hace el sistema
+#    docker compose down                 → apaga (los datos se conservan)
+#    docker compose down -v              → apaga y BORRA todos los datos (¡cuidado!)
+#
+#  Funciona sin configurar nada. Para cambiar claves o el puerto, copiá .env.docker.example a .env
+# ──────────────────────────────────────────────────────────────────────────────
+name: ficha-tecnica
+
+services:
+  # ── Base de datos (MariaDB 10.11, compatible con MySQL) ──
+  db:
+    image: ${FICHA_DB_IMAGE:-mariadb:10.11}
+    restart: unless-stopped
+    environment:
+      MARIADB_ROOT_PASSWORD: ${FICHA_ROOT_PASSWORD:-root_ficha_2026}
+      MARIADB_DATABASE: vehiculos_db
+      MARIADB_USER: ficha
+      MARIADB_PASSWORD: ${FICHA_DB_PASSWORD:-ficha_db_2026}
+      TZ: America/Argentina/Buenos_Aires
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_general_ci
+    volumes:
+      - db_data:/var/lib/mysql
+    networks:
+      - interna
+    # Sin "ports": la base NO se publica hacia afuera, solo la ve la aplicación por la red interna
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 20s
+
+  # ── Aplicación (Node.js + Express) ──
+  app:
+    build: .
+    image: ficha-tecnica:latest
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      TZ: America/Argentina/Buenos_Aires
+      DB_HOST: db
+      DB_PORT: 3306
+      DB_NAME: vehiculos_db
+      DB_USER: ficha
+      DB_PASSWORD: ${FICHA_DB_PASSWORD:-ficha_db_2026}
+      # Si no se define, el contenedor genera una al azar y la guarda en el volumen
+      SESSION_SECRET: ${FICHA_SESSION_SECRET:-}
+      ADMIN_PASSWORD: ${FICHA_ADMIN_PASSWORD:-Ficha2026!}
+      USUARIO_PASSWORD: ${FICHA_USUARIO_PASSWORD:-Usuario2026!}
+      # "false" para usar por http (red local); "true" cuando haya HTTPS delante (proxy con certificado)
+      COOKIE_SECURE: ${FICHA_COOKIE_SECURE:-false}
+      UPLOADS_DIR: /data/uploads
+    ports:
+      - "${FICHA_PUERTO:-3000}:3000"
+    volumes:
+      # Documentos adjuntos (PDF y fotos de comodatos, actas, DNI, carnets)
+      - uploads:/data/uploads
+      # Fotos de cédula, título, seguro y licencia que se suben desde los formularios
+      - img_vehiculos:/app/public/img/vehiculos
+      - img_licencias:/app/public/img/licencias
+      - img_siniestros:/app/public/img/siniestros
+    networks:
+      - interna
+
+networks:
+  interna:
+
+volumes:
+  db_data:
+  uploads:
+  img_vehiculos:
+  img_licencias:
+  img_siniestros:
