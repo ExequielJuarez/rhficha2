@@ -81,8 +81,9 @@ app.use(
     cookie: {
       httpOnly: true,
       sameSite: "lax",
-      // Cookie solo por HTTPS en producción; COOKIE_SECURE=false permite usar el sistema por http (red local / Docker sin proxy)
-      secure: process.env.COOKIE_SECURE ? process.env.COOKIE_SECURE === "true" : esProduccion,
+      // Cookie solo por HTTPS en producción. COOKIE_SECURE=false permite usar el sistema por http (red local);
+      // COOKIE_SECURE=auto la marca segura solo cuando la conexión llega por HTTPS (túnel + acceso local por http)
+      secure: process.env.COOKIE_SECURE === "auto" ? "auto" : process.env.COOKIE_SECURE ? process.env.COOKIE_SECURE === "true" : esProduccion,
       maxAge: 8 * 60 * 60 * 1000,
     },
   }),

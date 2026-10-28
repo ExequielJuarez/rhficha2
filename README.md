@@ -33,7 +33,7 @@ Archivos de `pruebasdb/`: `esquema.sql` (tablas + roles), `datos_demo.sql` (dato
 
 ### Usuarios base y arranque limpio
 
-`npm run usuarios` (y el arranque con Docker) prepara la base si no existe y deja listos dos usuarios; el sistema arranca **vacío** (sin datos de
+`npm run usuarios` (y `npm run compartir`) prepara la base si no existe y deja listos dos usuarios; el sistema arranca **vacío** (sin datos de
 ejemplo: los vehículos y choferes los carga cada uno) y solo se cargan los tipos de vehículo base, que el alta necesita.
 
 | Usuario | Contraseña inicial | Qué ve |
@@ -47,29 +47,10 @@ y `node scripts/limpiar-datos.js --confirmar` borra vehículos, choferes y todo 
 siniestros, documentos, alertas, auditoría), conservando usuarios, roles y tipos de vehículo (`--catalogos` también vacía distritos, sectores y operarios).
 Las pruebas (`npm test`) solo corren contra un MySQL local, para no tocar jamás una base remota.
 
-### Docker (todo el sistema en contenedores)
+### Compartir el sistema desde tu PC (para que otras personas lo prueben)
 
-Requiere solo **Docker Desktop** (Windows/Mac) o Docker Engine (Linux). No hace falta Node ni MySQL.
-
-```
-docker compose up -d --build      # construye y arranca (primera vez: unos minutos) → http://localhost:3000
-docker compose logs -f app        # ver lo que hace el sistema
-docker compose down               # apaga; los datos SE CONSERVAN
-docker compose down -v            # apaga y BORRA todos los datos (¡cuidado!)
-```
-
-- **Dos contenedores:** `app` (Node.js + Express, usuario sin privilegios, con chequeo de salud) y `db` (MariaDB 10.11, compatible con MySQL).
-  La base **no se publica hacia afuera**: solo la app la ve por una red interna. La app se conecta con un usuario limitado (`ficha`), no con root.
-- **Arranca sola:** crea las tablas, los usuarios `admin` / `usuario` y los tipos de vehículo (el sistema queda vacío). Es idempotente.
-- **Datos persistentes** en volúmenes: `db_data` (base), `uploads` (documentos adjuntos) y `img_vehiculos`, `img_licencias`, `img_siniestros` (fotos de formularios).
-- **Configuración opcional:** copiá `.env.docker.example` a `.env` para cambiar puerto, contraseñas o la clave de sesiones. Sin `.env` funciona con valores por
-  defecto (cambiá las contraseñas si lo vas a exponer). `FICHA_COOKIE_SECURE=true` solo si se publica detrás de HTTPS.
-- **Copia de seguridad de la base:**
-  `docker compose exec -T db sh -c 'mariadb-dump -u$MARIADB_USER -p$MARIADB_PASSWORD --databases $MARIADB_DATABASE' > respaldo.sql`.
-  Restaurar: `docker compose exec -T db sh -c 'mariadb -uroot -p$MARIADB_ROOT_PASSWORD' < respaldo.sql`.
-- **Copia de los archivos subidos:**
-  `docker run --rm -v ficha-tecnica_uploads:/d -v "$PWD":/b alpine tar czf /b/archivos.tgz -C /d .` (y lo mismo con los volúmenes `img_*`).
-- **Otra PC de la red:** entrar por `http://IP-de-la-PC:3000` (abrir el puerto en el firewall de Windows).
+`npm run compartir` arranca el sistema en tu PC y, con un túnel gratuito de Cloudflare, genera un link `https://...trycloudflare.com` para pasar a
+otras personas. La base de datos y los archivos subidos quedan en tu PC. Ver la guía completa en **[COMPARTIR.md](COMPARTIR.md)**.
 
 ### Producción
 

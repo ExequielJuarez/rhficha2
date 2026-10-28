@@ -8,3 +8,7 @@ public/img/vehiculos/vehiculo-*
 public/img/siniestros/siniestro-*
 
 uploads/
+
+# Modo compartir (npm run compartir)
+.sesion-secreto
+herramientas/
