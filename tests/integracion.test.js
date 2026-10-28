@@ -1738,6 +1738,20 @@ describe("Documentación adjunta, carnet de la provincia e historial administrat
     assert.match((await c.get("/Choferes")).texto, /\.pdf\$\/i\.test\(src\)/);
   });
 
+  test("las cajas de subida de archivos cargan el script que hace clickeable toda la caja", async () => {
+    const c = await admin();
+    for (const ruta of ["/CargaVehiculo", "/Choferes/Carga", "/Choferes/1/editar"]) {
+      const r = await c.get(ruta);
+      assert.equal(r.status, 200, ruta);
+      assert.match(r.texto, /<script src="\/js\/subidas\.js"><\/script>/, `${ruta} carga subidas.js`);
+      assert.match(r.texto, /class="upload-box"/, `${ruta} tiene cajas de subida`);
+    }
+    const js = await c.get("/js/subidas.js");
+    assert.equal(js.status, 200);
+    assert.match(js.texto, /\.upload-box/);
+    assert.match(js.texto, /input\.click\(\)/);
+  });
+
   test("chofer: el DNI exige 2 archivos y el carnet de la provincia exige frente y dorso si se marca que lo tiene", async () => {
     const c = await admin();
     const form = await c.get("/Choferes/Carga");
