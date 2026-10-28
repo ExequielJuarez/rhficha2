@@ -31,34 +31,21 @@ Archivos de `pruebasdb/`: `esquema.sql` (tablas + roles), `datos_demo.sql` (dato
 (los dos anteriores + recrear la base; se regenera con `npm run db:armar`). `datos_demo.sql` lo genera
 `python3 scripts/generar_datos_demo.py > pruebasdb/datos_demo.sql` (también escribe `documentos_demo.json`).
 
-### Windows: ejecutable `.bat`
+### Usuarios base y arranque limpio
 
-Con Node.js y MySQL instalados (por ejemplo XAMPP), alcanza con **hacer doble clic en `Iniciar-Ficha-Tecnica.bat`**. La primera vez
-instala las dependencias, crea el `.env` (MySQL local: usuario `root`, sin contraseña; si tu MySQL tiene contraseña, completá `DB_PASSWORD`),
-crea la base y las tablas, deja listos los dos usuarios base, abre el navegador y arranca el sistema en http://localhost:3000.
+`npm run usuarios` (y el arranque con Docker) prepara la base si no existe y deja listos dos usuarios; el sistema arranca **vacío** (sin datos de
+ejemplo: los vehículos y choferes los carga cada uno) y solo se cargan los tipos de vehículo base, que el alta necesita.
 
 | Usuario | Contraseña inicial | Qué ve |
 |---|---|---|
 | `admin` | `Ficha2026!` | **Todo**: incluye Reportes (gastos), Auditoría, Usuarios y Roles |
 | `usuario` | `Usuario2026!` | Solo lo operativo: Vehículos, Choferes, Asignaciones, Mantenimientos, Herramientas, Alertas y Siniestros. **No** ve Reportes, Auditoría, Usuarios ni Roles |
 
-Las contraseñas se pueden cambiar con `ADMIN_PASSWORD` / `USUARIO_PASSWORD` en el `.env` (antes de la primera ejecución). `npm run usuarios`
-crea lo que falte sin tocar contraseñas existentes; `node scripts/crear-usuarios.js --resetear` las vuelve a dejar por defecto.
+Las contraseñas se pueden cambiar con `ADMIN_PASSWORD` / `USUARIO_PASSWORD` (antes de la primera ejecución). El script no pisa contraseñas existentes;
+`node scripts/crear-usuarios.js --resetear` las vuelve a dejar por defecto. Para vaciar una base que ya tenga datos: `npm run db:limpiar` muestra el aviso
+y `node scripts/limpiar-datos.js --confirmar` borra vehículos, choferes y todo lo asociado (asignaciones, mantenimientos, repuestos, herramientas,
+siniestros, documentos, alertas, auditoría), conservando usuarios, roles y tipos de vehículo (`--catalogos` también vacía distritos, sectores y operarios).
 Las pruebas (`npm test`) solo corren contra un MySQL local, para no tocar jamás una base remota.
-
-### Versión portable (sin instalar nada)
-
-`npm run portable` (con internet) arma **`dist/FichaTecnicaPortable.zip`**: una carpeta con Node.js, MariaDB y el sistema, igual que la del
-kiosko. Quien la reciba la descomprime en `C:\FichaTecnica` y hace doble clic en **`iniciar.bat`** (no necesita Node ni MySQL). Trae también
-`detener.bat` (copia de seguridad + apagado), `respaldo.bat`, `restaurar.bat`, `limpiar-datos.bat` y `LEEME.txt`. La base de datos
-queda en `datos\`, los documentos en `datos\archivos` y las copias en `respaldos\`. Usa el puerto 3100 (web) y 3308 (base), distintos de los del kiosko para que puedan convivir en la misma PC. Si falla la descarga
-automática, bajá los .zip a mano a `portable/descargas/` (el aviso indica cuáles).
-
-**Arranque limpio:** el `.bat` no carga datos de ejemplo: los vehículos y choferes quedan vacíos (solo se cargan los usuarios base y los
-tipos de vehículo, que el alta necesita). Para vaciar una base que ya tenga datos: **`Limpiar-Datos.bat`** (pide confirmar escribiendo SI) o
-`npm run db:limpiar` (muestra el aviso; con `node scripts/limpiar-datos.js --confirmar` borra). Borra vehículos, choferes y todo lo asociado
-(asignaciones, mantenimientos, repuestos, herramientas, siniestros, documentos, alertas, auditoría) y conserva usuarios, roles y tipos de
-vehículo; con `--catalogos` también vacía distritos, sectores y operarios.
 
 ### Docker (todo el sistema en contenedores)
 
@@ -70,7 +57,6 @@ docker compose logs -f app        # ver lo que hace el sistema
 docker compose down               # apaga; los datos SE CONSERVAN
 docker compose down -v            # apaga y BORRA todos los datos (¡cuidado!)
 ```
-En Windows: doble clic en `Iniciar-Docker.bat` (y `Detener-Docker.bat`, `Respaldo-Docker.bat`, `Restaurar-Docker.bat`).
 
 - **Dos contenedores:** `app` (Node.js + Express, usuario sin privilegios, con chequeo de salud) y `db` (MariaDB 10.11, compatible con MySQL).
   La base **no se publica hacia afuera**: solo la app la ve por una red interna. La app se conecta con un usuario limitado (`ficha`), no con root.
@@ -78,7 +64,7 @@ En Windows: doble clic en `Iniciar-Docker.bat` (y `Detener-Docker.bat`, `Respald
 - **Datos persistentes** en volúmenes: `db_data` (base), `uploads` (documentos adjuntos) y `img_vehiculos`, `img_licencias`, `img_siniestros` (fotos de formularios).
 - **Configuración opcional:** copiá `.env.docker.example` a `.env` para cambiar puerto, contraseñas o la clave de sesiones. Sin `.env` funciona con valores por
   defecto (cambiá las contraseñas si lo vas a exponer). `FICHA_COOKIE_SECURE=true` solo si se publica detrás de HTTPS.
-- **Copia de seguridad de la base:** `Respaldo-Docker.bat` o
+- **Copia de seguridad de la base:**
   `docker compose exec -T db sh -c 'mariadb-dump -u$MARIADB_USER -p$MARIADB_PASSWORD --databases $MARIADB_DATABASE' > respaldo.sql`.
   Restaurar: `docker compose exec -T db sh -c 'mariadb -uroot -p$MARIADB_ROOT_PASSWORD' < respaldo.sql`.
 - **Copia de los archivos subidos:**

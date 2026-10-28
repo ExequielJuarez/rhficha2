@@ -8,7 +8,3 @@ public/img/vehiculos/vehiculo-*
 public/img/siniestros/siniestro-*
 
 uploads/
-
-# Paquete portable (se genera con npm run portable)
-dist/
-portable/descargas/

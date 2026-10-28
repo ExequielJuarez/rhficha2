@@ -10,7 +10,6 @@
     "test": "node --test --test-concurrency=1 tests/*.test.js",
     "usuarios": "node scripts/crear-usuarios.js",
     "db:limpiar": "node scripts/limpiar-datos.js",
-    "portable": "node portable/armar.js",
     "docker:up": "docker compose up -d --build",
     "docker:down": "docker compose down",
     "docker:logs": "docker compose logs -f app"

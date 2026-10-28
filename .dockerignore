@@ -8,11 +8,9 @@ npm-debug.log
 .env.*
 !.env.example
 dist
-portable
 tests
 uploads
 respaldos
-*.bat
 *.md
 Dockerfile
 docker-compose*.yml
